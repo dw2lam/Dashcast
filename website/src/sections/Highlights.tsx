@@ -71,12 +71,8 @@ function HighlightSection({ h }: { h: Highlight }) {
   );
 }
 
-export function Highlights() {
-  return (
-    <div className="highlights">
-      {HIGHLIGHTS.map((h) => (
-        <HighlightSection key={h.id} h={h} />
-      ))}
-    </div>
-  );
+/** One full-bleed photo section from highlight-data, by id. */
+export function Feature({ id }: { id: string }) {
+  const h = HIGHLIGHTS.find((x) => x.id === id);
+  return h ? <HighlightSection h={h} /> : null;
 }

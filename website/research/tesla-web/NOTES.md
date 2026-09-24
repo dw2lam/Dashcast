@@ -189,3 +189,55 @@ Scraped values are listed as-is. `DESIGN.md` has the distilled system.
   | Text 500 | 49.8 | 70.4 | 19.0 | — |
 
   Text 500 runs about 7% wider per glyph than Display 500.
+
+## Round 3: tesla.com today (re-measured 2026-09-24, 1600×879, Claude-in-Chrome, JS only)
+
+### Nav (home page)
+- `header.tds-site-header` sits inside `.tds-site-header-wrapper`, which has **`background: #fff`**. That wrapper sits inside a **`section` with `position: sticky; top: 0`**.
+- The result: a solid white 56px bar that is **always visible**. It doesn't hide on scroll and has no shadow. At scrollY 1500 the header is still at top 0.
+- The hero starts **below** it (y = 56).
+- **Links:** Vehicles · Energy · Charging · Semi · Discover · Shop, in #171a20 at 14px/500. Three icon buttons on the right; the wordmark is 152×24 in #171a20.
+- **Model pages differ:** on /modely the header is transparent over the hero and not sticky. David asked for the home-page behaviour.
+
+### Home-page rhythm
+White page, 48px side margins everywhere below the hero.
+1. **Hero carousel:** full-bleed, 1600×643 (viewport minus header and banners). White 48/56 title, 20/28 subtitle, blue + white 160–200×40 CTAs.
+2. **Split card** (FSD):
+   - #f4f4f4, **8px radius**, 1504×508.
+   - Text panel on the left, padding 48: 40/48 title, 34/44 stats with labels, then dark `#171a20` and white buttons.
+   - Video on the right, 902×508, radius `0 8 8 0`.
+3. **Card carousel** (vehicles):
+   - 48px top padding; cards 1024×580, 8px radius, 24px gap; the next card peeks in.
+   - Overlay 40px from the bottom-left: 48/56 white title, 20/28 subtitle, two 160×40 buttons (blue, white).
+   - Controls: a 40×40 arrow at 75% white, 4px radius, 48px from the edge; 12px dots with 8px gaps, 24px below.
+4. **Two tall cards** (Offers and Inventory): each 740×800, #f4f4f4, 8px radius, 24px gap. Copy at the top-left with padding 32/24/32/48: 34/44 title, 20/28 grey subtitle, a white tertiary button. Image below.
+5. **Charging map:** 48/56 title, 20/28 subtitle, dark primary and #f4f4f4 tertiary buttons.
+6. Another card carousel (Solar).
+
+### Model Y page rhythm
+- Full-bleed hero, then mostly **white** sections, one more full-bleed band ("Explore Model Y" with badges), then the black specs and "Design Yours".
+- **"Meet Model Y":**
+  - centred 48/56 title, 28/36 subtitle, 20/28 grey line
+  - **feature-card carousel** of 430×500 cards (`tds-card-root`, 8px radius, overflow hidden) on a native horizontally scrolling track (`tds-carousel-items`, `overflow: auto`)
+  - 34px white card titles 24px in from the bottom-left, and a round white "+" on each card
+  - 40×40 prev/next controls on #f0f0f0, 4px radius, at the section edges
+- **"Everything You Want":** a left-aligned 48/56 heading with a 20/28 grey paragraph, then a text-only **three-column grid** of 34/44 titles over 20/28 grey copy.
+
+### Support FAQ (en_my/support/faq)
+- **Structure:** `ul.tcl-accordion__controls` (padding 8 24 32) → `li.tcl-accordion__item` (flex column, **24px bottom padding, no dividers**) → `button.tcl-accordion__control`.
+- **ARIA:** `aria-expanded` plus `aria-controls` pointing at `div.tcl-accordion__panel` (with `aria-hidden`).
+- **Question row:**
+  - a **30×30 right-pointing chevron to the left** of a 14/20 question in #393c41
+  - when open, the chevron turns `rotate(90deg)` (transform 0.5s) with stroke-width 2, and the question turns #171a20
+- **Panel:**
+  - closed: `max-height: 0; overflow: hidden; transition: margin .5s, max-block-size .5s`
+  - open: 8px top margin and `max-height: none`, so the height itself snaps
+  - answer text 14/20 #393c41
+- **Behaviour:** several items can be open at once.
+- **Headings and width:** section heading 28/36 medium (page titles 34/44 or 40/48); content column 774px.
+
+### Compare (/compare)
+- 40/48 title "Compare Models", a sticky left rail of 14/20 medium grey category links (220px), and model columns 400px wide with 24px gaps.
+- Column header: 28/36 model name, 17/28 grey trim name, 40px CTA.
+- Each property is a block: a 20/28 medium heading spanning the row, then values per column at 24/28 medium ink with a 14/20 grey note. "-" marks "not applicable".
+- 104px between blocks and no hairlines.

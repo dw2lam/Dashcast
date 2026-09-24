@@ -1,9 +1,9 @@
-/* Full-viewport hero, tesla.com model-page layout: title block at the top, specs along the bottom. */
+/* Full-viewport hero under the white nav (tesla.com home today): title block at the top, specs along the bottom. */
 .hero {
   position: relative;
-  height: 100vh;
-  height: 100svh;
-  min-height: 600px;
+  height: calc(100vh - var(--nav-h));
+  height: calc(100svh - var(--nav-h));
+  min-height: 560px;
   overflow: hidden;
   background: var(--c-black);
   color: var(--c-white);
@@ -41,7 +41,7 @@
 .hero__content {
   position: relative;
   z-index: 1;
-  padding: calc(var(--nav-h) + var(--s-6)) var(--gutter) 0;
+  padding: var(--s-6) var(--gutter) 0;
   text-align: center;
   pointer-events: none;
 }
@@ -96,7 +96,7 @@
 
 @media (max-width: 599px) {
   .hero__content {
-    padding-top: calc(var(--nav-h) + var(--s-4));
+    padding-top: var(--s-4);
   }
 
   .hero__stats {

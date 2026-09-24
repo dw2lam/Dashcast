@@ -9,44 +9,16 @@ const LINKS = [
   { id: 'app', label: 'App' },
   { id: 'connect', label: 'Connect' },
   { id: 'tech', label: 'Tech' },
+  { id: 'faq', label: 'FAQ' },
   { id: 'download', label: 'Download' },
 ];
 
 export function Nav() {
-  const [overHero, setOverHero] = useState(true);
-  const [hidden, setHidden] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
   const hovering = useRef(false);
-
-  useEffect(() => {
-    let lastY = window.scrollY;
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const y = window.scrollY;
-      const hero = document.getElementById('top');
-      const heroEnd = hero ? hero.offsetTop + hero.offsetHeight - 56 : window.innerHeight;
-      setOverHero(y < heroEnd);
-      if (y < heroEnd) setHidden(false);
-      else if (y > lastY + 6) setHidden(true);
-      else if (y < lastY - 6) setHidden(false);
-      lastY = y;
-    };
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
 
   useEffect(() => {
     const seen = new Map<string, boolean>();
@@ -97,9 +69,9 @@ export function Nav() {
   }, []);
 
   const restPill = useCallback(() => {
-    const el = active && !overHero ? listRef.current?.querySelector<HTMLElement>(`[data-id="${active}"]`) : null;
+    const el = active ? listRef.current?.querySelector<HTMLElement>(`[data-id="${active}"]`) : null;
     placePill(el || null);
-  }, [active, overHero, placePill]);
+  }, [active, placePill]);
 
   useEffect(() => {
     if (!hovering.current) restPill();
@@ -116,14 +88,9 @@ export function Nav() {
     };
   }, [menuOpen]);
 
-  const theme = overHero && !menuOpen ? 'dark' : 'light';
-
   return (
     <>
-      <header
-        className={`nav${hidden && !menuOpen ? ' nav--hidden' : ''}${overHero ? '' : ' nav--stuck'}`}
-        data-theme={theme}
-      >
+      <header className="nav">
         <a className="nav__brand" href="#top" aria-label="Dashcast, back to top">
           <Wordmark />
         </a>
@@ -142,7 +109,7 @@ export function Nav() {
             {LINKS.map((l) => (
               <li key={l.id}>
                 <a
-                  className={`nav__item${active === l.id && !overHero ? ' is-active' : ''}`}
+                  className={`nav__item${active === l.id ? ' is-active' : ''}`}
                   href={`#${l.id}`}
                   data-id={l.id}
                   onPointerEnter={(e) => {

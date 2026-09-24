@@ -3,7 +3,7 @@ import { Photo } from '../ui/Photo';
 import { Mark } from '../ui/Wordmark';
 import { useLatestRelease } from '../hooks/useLatestRelease';
 import { gsap, ease, prefersReducedMotion } from '../lib/motion';
-import { REPO_URL } from '../lib/links';
+import { DONATE_URL, REPO_URL } from '../lib/links';
 import './Download.css';
 
 export function Download() {
@@ -36,22 +36,20 @@ export function Download() {
         <h2 id="download-title" className="t-section download__title">
           Dashcast for Mac
         </h2>
-        <p className="t-sub download__sub">Free and open source.</p>
+        <p className="t-sub download__sub">Free and open source. Donations keep the updates coming.</p>
         <div className="btn-row download__ctas">
           {ready ? (
-            <>
-              <a className="btn btn--primary" href={release.href}>
-                Download for Mac
-              </a>
-              <a className="btn btn--light" href={REPO_URL} target="_blank" rel="noreferrer">
-                View on GitHub
-              </a>
-            </>
+            <a className="btn btn--primary" href={release.href}>
+              Download for Mac
+            </a>
           ) : (
-            <a className="btn btn--primary" href={REPO_URL} target="_blank" rel="noreferrer">
+            <a className="btn btn--primary" href={REPO_URL} target="_blank" rel="noopener noreferrer">
               Get it on GitHub
             </a>
           )}
+          <a className="btn btn--light" href={DONATE_URL} target="_blank" rel="noopener">
+            Donate
+          </a>
         </div>
         <p className="download__meta">
           {ready ? (

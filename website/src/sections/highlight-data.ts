@@ -16,39 +16,6 @@ export type Highlight = {
 
 export const HIGHLIGHTS: Highlight[] = [
   {
-    id: 'extend',
-    media: 'extend',
-    alt: 'A Tesla Model 3 centre screen glowing in a dark cabin',
-    title: 'Extend or mirror',
-    sub: 'A second display for your Mac, right on the dash.',
-    stats: [
-      { value: 'Extend', label: 'HiDPI, sized to the car' },
-      { value: 'Mirror', label: 'The screen you’re on' },
-    ],
-    theme: 'dark',
-    scrim: 'heavy',
-    tone: '#292827',
-    position: '50% 50%',
-    portraitPosition: '50% 50%',
-  },
-  {
-    id: 'touch',
-    media: 'touch',
-    alt: 'A hand tapping a Tesla Model 3 touchscreen',
-    title: 'Touch is the mouse',
-    sub: 'The car’s screen drives your Mac. Keyboard included.',
-    stats: [
-      { value: 'Tap', label: 'Click' },
-      { value: 'Hold', label: 'Right-click' },
-      { value: 'Two fingers', label: 'Scroll' },
-    ],
-    theme: 'dark',
-    scrim: 'strong',
-    tone: '#3f5153',
-    position: '50% 50%',
-    portraitPosition: '50% 50%',
-  },
-  {
     id: 'sound',
     media: 'sound',
     alt: 'A dark Tesla Model 3 cabin',

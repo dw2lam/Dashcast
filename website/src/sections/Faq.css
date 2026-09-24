@@ -1,0 +1,93 @@
+/* tesla.com support accordion (.tcl-accordion): 30px chevron left of a 14/20 question, no dividers,
+   24px between items (here: 40px targets + 4px), chevron turns 90° and the question goes ink when open. */
+.faq {
+  padding: var(--section-pad) var(--gutter);
+  background: var(--c-white);
+}
+
+.faq__wrap {
+  max-width: 774px;
+  margin: 0 auto;
+}
+
+.faq__heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-80);
+  line-height: var(--lh-80);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
+}
+
+.faq__list {
+  margin-top: var(--s-4);
+  margin-left: -6px;
+}
+
+.faq__item + .faq__item {
+  margin-top: var(--s-half);
+}
+
+.faq__q {
+  font: inherit;
+}
+
+.faq__btn {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 40px;
+  padding: 5px 0;
+  text-align: left;
+  color: var(--c-text);
+  border-radius: var(--radius);
+}
+
+.faq__chevron {
+  flex: 0 0 auto;
+  stroke-width: 1.5;
+  transition:
+    transform var(--dur-short) var(--ease),
+    stroke-width var(--dur-ui);
+}
+
+.faq__title {
+  padding-top: 5px;
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  transition: color var(--dur-ui);
+}
+
+.faq__btn:hover .faq__title,
+.is-open .faq__title {
+  color: var(--c-ink);
+}
+
+.is-open .faq__chevron {
+  transform: rotate(90deg);
+  stroke-width: 2;
+}
+
+.faq__panel {
+  overflow: hidden;
+  transition: height var(--dur-short) var(--ease);
+}
+
+.faq__a {
+  padding: var(--s-half) 0 var(--s-2) 30px;
+  max-width: 44em;
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-text);
+}
+
+@media (max-width: 599px) {
+  .faq__heading {
+    font-size: var(--fs-70);
+    line-height: var(--lh-70);
+  }
+
+  .faq__list {
+    margin-top: var(--s-3);
+  }
+}

@@ -73,21 +73,12 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
 | `--grad-brand` | #0872fe → #15abfe → #18d3fd | the Dashcast mark, diagram signals, the IP |
 
 ## Components
-- **Nav** (`sections/Nav`):
-  - Layout:
-    - fixed, 56px tall
-    - three columns: wordmark / centred anchor links / GitHub icon
-    - items are 32px tall, 16px padding, 4px radius, 14/500
-  - Hover:
-    - one **backdrop pill** slides between items: `transform` and `width` over .5s `--ease-slide`, with a separate .5s opacity fade
-    - when you aren't hovering, the pill rests on the active section's link
-  - Colour:
-    - transparent with white text over the hero
-    - past the hero, solid white with ink text (Tesla's `--stuck` state)
-  - Scrolling:
-    - scrolling down past the hero hides it (`translateY(-100%)`, .5s `--ease`)
-    - scrolling up brings it back
-  - Below 900px, the links collapse into a "Menu" pill. It opens a full-height white sheet with 56px rows, fading in over .5s `--ease`, and the rows follow with a 24px rise.
+- **Nav** (`sections/Nav`): tesla.com's home header as it is today.
+  - A solid white 56px bar, `position: sticky; top: 0`, always visible, with no shadow and no hide-on-scroll. The hero starts below it.
+  - Three columns: wordmark / centred anchor links (Demo · App · Connect · Tech · FAQ · Download) / GitHub icon.
+  - Items are 32px tall (40px on touch screens and under 1280px), with 16px padding, a 4px radius, 14/500 ink.
+  - One **backdrop pill** (5% black) slides between items: `transform` and `width` over 0.5s `--ease-slide`, with a separate 0.5s opacity fade. When you aren't hovering, it rests on the active section's link.
+  - Below 900px the links collapse into a "Menu" pill. It opens a full-height white sheet with 56px rows, fading in over 0.5s `--ease`.
 - **Buttons** (`.btn`):
   - 40px tall, 200px minimum width, padding 4px 24px, 3px transparent border, radius 4px, 14/500
   - background/colour transition .33s
@@ -108,6 +99,43 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
   - a white pill with a soft shadow slides under the active tab (.5s `--ease-slide`)
   - arrow keys move between tabs
 - **Scrims:** Tesla's section start/end gradients, black to transparent from the top and the bottom, so white type stays legible on any photo.
+
+## White sections (round 3)
+These follow tesla.com today: full-bleed media sections are broken up by white sections built from Tesla's current patterns.
+- **Split card** (`sections/Extend`, `.split*`): Tesla's FSD block.
+  - A #f4f4f4 card with an 8px radius and 48px page margins.
+  - Copy on the left (40/48 title, 20/28 grey subtitle, 34/44 stat values with 14/20 labels, a dark button); photo flush right.
+  - Below 900px the photo stacks on top.
+- **Card carousel** (`sections/Touch`, `.cards*`, `.card*`): "Meet Model Y".
+  - A centred 48/56 header over 430×500 cards (8px radius) on a native `overflow-x: auto` track with scroll-snap. The track is padded to the 1200 content column, so the next card peeks in.
+  - 40×40 prev/next controls on #f4f4f4 sit at the section edges, only on hover-capable screens of 900px and up. Each is hidden at its end.
+  - Cards are dark with animated gesture art (`Gestures.tsx`, `.g-*`). Animation runs only while the section is on screen and never under reduced motion.
+- **Compare** (`sections/Compare`, `.cmp*`): Tesla's /compare pattern.
+  - A label column plus "Dashcast" and "Others" columns; 20/28 values with 14/20 notes; a blue check or grey dash.
+  - Hairline rows so the six rows scan quickly.
+  - Below 600px the label sits above both values and the two value columns stay side by side.
+- **FAQ** (`sections/Faq`, `.faq*`): Tesla's support accordion.
+  - A 774px column with a 40/48 heading; a 30px chevron left of each 14/20 question; no dividers.
+  - The chevron rotates 90° and the question turns ink when open, with several open at once.
+  - Buttons carry `aria-expanded` and `aria-controls` → `role="region"` panels, and closed panels are `hidden`.
+  - The height animates over 0.5s with `--ease`; reduced motion snaps it. Buttons are at least 40px tall (Tesla's are 20px plus 24px spacing) for touch.
+
+## Section order (round 3)
+| # | Section | Surface |
+|---|---|---|
+| 1 | Hero | full-bleed |
+| 2 | Extend split card | white |
+| 3 | Demo | black |
+| 4 | Touch card carousel | white |
+| 5 | Sound | full-bleed |
+| 6 | App showcase | white |
+| 7 | MCU2/MCU3 | full-bleed |
+| 8 | Connect | white |
+| 9 | Under the hood | black |
+| 10 | Compare | white |
+| 11 | FAQ | white |
+| 12 | Download (Donate is the secondary CTA) | full-bleed |
+| 13 | Footer | white |
 
 ## Layout
 - **Breakpoints (TDS):**
@@ -144,4 +172,4 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
 ## Reserved global class names (site lead)
 The site's CSS is global. The other agents should prefix their classes; the demo agent's `.seg` already collided once.
 
-`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
+`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.cards*`, `.card*`, `.g`, `.g-*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`

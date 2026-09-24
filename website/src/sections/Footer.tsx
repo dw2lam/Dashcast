@@ -1,4 +1,4 @@
-import { AUTHOR_URL, REPO_URL } from '../lib/links';
+import { AUTHOR_URL, DONATE_URL, REPO_URL } from '../lib/links';
 import './Footer.css';
 
 export function Footer({ safetyLine = true }: { safetyLine?: boolean }) {
@@ -15,6 +15,11 @@ export function Footer({ safetyLine = true }: { safetyLine?: boolean }) {
         </li>
         <li>
           <a href={AUTHOR_URL}>davidlam.online</a>
+        </li>
+        <li>
+          <a href={DONATE_URL} target="_blank" rel="noopener">
+            Donate
+          </a>
         </li>
       </ul>
       <p className="footer__fine">
