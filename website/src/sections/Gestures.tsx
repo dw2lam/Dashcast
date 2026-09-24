@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import './Gestures.css';
 
 /**
  * Animated gesture art for the Touch cards: a small car screen with the Mac on it and fingertips

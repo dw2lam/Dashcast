@@ -332,6 +332,55 @@ button {
   margin-top: var(--s-half);
 }
 
+/* ---------- natively scrolling card track (hooks/useCarousel) ---------- */
+.snap-track {
+  display: grid;
+  grid-auto-flow: column;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.snap-track::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-track > * {
+  scroll-snap-align: start;
+}
+
+.snap-track:focus {
+  outline: none;
+}
+
+.snap-track:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: -2px;
+}
+
+.snap-track.is-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mouse/trackpad: free native scrolling, then useCarousel settles on a card in the direction of travel.
+   Touch screens keep the browser's own mandatory snap (flick velocity picks the card). */
+@media (hover: hover) and (pointer: fine) {
+  .snap-track {
+    cursor: -webkit-grab;
+    cursor: grab;
+    scroll-snap-type: none;
+  }
+
+  .snap-track.is-dragging {
+    cursor: -webkit-grabbing;
+    cursor: grabbing;
+  }
+}
+
 /* ---------- responsive photo (ui/Photo) ---------- */
 .photo {
   position: absolute;

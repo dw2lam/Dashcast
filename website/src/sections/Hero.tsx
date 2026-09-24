@@ -46,7 +46,7 @@ export function Hero() {
   return (
     <section id="top" className="hero on-dark" ref={root} aria-label="Dashcast">
       <div className="hero__media">
-        <CabinScreen autoplay />
+        <CabinScreen autoplay cues={false} />
       </div>
       <div className="hero__scrim hero__scrim--top" aria-hidden="true" />
       <div className="hero__scrim hero__scrim--bottom" aria-hidden="true" />

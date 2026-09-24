@@ -163,6 +163,7 @@ Reddit returned 403 and was not used.
 ## How the composite works
 
 - **Panel element:** the live screen is one 1920×1200 element (`src/demo/tesla`). Its background is the photo's **own screen, perspective-rectified** (`screen-ui.webp`), so the car render, status strip and dock are real pixels.
+- **No UI pixels in the base photo:** the shipped cabin images have the screen area plus 6 photo px of bezel (the lit UI's lens/JPEG halo) replaced with dark glass, a Coons patch of the bezel's own colour sampled 18 panel px outside, feathered over 4 px (`tools/prep_hero.py`, `blackout`). The real UI reaches the page only through the rectified panel, so an anti-aliasing seam at the panel edge can only show dark glass. This fixed a visible light hairline around the frame (seen on a Retina Mac).
 - **Live parts on top:**
   - the browser card
   - the Theater band
@@ -181,7 +182,14 @@ Reddit returned 403 and was not used.
 - **Chrome gotcha:** `will-change: transform` on the desktop windows under the panel's `matrix3d` drops their rounded clip and shadow at small raster scales, so the windows don't use it.
 - **Straight-on view:** the four corners are interpolated to a flat, bezelled rect.
 
-**Alignment, checked headless (`harness/align.mjs` + `align.py`):**
+**Seam, checked headless (`harness/seam.mjs` + `seam.py`):** the panel is painted black, and a ring ±2 device px across its rounded edge is compared with the bezel 4–8 px outside. Hero and section framing, 1512/1920/3840/390 wide, DPR 1/2/3, plus mid Cabin↔Screen morph and mid Theater grow (30 renders).
+
+| | Ring max luminance | Bezel max |
+|---|---|---|
+| Before (photo still had its UI) | 94–190 | 29–108 |
+| After | 26–29 at rest (≤ bezel everywhere); 65–67 mid-morph (bezel 66–68) | 28–31 |
+
+**Alignment, checked headless (`harness/align.mjs` + `align.py`; measured on the original lit photo, before the blackout):**
 - **Method:** the photo's own lit edges are compared with the composited panel painted solid, sub-pixel, on 9 profiles per side.
 - **Results:**
 

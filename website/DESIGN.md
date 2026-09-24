@@ -102,11 +102,11 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
 
 ## White sections (round 3)
 These follow tesla.com today: full-bleed media sections are broken up by white sections built from Tesla's current patterns.
-- **Split card** (`sections/Extend`, `.split*`): Tesla's FSD block.
+- **Split card** (`sections/Features`, `.split*`, in the `.srow` highlights row): Tesla's FSD block.
   - A #f4f4f4 card with an 8px radius and 48px page margins.
   - Copy on the left (40/48 title, 20/28 grey subtitle, 34/44 stat values with 14/20 labels, a dark button); photo flush right.
   - Below 900px the photo stacks on top.
-- **Card carousel** (`sections/Touch`, `.cards*`, `.card*`): "Meet Model Y".
+- **Card carousel** (`sections/Touch`, `.cards*`, `.card*`, gestures only): "Meet Model Y".
   - A centred 48/56 header over 430×500 cards (8px radius) on a native `overflow-x: auto` track with scroll-snap. The track is padded to the 1200 content column, so the next card peeks in.
   - 40×40 prev/next controls on #f4f4f4 sit at the section edges, only on hover-capable screens of 900px and up. Each is hidden at its end.
   - Cards are dark with animated gesture art (`Gestures.tsx`, `.g-*`). Animation runs only while the section is on screen and never under reduced motion.
@@ -124,9 +124,9 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
 | # | Section | Surface | Notes |
 |---|---|---|---|
 | 1 | Hero | full-bleed (the demo's cabin composite) | |
-| 2 | Extend | white, grey split card | |
+| 2 | Highlights row | white | grey split cards Extend or mirror · Sound through the car · Built for MCU2 and MCU3, ~88% wide with the next peeking, arrows and dots |
 | 3 | Demo | black | |
-| 4 | Made for the car | white feature-card carousel | Sound · MCU2 and MCU3 · Tap · Drag · Two fingers · Hold · Keyboard |
+| 4 | Touch is the mouse | white feature-card carousel | Tap · Drag · Two fingers · Hold · Keyboard |
 | 5 | Your office, anywhere | graphite | our own animated line drawing plus three steps |
 | 6 | The Mac app showcase | white | |
 | 7 | Band: "Nothing to install in the car." | full-bleed | MCU interior photo |
@@ -136,20 +136,20 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
 | 11 | FAQ | white | |
 | 12 | Closing | full-bleed | Download plus the footer on one photo (Teslas at a Supercharger at night) |
 
-There are never more than two white sections in a row. Sound and MCU are now feature cards, not full-bleed sections.
+There are never more than two white sections in a row. Sound and MCU live in the section-2 highlights row as split cards, next to Extend.
 
-## Carousel input (Made for the car)
-The track is a native `overflow-x: auto` scroller. The JS never blocks vertical page scroll or the browser's own gestures.
+## Carousel input (`hooks/useCarousel.ts`, shared by the highlights row and the gesture carousel)
+The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css). The JS never blocks vertical page scroll or the browser's own gestures.
 - **Trackpad and shift+wheel:** native.
   - Shift+wheel is converted to horizontal scroll only when the OS hasn't already done that.
-  - On mouse/trackpad screens CSS snap is off. Once a gesture stops (160ms with no scroll events), Touch.tsx settles on a card in the direction of travel. Any intentional swipe (24px or more) pages to the next card.
+  - On mouse/trackpad screens CSS snap is off. Once a gesture stops (160ms with no scroll events), the hook settles on a card in the direction of travel. Any intentional swipe (24px or more) pages to the next card. It does nothing if the browser has already snapped to a card.
 - **Mouse drag:**
   - Pointer events with grab/grabbing cursors. Pointer capture starts after 5px of movement, so plain clicks still reach their targets.
   - Velocity-projected momentum, then a glide to the nearest card with `--ease-mktg`.
   - No text selection while dragging, and the click that ends a drag is swallowed.
 - **Touch:** native, with CSS `scroll-snap-type: x mandatory` on coarse pointers, so the browser's flick velocity picks the card.
 - **Keyboard:** the focusable track handles ←/→ (one card), Home and End.
-- **Buttons and ARIA:** prev/next buttons carry `aria-controls` and are disabled at the ends. The wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of 7".
+- **Buttons and ARIA:** prev/next buttons carry `aria-controls` and are disabled at the ends. The highlights row also has 40px dot buttons (`aria-current`). Each wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of N". Links and buttons inside cards are never turned into drags.
 
 ## In-page navigation (`lib/navigate.ts`)
 - **Interception:** every same-page `#anchor` click goes through `goTo(id)`: nav links, the Menu sheet (after it closes), the hero CTAs and in-copy links.
@@ -199,4 +199,4 @@ The track is a native `overflow-x: auto` scroller. The JS never blocks vertical 
 ## Reserved global class names (site lead)
 The site's CSS is global. The other agents should prefix their classes; the demo agent's `.seg` already collided once.
 
-`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.cards*`, `.card*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
+`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.srow*`, `.snap-track`, `.cards*`, `.card*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`

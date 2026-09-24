@@ -452,7 +452,9 @@ export class DemoScreen {
     const fps = TIERS[this.opts.tier].fps;
     const now = this.tl && !this.manual ? this.tl.time() : performance.now() / 1000;
     const frame = Math.floor(now * fps);
-    if (!force && frame === this.frame) return;
+    // 30 fps is quantised; 60 fps just follows the display (a 60 Hz car panel), which avoids
+    // doubled frames when rAF jitters across a 1/60 s boundary.
+    if (!force && fps < 60 && frame === this.frame) return;
     this.frame = frame;
     const d = this.desk;
     d.cursor.style.transform = `translate(${s.cx}px, ${s.cy}px)`;

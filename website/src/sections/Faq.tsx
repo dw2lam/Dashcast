@@ -39,9 +39,8 @@ function Chevron() {
   );
 }
 
-function Item({ q, a }: { q: string; a: string }) {
+function Item({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   const id = useId().replace(/:/g, '');
-  const [open, setOpen] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const first = useRef(true);
 
@@ -78,7 +77,7 @@ function Item({ q, a }: { q: string; a: string }) {
   return (
     <li className={`faq__item${open ? ' is-open' : ''}`}>
       <h3 className="faq__q">
-        <button type="button" id={`q-${id}`} className="faq__btn" aria-expanded={open} aria-controls={`a-${id}`} onClick={() => setOpen((o) => !o)}>
+        <button type="button" id={`q-${id}`} className="faq__btn" aria-expanded={open} aria-controls={`a-${id}`} onClick={onToggle}>
           <Chevron />
           <span className="faq__title">{q}</span>
         </button>
@@ -93,17 +92,30 @@ function Item({ q, a }: { q: string; a: string }) {
 /** tesla.com support FAQ accordion: chevron left of the question, no dividers, several answers open at once. */
 export function Faq() {
   const root = useRef<HTMLElement>(null);
+  const [open, setOpen] = useState<boolean[]>(() => FAQS.map(() => false));
+  const allOpen = open.every(Boolean);
   useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
 
   return (
     <section id="faq" className="faq section" ref={root} aria-labelledby="faq-title">
       <div className="faq__wrap">
-        <h2 id="faq-title" className="faq__heading" data-reveal="small">
-          Frequently Asked Questions
-        </h2>
+        <div className="faq__head" data-reveal="small">
+          <h2 id="faq-title" className="faq__heading">
+            Frequently Asked Questions
+          </h2>
+          <button type="button" className="faq__all" onClick={() => setOpen(FAQS.map(() => !allOpen))}>
+            {allOpen ? 'Hide All' : 'Show All'}
+          </button>
+        </div>
         <ul className="faq__list" data-reveal="small" data-reveal-delay="0.1">
-          {FAQS.map((f) => (
-            <Item key={f.q} q={f.q} a={f.a} />
+          {FAQS.map((f, i) => (
+            <Item
+              key={f.q}
+              q={f.q}
+              a={f.a}
+              open={open[i]}
+              onToggle={() => setOpen((o) => o.map((v, j) => (j === i ? !v : v)))}
+            />
           ))}
         </ul>
       </div>

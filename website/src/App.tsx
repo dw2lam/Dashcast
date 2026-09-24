@@ -1,6 +1,6 @@
 import { Nav } from './sections/Nav';
 import { Hero } from './sections/Hero';
-import { Extend } from './sections/Extend';
+import { Features } from './sections/Features';
 import { Touch } from './sections/Touch';
 import { Band } from './sections/Band';
 import { Office } from './sections/Office';
@@ -20,7 +20,7 @@ export default function App() {
       <Nav />
       <main>
         <Hero />
-        <Extend />
+        <Features />
         <DemoSection />
         <Touch />
         <Office />

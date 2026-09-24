@@ -2,7 +2,11 @@
    (the CSS is global). Chromium 79 floor: grid gap only, no aspect-ratio, no inset, no :is(). */
 
 .sc {
+  /* Section spacing like the rest of the page: --section-pad from the previous section to the title,
+     split between this outer padding and the pin's own top padding (which also clears the nav while pinned). */
+  padding-top: calc(var(--section-pad) - var(--sc-pin-pad));
   background: var(--c-white);
+  --sc-pin-pad: var(--s-6);
 }
 
 .sc__pin {
@@ -13,7 +17,7 @@
   height: calc(100vh - var(--nav-h));
   height: calc(100svh - var(--nav-h));
   min-height: 584px;
-  padding-top: var(--s-3);
+  padding-top: var(--sc-pin-pad);
   padding-bottom: var(--s-4);
   background: var(--c-white);
 }
@@ -330,8 +334,12 @@
 }
 
 @media (max-width: 599px) {
+  .sc {
+    --sc-pin-pad: var(--s-4);
+  }
+
   .sc__pin {
-    padding-top: var(--s-2);
+    padding-top: var(--sc-pin-pad);
     padding-bottom: var(--s-3);
   }
 

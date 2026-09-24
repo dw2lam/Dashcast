@@ -21,3 +21,11 @@ export function ArrowIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+export function ChevronIcon({ dir, size = 24 }: { dir: 'left' | 'right'; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d={dir === 'left' ? 'M14.5 6l-6 6 6 6' : 'M9.5 6l6 6-6 6'} />
+    </svg>
+  );
+}

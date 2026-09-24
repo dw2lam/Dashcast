@@ -54,12 +54,12 @@ export function DemoSection() {
   const [view, setView] = useState<View>('cabin');
   const [display, setDisplay] = useState<DisplayMode>('extend');
   const [tier, setTier] = useState<TierId>('mcu2');
-  const [stats, setStats] = useState(true);
+  const [stats, setStats] = useState(false);
   const [cue, setCue] = useState<Cue>('connect');
   const { host, handle } = useDemo({
     display: 'extend',
     tier: 'mcu2',
-    stats: true,
+    stats: false,
     autoplay: true,
     interactive: true,
     framing: 'section',
@@ -156,7 +156,8 @@ export function DemoSection() {
         </div>
       </div>
       <p className="dm-demo-note">
-        For use while parked, charging, or by a passenger. The stats overlay shows numbers from a local test on a Mac, not from a car.
+        For use while parked, charging, or by a passenger.
+        {stats && ' The stats overlay shows numbers from a local test on a Mac, not from a car.'}
       </p>
     </section>
   );

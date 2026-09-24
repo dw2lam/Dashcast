@@ -5,22 +5,65 @@
   background: var(--c-white);
 }
 
+/* One centred column; the heading row spans it (title left, Show All right) so the block reads centred. */
 .faq__wrap {
-  max-width: 774px;
+  max-width: 680px;
   margin: 0 auto;
 }
 
+.faq__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--s-3);
+}
+
+/* .tds-text--h2 on tesla.com's accordion: 28/36, 500. */
 .faq__heading {
   font-family: var(--font-display);
-  font-size: var(--fs-80);
-  line-height: var(--lh-80);
-  font-weight: var(--fw-display);
+  font-size: var(--fs-70);
+  line-height: var(--lh-70);
+  font-weight: var(--fw-medium);
   letter-spacing: var(--ls-display);
   color: var(--c-ink);
 }
 
+/* .tcl-accordion__action-show: caption 12/18 in the low-contrast grey. */
+.faq__all {
+  flex: 0 0 auto;
+  margin-left: var(--s-2);
+  font-size: var(--fs-20);
+  line-height: var(--lh-20);
+  font-weight: var(--fw-regular);
+  color: var(--c-text-low);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(92, 94, 98, 0.4);
+  transition: color var(--dur-ui), text-decoration-color var(--dur-ui);
+}
+
+.faq__all:hover {
+  color: var(--c-ink);
+  text-decoration-color: currentColor;
+}
+
+@media (pointer: coarse) {
+  .faq__all {
+    position: relative;
+  }
+
+  .faq__all::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -8px;
+    right: -8px;
+    height: 44px;
+    margin-top: -22px;
+  }
+}
+
 .faq__list {
-  margin-top: var(--s-4);
   margin-left: -6px;
 }
 
@@ -55,6 +98,7 @@
   padding-top: 5px;
   font-size: var(--fs-30);
   line-height: var(--lh-30);
+  font-weight: var(--fw-regular);
   transition: color var(--dur-ui);
 }
 
@@ -83,11 +127,7 @@
 
 @media (max-width: 599px) {
   .faq__heading {
-    font-size: var(--fs-70);
-    line-height: var(--lh-70);
-  }
-
-  .faq__list {
-    margin-top: var(--s-3);
+    font-size: var(--fs-60);
+    line-height: var(--lh-60);
   }
 }
