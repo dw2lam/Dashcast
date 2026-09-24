@@ -1,0 +1,28 @@
+{
+  "name": "dashcast-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dashcast in-car web client (served by the Mac at /)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit -p .",
+    "gen-bench": "node scripts/gen-bench.mjs",
+    "mock": "node dev/mock-server.mjs",
+    "mock:jpeg": "node dev/mock-server.mjs --jpeg",
+    "dev": "node build.mjs && node dev/mock-server.mjs",
+    "mock:webrtc": "node dev/mock-server.mjs --webrtc",
+    "mock:hevc": "node dev/mock-server.mjs --hevc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "ws": "^8.21.3"
+  },
+  "optionalDependencies": {
+    "@roamhq/wrtc": "^0.10.0"
+  }
+}

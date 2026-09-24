@@ -1,0 +1,2 @@
+VARIANT: DARK. Background: deep midnight navy #050B1A fading to near-black blue #02050D at the edges, with the blue->cyan glass ribbons glowing softly from within (luminous but NOT neon, no bloom halos). Overall mood: night drive, calm, deep.
+OUTPUT PATH: website/shots-raw/wallpaper/gen-dark-1.png

@@ -1,0 +1,2 @@
+CONCEPT — "Cast arcs": a compact near-square glass pane at the upper left (the Mac) and a wide landscape glass pane (car display, about 2.2:1) at the lower right, overlapping slightly with visible glass refraction where they overlap. Between them, two or three concentric wireless-signal arcs (like a Wi-Fi/AirPlay wave, thick and rounded, glowing blue→cyan) radiating from the small pane toward the wide pane. Minimal, bold, symmetric-feeling balance. The wide pane glows softly cyan.
+OUTPUT PATH: Design/icon/concepts/d1b.png

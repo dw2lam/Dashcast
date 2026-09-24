@@ -1,0 +1,17 @@
+OVERRIDE OF THE DEFAULT BOARD LAYOUT: this task is NOT a brand board. Custom layout requested: ONE single macOS app icon artwork, one image, nothing else. Apply the skill's logo standards (reduction, symbolic meaning, scalability, restraint) but output only the icon.
+
+PRODUCT: "Dashcast", a lightweight native SwiftUI Mac utility that wirelessly extends or mirrors a MacBook's display onto a car's wide center touchscreen. Feeling: calm, precise, friendly, premium, Apple-grade.
+
+ICON STYLE: LIGHT / WHITE GLASS. A bright, airy frosted-glass tile carrying ONE crisp coloured mark, in the spirit of Apple's macOS icons for Freeform, Preview, Photos, Notes (modern macOS 26 era). Clean, minimal, flat-ish vector forms with a soft glass sheen: gentle top-left light, soft diffuse drop shadows under raised layers, subtle translucency where layers overlap, a faint frosted texture at most. Colours crisp and saturated but matte.
+ABSOLUTELY NOT: glowing, neon, bloom, light rays, lens flare, dark backgrounds, photographic/3D-render gloss, chrome, reflections, sci-fi.
+
+PALETTE: tile background white #FFFFFF at the top to cool mist #EEF2F7 at the bottom (very subtle). Mark: crisp electric blue #0A6CFF to cyan #22C3F3 gradient. Optional dark neutral graphite #1C2330 used sparingly for a thin frame/bezel. Soft neutral cool-grey shadows. No other hues.
+
+HARD RULES:
+- NO text, NO letters, NO numbers, NO logos, NO Tesla "T", NO brand marks, NO steering wheel, NO car silhouette, NO AirPlay triangle.
+- Must read at 16x16 and 32x32 px: 2-3 bold shapes max, strong silhouette, strong contrast between the coloured mark and the white tile. No hairline details carrying meaning.
+- AVOID THE FOLDER TRAP: do NOT place a small pane sitting on/behind the top-left edge of a wider pane (that silhouette reads as a Finder folder with a tab at small sizes).
+- COMPOSITION FOR POST-PROCESSING: the artwork is FULL-BLEED: the light tile background fills the ENTIRE square canvas edge to edge (no rounded tile corners, no outer margin, no outer drop shadow, no device frame). It will be masked to Apple's squircle later, so keep all meaningful content inside the central ~74% of the canvas.
+- Square 1:1, 1024x1024 (or the largest square size available). The PNG must be fully OPAQUE: paint the light tile background everywhere; no transparency, no alpha cut-out.
+
+DELIVERY: Use your image generation tool to create exactly ONE image. Then copy the generated PNG file (from ~/.codex/generated_images/...) to the OUTPUT PATH below using `cp`. Do not create any other files. Finish by printing the output path.

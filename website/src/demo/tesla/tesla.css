@@ -1,0 +1,287 @@
+/* The car's centre display at its native 1920×1200 px. Chrome that isn't live comes from the cabin
+   photo itself (screen-ui.webp, rectified); positions and colours: research/display/NOTES.md. */
+.dm-tsl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1200px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #000;
+  font-family: var(--font-text, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  isolation: isolate;
+}
+
+.dm-tsl > * {
+  position: absolute;
+}
+
+.dm-tsl-ui {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url(/demo/screen-ui.webp) 0 0 / 100% 100% no-repeat;
+}
+
+/* ---- windowed browser card (2024.32+ toolbar, light) ---- */
+.dm-tsl-card {
+  left: 740px;
+  top: 60px;
+  width: 1180px;
+  height: 1040px;
+  background: #ededef;
+  box-shadow: -1px 0 7px rgba(0, 0, 0, 0.07);
+}
+
+.dm-tsl-card > * {
+  position: absolute;
+}
+
+.dm-tsl-grab {
+  left: 509px;
+  top: 10px;
+  width: 160px;
+  height: 5px;
+  border-radius: 3px;
+  background: #e2e2e4;
+}
+
+.dm-tsl-ic {
+  top: 54px;
+  width: 32px;
+  height: 32px;
+  margin-left: -16px;
+  color: #848484;
+}
+
+.dm-tsl-card svg,
+.dm-tsl-band svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dm-tsl-card svg .dm-f {
+  fill: currentColor;
+  stroke: none;
+}
+
+.dm-tsl-expand {
+  left: 50px;
+  color: #7c7c7c;
+}
+
+.dm-tsl-back {
+  left: 130px;
+}
+
+.dm-tsl-fwd {
+  left: 210px;
+  color: #c4c4c4;
+}
+
+.dm-tsl-star {
+  left: 1050px;
+  color: #6f6f71;
+}
+
+.dm-tsl-marks {
+  left: 1130px;
+  color: #6f6f71;
+}
+
+.dm-tsl-url {
+  left: 260px;
+  top: 40px;
+  width: 740px;
+  height: 60px;
+  box-sizing: border-box;
+  border: 2px solid #a9aaab;
+  border-radius: 6px;
+  background: #f0f1f2;
+  display: flex;
+  align-items: center;
+}
+
+.dm-tsl-url > span {
+  flex: none;
+}
+
+/* Chromium's security chip: "⚠ Not secure" for http, the tune icon for https (2026.26 photos). */
+.dm-tsl-chip {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  margin: 0 12px 0 8px;
+  padding: 0 14px 0 10px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.055);
+  color: #5f6368;
+  font-size: 19px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dm-tsl-chip i {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+}
+
+.dm-tsl-chip.dm-tsl-chip-tune {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.dm-tsl-chip.dm-tsl-chip-tune i {
+  margin: 0;
+}
+
+.dm-tsl-host {
+  line-height: 56px;
+  font-size: 21px;
+  font-weight: 500;
+  color: #202124;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+.dm-tsl-reload {
+  position: absolute;
+  left: 694px;
+  top: 12px;
+  width: 32px;
+  height: 32px;
+  color: #5f6368;
+}
+
+.dm-tsl-open {
+  top: 1193px;
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+  background: #7f7f7f;
+}
+
+/* ---- Theater (youtube.com/redirect): 60 px black band, page below ---- */
+.dm-tsl-theater {
+  top: 60px;
+  left: 740px;
+  width: 1180px;
+  height: 1040px;
+  background: #000;
+  opacity: 0;
+}
+
+.dm-tsl-band {
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 60px;
+  color: #d6d6d6;
+  opacity: 0;
+}
+
+.dm-tsl-band > * {
+  position: absolute;
+}
+
+.dm-tsl-min {
+  left: 30px;
+  top: 14px;
+  color: #d6d6d6;
+}
+
+.dm-tsl-bback {
+  left: 88px;
+  top: 14px;
+  color: #d6d6d6;
+}
+
+.dm-tsl-handle {
+  left: 879px;
+  top: 10px;
+  width: 160px;
+  height: 5px;
+  border-radius: 3px;
+  background: #272727;
+  transition: top 0.5s ease, background-color 0.5s ease;
+}
+
+.dm-tsl-hint {
+  left: 0;
+  width: 1918px;
+  top: 28px;
+  text-align: center;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 24px;
+  color: #eaeaea;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.dm-tsl-launch .dm-tsl-handle {
+  top: 17px;
+  background: #555;
+}
+
+.dm-tsl-launch .dm-tsl-hint {
+  opacity: 1;
+}
+
+.dm-tsl-range {
+  left: 1772px;
+  top: 18px;
+  font-size: 21px;
+  line-height: 24px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dm-tsl-batt {
+  left: 1845px;
+  top: 21px;
+  width: 44px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 2px solid rgba(214, 214, 214, 0.55);
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.dm-tsl-batt i {
+  display: block;
+  width: 94%;
+  height: 100%;
+  border-radius: 2px;
+  background: #d6d6d6;
+}
+
+.dm-tsl-vp {
+  overflow: hidden;
+  background: #000;
+}
+
+/* Reflections on the glass, sampled from the photo's own bezel and dock (additive, like light). */
+.dm-tsl-glare {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 90;
+  pointer-events: none;
+  background: url(/demo/screen-glare.png) 0 0 / 100% 100% no-repeat;
+  mix-blend-mode: screen;
+  opacity: calc(1 - var(--view, 0));
+}

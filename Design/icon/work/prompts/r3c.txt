@@ -1,0 +1,7 @@
+REFERENCE: the attached image is the CHOSEN icon. Make its SMALL-SIZE variant (for 16x16 and 32x32 px rendering): the same icon, simplified and bolder.
+- Keep: dark ink background, the wide glowing glass display (about 2.2:1) seated on the dark dashboard curve.
+- Make the display LARGER (about 80% of canvas width, taller: ~34% of canvas height), centered slightly above middle, with a very bright, thick top rim.
+- Keep the cast beam but make it SHORT, bold and high-contrast: a small bright wedge touching the display's upper-left corner (or drop it if it muddies).
+- Dashboard crest rim light: thicker, brighter cyan line.
+- Flatter, cleaner gradients; no fine texture, no subtle haze detail; maximum contrast between the glowing display and the near-black background.
+OUTPUT PATH: Design/icon/concepts/r3c.png

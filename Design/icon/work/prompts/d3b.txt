@@ -1,0 +1,2 @@
+CONCEPT — "Horizon pane": a MacBook-proportioned glass pane in the center whose lower edge dissolves into a glowing horizon line that stretches wide across the icon, becoming a wide car display band. Think: a laptop screen morphing into a wide horizon/dashboard display, with a gentle wave of blue→cyan light flowing left to right through it. Abstract, bold, 2 shapes max, glass material.
+OUTPUT PATH: Design/icon/concepts/d3b.png

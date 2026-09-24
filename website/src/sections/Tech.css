@@ -1,0 +1,219 @@
+/* tesla.com's black specs table (.tcl-specs-table-v2 .tds-scrim--black): #000, white values, grey labels, hairlines. */
+.tech {
+  padding: var(--section-pad) 0;
+  background: var(--c-dark-bg);
+  color: var(--c-dark-text);
+}
+
+.tech .t-sub {
+  color: var(--c-dark-low);
+}
+
+.tech__address {
+  margin-top: var(--s-10);
+  text-align: center;
+}
+
+.tech__ip {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: 112px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: proportional-nums;
+  color: var(--c-white);
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 42%, #9fdcff 78%, var(--c-brand-3) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.tech__address .t-label {
+  margin-top: var(--s-2);
+  color: var(--c-dark-low);
+}
+
+.tech__grid {
+  display: grid;
+  grid-gap: var(--s-4);
+  gap: var(--s-4);
+  margin-top: var(--s-10);
+}
+
+.tech__grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tech__grid--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: var(--s-3);
+}
+
+.spec {
+  padding-top: var(--s-2);
+  border-top: var(--hairline-dark);
+}
+
+.spec__label {
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-dark-low);
+}
+
+.spec__value {
+  margin-top: var(--s-half);
+  font-size: var(--fs-40);
+  line-height: var(--lh-40);
+  color: var(--c-white);
+}
+
+.spec__value--num {
+  font-family: var(--font-display);
+  font-size: var(--fs-60);
+  line-height: var(--lh-60);
+  font-weight: var(--fw-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.tech__block {
+  margin-top: var(--s-12);
+}
+
+.tech__h {
+  font-family: var(--font-display);
+  font-size: var(--fs-50);
+  line-height: var(--lh-50);
+  font-weight: var(--fw-display);
+  color: var(--c-dark-text);
+}
+
+.tech__modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-gap: var(--s-4);
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.mode {
+  padding-top: var(--s-2);
+  border-top: var(--hairline-dark);
+}
+
+.mode__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-75);
+  line-height: var(--lh-75);
+  font-weight: var(--fw-display);
+  color: var(--c-white);
+  margin-bottom: var(--s-1);
+}
+
+.mode__why {
+  margin-top: var(--s-1);
+}
+
+.tiers {
+  margin-top: var(--s-3);
+  border-top: var(--hairline-dark);
+}
+
+.tiers__row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 0.5fr;
+  grid-gap: var(--s-2);
+  gap: var(--s-2);
+  align-items: baseline;
+  padding: 14px 0;
+  border-bottom: var(--hairline-dark);
+  font-size: var(--fs-40);
+  line-height: var(--lh-40);
+  color: var(--c-white);
+  font-variant-numeric: tabular-nums;
+}
+
+.tiers__row--head {
+  padding: 10px 0;
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-dark-low);
+}
+
+.tiers__tier {
+  font-weight: var(--fw-medium);
+}
+
+.tiers__row > :last-child {
+  text-align: right;
+}
+
+.tech__note {
+  margin-top: var(--s-2);
+  max-width: 44em;
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-dark-low);
+}
+
+@media (max-width: 1199px) {
+  .tech__ip {
+    font-size: 88px;
+  }
+
+  .tech__grid--5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .tech__grid--3 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-gap: var(--s-3);
+    gap: var(--s-3);
+  }
+}
+
+@media (max-width: 599px) {
+  .tech__address {
+    margin-top: var(--s-8);
+  }
+
+  .tech__ip {
+    font-size: 15vw;
+  }
+
+  .tech__grid {
+    margin-top: var(--s-8);
+  }
+
+  .tech__grid--5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: var(--s-3);
+  }
+
+  .tech__block {
+    margin-top: var(--s-10);
+  }
+
+  .tech__modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tiers__row {
+    grid-template-columns: 1.2fr 1.1fr 1.1fr 0.4fr;
+    grid-gap: var(--s-1);
+    gap: var(--s-1);
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .tiers__row--head {
+    font-size: 12px;
+  }
+
+  .spec__value--num {
+    font-size: var(--fs-50);
+    line-height: var(--lh-50);
+  }
+}

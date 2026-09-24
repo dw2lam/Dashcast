@@ -1,0 +1,202 @@
+{
+  "focusSeconds": 7.85736608505249,
+  "prefix": "light-",
+  "shots": [
+    {
+      "active": true,
+      "file": "light-main-casting-extend.png",
+      "frame": {
+        "height": 580,
+        "width": 460,
+        "x": 1979,
+        "y": 307
+      },
+      "key": true,
+      "name": "main-casting-extend",
+      "scale": 2,
+      "window": 5502
+    },
+    {
+      "active": false,
+      "file": "light-main-casting-extend-inactive.png",
+      "frame": {
+        "height": 580,
+        "width": 460,
+        "x": 1979,
+        "y": 307
+      },
+      "key": false,
+      "name": "main-casting-extend-inactive",
+      "scale": 2,
+      "window": 5502
+    },
+    {
+      "active": true,
+      "file": "light-main-casting-mirror.png",
+      "frame": {
+        "height": 580,
+        "width": 460,
+        "x": 1979,
+        "y": 307
+      },
+      "key": true,
+      "name": "main-casting-mirror",
+      "scale": 2,
+      "window": 5502
+    },
+    {
+      "active": true,
+      "file": "light-main-waiting.png",
+      "frame": {
+        "height": 580,
+        "width": 460,
+        "x": 1979,
+        "y": 307
+      },
+      "key": true,
+      "name": "main-waiting",
+      "scale": 2,
+      "window": 5502
+    },
+    {
+      "active": true,
+      "file": "light-guide.png",
+      "frame": {
+        "height": 692,
+        "width": 580,
+        "x": 2593,
+        "y": 321
+      },
+      "key": true,
+      "name": "guide",
+      "scale": 2,
+      "window": 5514
+    },
+    {
+      "active": true,
+      "file": "light-settings-general.png",
+      "frame": {
+        "height": 622,
+        "width": 520,
+        "x": 3284,
+        "y": 360
+      },
+      "key": true,
+      "name": "settings-general",
+      "scale": 2,
+      "window": 5516
+    },
+    {
+      "active": true,
+      "file": "light-settings-display.png",
+      "frame": {
+        "height": 387,
+        "width": 520,
+        "x": 3284,
+        "y": 595
+      },
+      "key": true,
+      "name": "settings-display",
+      "scale": 2,
+      "window": 5516
+    },
+    {
+      "active": true,
+      "file": "light-settings-network.png",
+      "frame": {
+        "height": 648,
+        "width": 520,
+        "x": 3284,
+        "y": 334
+      },
+      "key": true,
+      "name": "settings-network",
+      "scale": 2,
+      "window": 6374
+    },
+    {
+      "active": true,
+      "file": "light-settings-advanced.png",
+      "frame": {
+        "height": 607,
+        "width": 520,
+        "x": 3284,
+        "y": 375
+      },
+      "key": true,
+      "name": "settings-advanced",
+      "scale": 2,
+      "window": 5516
+    },
+    {
+      "active": true,
+      "file": "light-menu-casting.png",
+      "frame": {
+        "height": 372,
+        "width": 300,
+        "x": 4050,
+        "y": 761
+      },
+      "key": true,
+      "name": "menu-casting",
+      "scale": 2,
+      "window": 5525
+    },
+    {
+      "active": true,
+      "file": "light-main-ready.png",
+      "frame": {
+        "height": 580,
+        "width": 460,
+        "x": 1979,
+        "y": 307
+      },
+      "key": true,
+      "name": "main-ready",
+      "scale": 2,
+      "window": 5502
+    },
+    {
+      "active": true,
+      "file": "light-setup-1.png",
+      "frame": {
+        "height": 480,
+        "width": 440,
+        "x": 1989,
+        "y": 355
+      },
+      "key": true,
+      "name": "setup-1",
+      "scale": 2,
+      "window": 5532
+    },
+    {
+      "active": true,
+      "file": "light-setup-2.png",
+      "frame": {
+        "height": 480,
+        "width": 440,
+        "x": 1989,
+        "y": 355
+      },
+      "key": true,
+      "name": "setup-2",
+      "scale": 2,
+      "window": 5538
+    },
+    {
+      "active": true,
+      "file": "light-setup-3.png",
+      "frame": {
+        "height": 480,
+        "width": 440,
+        "x": 1989,
+        "y": 355
+      },
+      "key": true,
+      "name": "setup-3",
+      "scale": 2,
+      "window": 5540
+    }
+  ]
+}

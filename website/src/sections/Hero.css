@@ -1,0 +1,130 @@
+/* Full-viewport hero, tesla.com model-page layout: title block at the top, specs along the bottom. */
+.hero {
+  position: relative;
+  height: 100vh;
+  height: 100svh;
+  min-height: 600px;
+  overflow: hidden;
+  background: var(--c-black);
+  color: var(--c-white);
+}
+
+.hero__media {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform-origin: 50% 60%;
+}
+
+/* .tcl-section start/end gradients: black → transparent over 20%, at half opacity (a touch deeper here for type on a cabin) */
+.hero__scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.hero__scrim--top {
+  top: 0;
+  height: 38%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.28) 55%, rgba(0, 0, 0, 0));
+}
+
+.hero__scrim--bottom {
+  bottom: 0;
+  height: 30%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.66), rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0));
+}
+
+.hero__content {
+  position: relative;
+  z-index: 1;
+  padding: calc(var(--nav-h) + var(--s-6)) var(--gutter) 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.hero__content a {
+  pointer-events: auto;
+}
+
+.hero__sub {
+  margin-top: var(--s-half);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.hero__ctas {
+  margin-top: var(--s-3);
+}
+
+.hero__stats {
+  --type-stat: var(--fs-80);
+  --type-stat-lh: var(--lh-80);
+  --type-stat-unit: var(--fs-50);
+  --type-stat-label: var(--fs-30);
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: var(--s-6);
+  padding: 0 var(--gutter);
+}
+
+.hero__stats .stat {
+  padding: 0 var(--s-5);
+}
+
+.hero__stats .stat__label {
+  margin-top: 0;
+  font-family: var(--font-text);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-30);
+}
+
+@media (max-width: 1199px) {
+  .hero__stats {
+    --type-stat: var(--fs-75);
+    --type-stat-lh: var(--lh-75);
+  }
+
+  .hero__stats .stat {
+    padding: 0 var(--s-3);
+  }
+}
+
+@media (max-width: 599px) {
+  .hero__content {
+    padding-top: calc(var(--nav-h) + var(--s-4));
+  }
+
+  .hero__stats {
+    --type-stat: var(--fs-60);
+    --type-stat-lh: var(--lh-60);
+    --type-stat-unit: var(--fs-30);
+    --type-stat-label: var(--fs-20);
+    bottom: var(--s-4);
+    padding: 0 var(--s-1);
+  }
+
+  .hero__stats.stats {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .hero__stats .stat {
+    padding: 0 var(--s-half);
+  }
+
+  .hero__stats .stat__label {
+    white-space: normal;
+    line-height: 16px;
+    margin-top: 2px;
+  }
+
+  .hero__stats .stat__unit {
+    margin-left: 2px;
+    line-height: var(--lh-30);
+  }
+}

@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- Dashcast RTC interop page, served by DashcastRTCTests/ChromeInteropTests (signaling over plain
+     HTTP: GET /offer, POST /answer, POST /stats). SILENT: the <video> is muted with volume 0, so the
+     Opus track is received and decoded but never reaches the speakers. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashcast RTC interop</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fff; --fg: #111; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 13px ui-monospace, monospace; }
+  video { width: 100%; max-width: 640px; background: #000; display: block; }
+  pre { white-space: pre-wrap; }
+</style>
+<video id="v" autoplay playsinline muted></video>
+<pre id="log">starting…</pre>
+<script>
+'use strict';
+const v = document.getElementById('v');
+const log = document.getElementById('log');
+v.muted = true;
+v.volume = 0;
+window.__interop = { state: 'init', stats: [], error: null, audioProbe: null };
+// ?stereo=1: add stereo=1 to the Opus fmtp of our answer (Chrome's default answer omits it, and
+// Chrome configures its Opus decoder from its own answer).
+const params = new URLSearchParams(location.search);
+const mungeStereo = params.get('stereo') === '1';
+
+// Decoded-channel probe on the remote audio track (no audio output; MediaStreamTrackProcessor
+// hands us AudioData). The server sends L 440 Hz / R 660 Hz: correlation ≈ 0 means real stereo,
+// ≈ 1 means the decoder downmixed to mono.
+async function probeAudio(track) {
+  if (typeof MediaStreamTrackProcessor === 'undefined') { window.__interop.audioProbe = 'unsupported'; return; }
+  const reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
+  let n = 0;
+  const acc = { ll: 0, rr: 0, lr: 0, frames: 0, channels: 0, sampleRate: 0 };
+  const deadline = performance.now() + 4000;
+  while (performance.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (++n > 50) {   // skip start-up (priming/concealment)
+      acc.channels = value.numberOfChannels;
+      acc.sampleRate = value.sampleRate;
+      const frames = value.numberOfFrames;
+      const opts = (plane) => ({ planeIndex: plane, format: 'f32-planar' });
+      const l = new Float32Array(frames);
+      value.copyTo(l, opts(0));
+      const r = new Float32Array(frames);
+      if (value.numberOfChannels > 1) value.copyTo(r, opts(1)); else r.set(l);
+      for (let i = 0; i < frames; i++) { acc.ll += l[i] * l[i]; acc.rr += r[i] * r[i]; acc.lr += l[i] * r[i]; }
+      acc.frames += frames;
+    }
+    value.close();
+  }
+  reader.cancel().catch(() => {});
+  window.__interop.audioProbe = {
+    channels: acc.channels, sampleRate: acc.sampleRate, frames: acc.frames, answerMunged: mungeStereo,
+    rmsL: Math.sqrt(acc.ll / Math.max(acc.frames, 1)), rmsR: Math.sqrt(acc.rr / Math.max(acc.frames, 1)),
+    correlationLR: acc.lr / Math.sqrt(acc.ll * acc.rr || 1),
+  };
+}
+
+async function run() {
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  window.__pc = pc;
+  pc.ontrack = (e) => {
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    if (v.srcObject !== stream) v.srcObject = stream;
+    if (e.track.kind === 'audio') setTimeout(() => probeAudio(e.track).catch((err) => { window.__interop.audioProbe = String(err); }), 1500);
+    v.muted = true;
+    v.volume = 0;
+    v.play().catch(() => {});
+  };
+  pc.onconnectionstatechange = () => { window.__interop.state = pc.connectionState; };
+  const offer = await (await fetch('/offer', { cache: 'no-store' })).json();
+  await pc.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
+  for (const r of pc.getReceivers()) {   // "interactive" latency mode, as the real client does
+    try { r.playoutDelayHint = 0; } catch (_) {}
+    try { r.jitterBufferTarget = 0; } catch (_) {}
+  }
+  const answer = await pc.createAnswer();
+  if (mungeStereo) {
+    answer.sdp = answer.sdp.replace(/a=fmtp:111 ([^\r\n]*)/, (m, p) => p.includes('stereo=1') ? m : `a=fmtp:111 ${p};stereo=1;sprop-stereo=1`);
+  }
+  await pc.setLocalDescription(answer);
+  await new Promise((resolve) => {
+    if (pc.iceGatheringState === 'complete') return resolve();
+    pc.addEventListener('icegatheringstatechange', () => pc.iceGatheringState === 'complete' && resolve());
+    setTimeout(resolve, 3000);
+  });
+  // The shim strips our candidates: the server may only learn us as a peer-reflexive candidate,
+  // exactly like the car (whose host candidates are mDNS names).
+  await fetch('/answer', { method: 'POST', body: JSON.stringify({ sdp: pc.localDescription.sdp, stripCandidates: true }) });
+  setInterval(() => collect(pc).catch((e) => { window.__interop.error = String(e); }), 1000);
+}
+
+function pick(s, keys) {
+  const o = {};
+  for (const k of keys) if (s[k] !== undefined) o[k] = s[k];
+  return o;
+}
+
+async function collect(pc) {
+  const report = await pc.getStats();
+  const byId = new Map();
+  report.forEach((s) => byId.set(s.id, s));
+  const out = {
+    t: Math.round(performance.now()), state: pc.connectionState,
+    videoWidth: v.videoWidth, videoHeight: v.videoHeight, paused: v.paused, muted: v.muted, volume: v.volume,
+    video: null, audio: null, codecs: {}, remoteOut: {}, pair: null, audioProbe: window.__interop.audioProbe,
+  };
+  report.forEach((s) => {
+    if (s.type === 'inbound-rtp' && s.kind === 'video') {
+      out.video = pick(s, ['framesDecoded', 'framesReceived', 'framesDropped', 'keyFramesDecoded', 'frameWidth',
+        'frameHeight', 'framesPerSecond', 'packetsReceived', 'packetsLost', 'bytesReceived', 'nackCount', 'pliCount',
+        'firCount', 'totalDecodeTime', 'jitterBufferDelay', 'jitterBufferEmittedCount', 'decoderImplementation',
+        'powerEfficientDecoder', 'estimatedPlayoutTimestamp', 'jitter']);
+      if (s.codecId && byId.get(s.codecId)) out.codecs.video = pick(byId.get(s.codecId), ['mimeType', 'payloadType', 'sdpFmtpLine']);
+    }
+    if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+      out.audio = pick(s, ['packetsReceived', 'packetsLost', 'bytesReceived', 'totalSamplesReceived', 'concealedSamples',
+        'jitter', 'jitterBufferDelay', 'jitterBufferEmittedCount', 'audioLevel', 'estimatedPlayoutTimestamp']);
+      if (s.codecId && byId.get(s.codecId)) out.codecs.audio = pick(byId.get(s.codecId), ['mimeType', 'payloadType', 'channels', 'sdpFmtpLine']);
+    }
+    if (s.type === 'remote-outbound-rtp') out.remoteOut[s.kind] = pick(s, ['packetsSent', 'bytesSent', 'remoteTimestamp', 'reportsSent']);
+    if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') {
+      const l = byId.get(s.localCandidateId);
+      const r = byId.get(s.remoteCandidateId);
+      out.pair = {
+        local: l && `${l.candidateType} ${l.address}:${l.port}`,
+        remote: r && `${r.candidateType} ${r.address}:${r.port}`,
+        rttMs: s.currentRoundTripTime != null ? s.currentRoundTripTime * 1000 : null,
+      };
+    }
+  });
+  window.__interop.stats.push(out);
+  if (window.__interop.stats.length > 900) window.__interop.stats.shift();
+  fetch('/stats', { method: 'POST', body: JSON.stringify(out) }).catch(() => {});
+  log.textContent = JSON.stringify(out, null, 1);
+}
+
+run().catch((e) => { window.__interop.error = String(e); log.textContent = 'error: ' + e; });
+</script>
+</html>

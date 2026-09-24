@@ -1,0 +1,326 @@
+/* ---- stage: cabin photo + composited car screen ---- */
+.dm-cab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0c0e;
+  contain: layout paint;
+  isolation: isolate;
+}
+
+.dm-cab-touch {
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.dm-stg,
+.dm-stg > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.dm-stg {
+  width: 100%;
+  height: 100%;
+}
+
+.dm-stg-photo {
+  display: block;
+  max-width: none;
+  transform-origin: 0 0;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.dm-stg-glass,
+.dm-stg-bezel,
+.dm-stg-glow {
+  width: 1920px;
+  height: 1200px;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+
+/* Light the lit panel throws on the glass border and the dash around it (panel space, so it follows
+   the perspective). */
+.dm-stg-glow {
+  border-radius: 40px;
+  box-shadow: 0 0 60px 26px rgba(150, 160, 255, 0.07), 0 0 160px 60px rgba(150, 160, 255, 0.04);
+  mix-blend-mode: screen;
+}
+
+/* Straight-on view: the panel's own black glass around the active area. */
+.dm-stg-bezel {
+  border-radius: 34px;
+  background: #050506;
+  box-shadow: 0 0 0 26px #050506, 0 0 0 27px rgba(255, 255, 255, 0.07), 0 60px 120px 30px rgba(0, 0, 0, 0.55);
+}
+
+
+/* ---- sound cue ---- */
+.dm-snd {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 7px 14px 7px 11px;
+  border-radius: 999px;
+  background: rgba(20, 22, 26, 0.62);
+  -webkit-backdrop-filter: blur(var(--blur-pill, 16px));
+  backdrop-filter: blur(var(--blur-pill, 16px));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: var(--fw-medium, 500) var(--fs-20, 12px) / 1 var(--font-text, system-ui, sans-serif);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 18px);
+  transition: opacity var(--dur-medium, 0.6s) var(--ease-mktg, ease), transform var(--dur-medium, 0.6s) var(--ease-mktg, ease);
+  pointer-events: none;
+}
+
+.dm-snd.dm-on {
+  opacity: 1;
+  transform: translate(-50%, 26px);
+}
+
+.dm-snd-bars {
+  display: flex;
+  align-items: flex-end;
+  height: 12px;
+  margin-right: 9px;
+}
+
+.dm-snd-bars i {
+  width: 2px;
+  height: 100%;
+  margin-right: 2px;
+  border-radius: 1px;
+  background: var(--c-brand-3, #18d3fd);
+  transform-origin: 50% 100%;
+  animation: dm-snd 1.1s ease-in-out infinite;
+}
+
+.dm-snd-bars i:nth-child(2) {
+  animation-delay: -0.35s;
+}
+
+.dm-snd-bars i:nth-child(3) {
+  animation-delay: -0.7s;
+}
+
+.dm-snd-bars i:nth-child(4) {
+  animation-delay: -0.2s;
+}
+
+@keyframes dm-snd {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.dm-snd:not(.dm-on) .dm-snd-bars i {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-snd-bars i {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+/* ?capture=1: the composite alone, over any page chrome, for recording; nothing runs on its own clock. */
+.dm-cab-capture .dm-snd-bars i {
+  animation: none;
+  transform: scaleY(0.6);
+}
+
+.dm-cab.dm-cab-capture {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2147483000;
+}
+
+/* ---- #demo section ---- */
+.dm-demo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: var(--section-pad, 96px) 0 var(--s-6, 48px);
+  background: var(--c-dark-bg, #000);
+  color: var(--c-dark-ink, #fff);
+  box-sizing: border-box;
+}
+
+.dm-demo-head {
+  padding: 0 var(--gutter, 24px);
+  text-align: center;
+}
+
+.dm-demo-head h2 {
+  margin: 0;
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-weight: var(--fw-display, 500);
+  font-size: var(--type-section, 48px);
+  line-height: var(--type-section-lh, 56px);
+  letter-spacing: var(--ls-display, 0);
+}
+
+.dm-demo-head p {
+  margin: var(--s-1, 8px) 0 0;
+  font-family: var(--font-text, system-ui, sans-serif);
+  font-size: var(--type-sub, 20px);
+  line-height: var(--type-sub-lh, 28px);
+  color: var(--c-dark-text, #eee);
+}
+
+.dm-demo-stage {
+  position: relative;
+  width: 100%;
+  height: min(56.25vw, 78vh);
+  margin-top: var(--s-5, 40px);
+}
+
+.dm-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  max-width: 1200px;
+  margin-top: var(--s-4, 32px);
+  padding: 0 var(--gutter, 24px);
+}
+
+.dm-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 var(--s-1, 8px) var(--s-2, 16px);
+}
+
+.dm-seg-label {
+  margin-bottom: var(--s-1, 8px);
+  font: var(--fs-20, 12px) / var(--lh-20, 20px) var(--font-text, system-ui, sans-serif);
+  color: var(--c-dark-low, #8e8e8e);
+}
+
+.dm-seg-track {
+  position: relative;
+  display: flex;
+  padding: 4px;
+  border-radius: var(--radius, 4px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dm-seg-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: var(--radius, 4px);
+  background: rgba(255, 255, 255, 0.9);
+  transition: transform var(--dur-short, 0.5s) var(--ease-slide, ease), width var(--dur-short, 0.5s) var(--ease-slide, ease);
+}
+
+.dm-seg button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  height: var(--btn-h, 40px);
+  padding: 0 var(--s-2, 16px);
+  border: 0;
+  border-radius: var(--radius, 4px);
+  background: none;
+  color: var(--c-dark-text, #eee);
+  font: var(--fw-medium, 500) var(--btn-fs, 14px) / 1.15 var(--font-text, system-ui, sans-serif);
+  cursor: pointer;
+  transition: color var(--dur-ui, 0.33s) ease;
+}
+
+.dm-seg button small {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: var(--fw-regular, 400);
+  opacity: 0.72;
+}
+
+.dm-seg button[aria-pressed='true'] {
+  color: var(--c-ink, #171a20);
+}
+
+.dm-seg button:focus-visible,
+.dm-demo-link:focus-visible {
+  outline: 2px solid var(--c-blue, #3e6ae1);
+  outline-offset: 2px;
+}
+
+.dm-demo-actions {
+  display: flex;
+  margin: 0 var(--s-1, 8px) var(--s-2, 16px);
+  height: calc(var(--btn-h, 40px) + 8px);
+  align-items: center;
+}
+
+.dm-demo-link {
+  min-height: 44px;
+  margin: 0 var(--s-half, 4px);
+  padding: 0 var(--s-1, 8px);
+  border: 0;
+  background: none;
+  color: var(--c-dark-text, #eee);
+  font: var(--btn-fs, 14px) / 1 var(--font-text, system-ui, sans-serif);
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-color var(--dur-ui, 0.33s) ease;
+}
+
+.dm-demo-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.dm-demo-note {
+  max-width: 640px;
+  margin: var(--s-1, 8px) 0 0;
+  padding: 0 var(--gutter, 24px);
+  text-align: center;
+  font: var(--fs-20, 12px) / var(--lh-20, 20px) var(--font-text, system-ui, sans-serif);
+  color: var(--c-dark-low, #8e8e8e);
+}
+
+@media (max-width: 899px) {
+  .dm-demo-stage {
+    height: min(75vw, 78vh);
+  }
+}
+
+@media (max-width: 599px) {
+  .dm-demo-stage {
+    height: min(125vw, 72vh);
+  }
+
+  .dm-seg button {
+    min-width: 0;
+    padding: 0 var(--s-2, 16px);
+  }
+}

@@ -1,0 +1,352 @@
+/* Dashcast in-car client. Chrome 79 floor: no flex `gap`, no `inset`, no :is(). */
+:root {
+  color-scheme: dark;
+  --fg: #f2f3f5;
+  --muted: #8b919c;
+  --glass: rgba(18, 20, 24, 0.86);
+  --line: rgba(255, 255, 255, 0.08);
+  --amber: #f5a524;
+  --blue: #5b9bff;
+  --red: #ff6b5b;
+  --green: #3ddc84;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: var(--fg);
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, "Noto Sans", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#v,
+#rv,
+#touch {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#v,
+#rv {
+  background: #000;
+  pointer-events: none;
+}
+
+#rv {
+  object-fit: contain;
+}
+
+#touch {
+  z-index: 1;
+  touch-action: none;
+}
+
+/* ---- status pill ---- */
+.pill {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  padding: 9px 18px 9px 14px;
+  border-radius: 999px;
+  background: var(--glass);
+  box-shadow: 0 0 0 1px var(--line), 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.pill i {
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.pill.wait i {
+  background: var(--blue);
+  box-shadow: 0 0 10px var(--blue);
+}
+
+.pill.re i {
+  background: var(--red);
+  box-shadow: 0 0 10px var(--red);
+}
+
+.pill.off {
+  opacity: 0;
+  transform: translate(-50%, -10px);
+}
+
+.pill.off i {
+  animation: none;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---- corner controls ---- */
+.bar {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  display: flex;
+}
+
+.bar button {
+  width: 42px;
+  height: 42px;
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
+  background: rgba(18, 20, 24, 0.55);
+  color: #d9dce1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.bar button:active,
+.bar button.on {
+  opacity: 1;
+  background: rgba(44, 48, 56, 0.92);
+}
+
+/* ---- stats ---- */
+.panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 30;
+  width: 264px;
+  padding: 12px 14px 12px;
+  border-radius: 16px;
+  background: var(--glass);
+  box-shadow: 0 0 0 1px var(--line), 0 16px 40px rgba(0, 0, 0, 0.5);
+  font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
+
+.panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-column-gap: 14px;
+  margin: 0;
+}
+
+.panel dt {
+  color: var(--muted);
+}
+
+.panel dd {
+  margin: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel dd.good {
+  color: var(--green);
+}
+
+.panel dd.warn {
+  color: var(--amber);
+}
+
+.seg {
+  display: flex;
+  margin-top: 12px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.seg button {
+  flex: 1;
+  padding: 7px 0;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: 500 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.seg button.on {
+  background: var(--fg);
+  color: #0b0c0f;
+}
+
+/* ---- toast ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 45;
+  max-width: 520px;
+  width: calc(100% - 48px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--glass);
+  box-shadow: 0 0 0 1px var(--line), 0 16px 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.toast b {
+  display: block;
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.toast span {
+  color: var(--muted);
+}
+
+.toast a {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--fg);
+  color: #0b0c0f;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---- tap to start ---- */
+.tap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 45%, rgba(24, 27, 34, 0.74) 0%, rgba(0, 0, 0, 0.93) 70%);
+  cursor: pointer;
+  transition: opacity 0.4s ease;
+}
+
+.tap.off {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brand {
+  position: absolute;
+  top: 22px;
+  left: 26px;
+  color: #666d79;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.play {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: var(--fg);
+  color: #0b0c0f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 12px rgba(255, 255, 255, 0.07), 0 0 0 26px rgba(255, 255, 255, 0.03), 0 24px 60px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s ease;
+}
+
+.tap:active .play {
+  transform: scale(0.96);
+}
+
+.play svg {
+  width: 46px;
+  height: 46px;
+  margin-left: 6px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.tap h1 {
+  margin: 40px 0 6px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.tap p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* Hidden input that summons the on-screen keyboard. */
+#kb {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  pointer-events: none;
+}

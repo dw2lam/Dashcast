@@ -1,0 +1,2 @@
+CONCEPT — "Screen on the dash": seen straight-on, a wide landscape frosted-glass display (about 2:1) sits centered, its bottom edge resting in/over a smooth dark dashboard curve that sweeps across the icon (convex arc). The display emits its luminous blue→cyan gradient, which reflects as a soft glow on the dashboard surface below. A small AirPlay-like cast wedge/triangle of light or a soft beam enters the display from the upper left, implying wireless mirroring from a laptop. Bold, minimal, Apple-grade.
+OUTPUT PATH: Design/icon/concepts/d2b.png

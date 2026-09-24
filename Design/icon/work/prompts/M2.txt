@@ -1,0 +1,3 @@
+REFERENCE: the attached image is a candidate. Keep its bold, flat, Apple-pictogram clarity and palette.
+CONCEPT — refine: the wide display becomes a crisp rounded rectangle (about 2.3:1) with only a very gentle downward curve on its bottom edge (a subtle nod to a car dash), flat matte gradient #0A6CFF → #22C3F3. Above it, TWO elegant concentric arcs (thick, rounded caps, same gradient) rising from the display's top edge, centered, smaller and more refined than the reference so the display is clearly the hero (display ~70% of tile width, arcs ~40%). Soft cool shadow under the display, white glass tile with a soft sheen. Centered, balanced.
+OUTPUT PATH: Design/icon/concepts/M2.png

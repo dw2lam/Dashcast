@@ -1,0 +1,2 @@
+CONCEPT — "Mirror": a WIDE crisp display (about 2.3:1) filled with flat blue #0A6CFF → cyan #22C3F3, centered in the lower-middle of the tile, with a thin graphite #1C2330 bezel line. Above it and to the RIGHT (not left), a smaller 16:10 frosted-white glass Mac screen, offset and slightly overlapping the wide display's TOP-RIGHT area from in front, showing the same blue gradient in miniature. Soft grey shadows, translucent frosted overlap. Balanced, iconic, Apple-grade.
+OUTPUT PATH: Design/icon/concepts/L2b.png

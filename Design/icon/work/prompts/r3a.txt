@@ -1,0 +1,9 @@
+REFERENCE: the attached image is the CHOSEN direction. Produce the final polished master of this exact concept, same stage, palette, lighting mood and camera. Do not add any new objects.
+POLISH NOTES:
+- Wide glass display: about 2.3:1, centered horizontally, width ~70% of the canvas (more dark breathing room left and right than the reference), its bottom edge seated just on the crest of the dashboard curve at ~62% canvas height.
+- Display material: thick Liquid-Glass slab: crisp bright specular rim along the top edge, softer rim on the sides, subtle inner bevel, luminous gradient electric blue #1458FA (left) → azure #36A7FD → cyan #5EF1FC (right-center hot spot). No UI, no text.
+- Cast beam: ONE crisp, narrow, tapered wedge of light entering from off-canvas upper-left and landing inside the display's left third, with a small soft bright bloom where it lands (the picture arriving). Clean edges, not foggy.
+- Dashboard: smooth satin graphite convex arc spanning the full width, thin cyan rim light along its crest, the display's glow pooling softly on it. No leather grain, no noise.
+- Background: deep ink #0A1424, soft top-center haze #202F49, dark corners #060B15.
+- Overall: calm, symmetric, high contrast, premium, reads instantly at 32px.
+OUTPUT PATH: Design/icon/concepts/r3a.png

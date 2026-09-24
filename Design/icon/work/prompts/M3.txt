@@ -1,0 +1,3 @@
+REFERENCE: the attached image is a candidate. Keep its idea (macOS display-arrangement pictogram) and palette.
+CONCEPT — refine to be BOLDER: two crisp rounded screens side by side, vertical centers aligned, a narrow even white gap (~3% of tile width) between them: left a 16:10 Mac screen, right a WIDE car display (about 2.1:1) that is noticeably taller than half the Mac screen... i.e. both screens are substantial. Together they span ~76% of the tile width and the wide screen is ~26% of the tile height. ONE continuous gradient #0A6CFF → #22C3F3 flows across both from left to right. Each screen has a thin white glass rim and a soft cool shadow. White glass tile. Centered.
+OUTPUT PATH: Design/icon/concepts/M3.png

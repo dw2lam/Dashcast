@@ -1,0 +1,2 @@
+VARIANT: LIGHT. Background: bright white #FFFFFF to cool mist #EDF2F8, with the blue->cyan translucent glass ribbons in clear saturated colour and soft cool-grey shadows beneath the folds. Overall mood: morning light, airy, crisp.
+OUTPUT PATH: website/shots-raw/wallpaper/gen-light-1.png

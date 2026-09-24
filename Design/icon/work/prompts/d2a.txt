@@ -1,0 +1,2 @@
+CONCEPT — "Floating display": a single WIDE landscape glass display (about 2:1, thick glass slab with rounded corners, luminous blue→cyan screen light inside, no UI) floating in the upper-middle of the icon, above a dark, softly lit sweeping DASHBOARD CURVE that spans the lower third (a broad graphite arc like the top of a car dashboard, with a thin cyan rim light along its crest). Above the display, a subtle cast signal: two short thick glowing arcs, as if the picture has just been beamed in. Calm, cinematic, premium, very simple.
+OUTPUT PATH: Design/icon/concepts/d2a.png

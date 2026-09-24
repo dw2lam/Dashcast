@@ -1,0 +1,22 @@
+node_modules
+dist
+*.tsbuildinfo
+research/**/refs
+.vercel
+research/tesla-web/tools/out
+.env*
+
+# shots-raw (screenshots agent). The raw window captures stay tracked (lossless masters for
+# public/shots, ~9 MB). Everything below is derived and rebuilt by scripts/shots/:
+#   5K masters and 2560 JPEGs <- master_wallpaper.py from the two chosen Codex originals.
+shots-raw/wallpaper-*-5k.png
+shots-raw/wallpaper-*.jpg
+shots-raw/wallpaper/*
+!shots-raw/wallpaper/gen-dark-2.png
+!shots-raw/wallpaper/gen-light-2.png
+
+# Demo photo candidates: only the chosen cabin photo and the desktop wallpaper original are tracked
+# (sources + licences for all of them are in research/photos/candidates.json and research/LICENSES.md).
+research/photos/*.jpg
+!research/photos/unsplash-ziontech-u4FO_unYC8I.jpg
+!research/photos/wallpaper-original.jpg

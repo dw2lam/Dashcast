@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Not sandboxed: needs a virtual display, a root LaunchDaemon helper, and port 443 on the loopback service address. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<!-- Only enforced under the hardened runtime (off for now); declared so enabling it later just works. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

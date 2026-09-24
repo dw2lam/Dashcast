@@ -1,0 +1,110 @@
+diff --git a/include/rtc/rtc.h b/include/rtc/rtc.h
+index 73a0567..09bf028 100644
+--- a/include/rtc/rtc.h
++++ b/include/rtc/rtc.h
+@@ -443,6 +443,12 @@ RTC_C_EXPORT int rtcGetCurrentTrackTimestamp(int id, uint32_t *timestamp);
+ // Set RTP timestamp for track identified by given id
+ RTC_C_EXPORT int rtcSetTrackRtpTimestamp(int id, uint32_t timestamp);
+ 
++// Anchor RTCP SR NTP timestamps to RTP time: SRs report ntpTimestamp (NTP 32.32 fixed point)
++// shifted by (SR RTP timestamp - rtpTimestamp) / clock rate, instead of the wall clock at send time
++// (requires rtcChainRtcpSrReporter)
++RTC_C_EXPORT int rtcSetTrackSenderReportNtpAnchor(int id, uint32_t rtpTimestamp,
++                                                  uint64_t ntpTimestamp);
++
+ // Get timestamp of last RTCP SR, result is written to timestamp
+ RTC_C_EXPORT int rtcGetLastTrackSenderReportTimestamp(int id, uint32_t *timestamp);
+ 
+diff --git a/include/rtc/rtcpsrreporter.hpp b/include/rtc/rtcpsrreporter.hpp
+index 70f05c2..0557b59 100644
+--- a/include/rtc/rtcpsrreporter.hpp
++++ b/include/rtc/rtcpsrreporter.hpp
+@@ -16,6 +16,7 @@
+ #include "rtppacketizationconfig.hpp"
+ 
+ #include <chrono>
++#include <mutex>
+ 
+ namespace rtc {
+ 
+@@ -29,6 +30,12 @@ public:
+ 
+ 	void outgoing(message_vector &messages, const message_callback &send) override;
+ 
++	// Derive the NTP timestamp of each sender report from its RTP timestamp through this
++	// anchor instead of reading the wall clock at send time. With several tracks stamped from
++	// one capture clock, SRs then map RTP to NTP identically on every track, whatever each
++	// track's encode/send latency (which a wall-clock SR would bake into A/V sync).
++	void setNtpAnchor(uint32_t rtpTimestamp, uint64_t ntpTimestamp);
++
+ 	// TODO: remove this
+ 	const shared_ptr<RtpPacketizationConfig> rtpConfig;
+ 
+@@ -40,6 +47,11 @@ private:
+ 	uint32_t mPayloadOctets = 0;
+ 	uint32_t mLastReportedTimestamp = 0;
+ 	std::chrono::steady_clock::time_point mLastReportTime;
++
++	std::mutex mNtpAnchorMutex;
++	bool mHasNtpAnchor = false;
++	uint32_t mNtpAnchorRtpTimestamp = 0;
++	uint64_t mNtpAnchorNtpTimestamp = 0;
+ };
+ 
+ } // namespace rtc
+diff --git a/src/capi.cpp b/src/capi.cpp
+index 4777e9a..25d8f2e 100644
+--- a/src/capi.cpp
++++ b/src/capi.cpp
+@@ -1457,6 +1457,14 @@ int rtcSetTrackRtpTimestamp(int id, uint32_t timestamp) {
+ 	});
+ }
+ 
++int rtcSetTrackSenderReportNtpAnchor(int id, uint32_t rtpTimestamp, uint64_t ntpTimestamp) {
++	return wrap([&] {
++		auto sender = getRtcpSrReporter(id);
++		sender->setNtpAnchor(rtpTimestamp, ntpTimestamp);
++		return RTC_ERR_SUCCESS;
++	});
++}
++
+ int rtcGetLastTrackSenderReportTimestamp(int id, uint32_t *timestamp) {
+ 	return wrap([&] {
+ 		auto sender = getRtcpSrReporter(id);
+diff --git a/src/rtcpsrreporter.cpp b/src/rtcpsrreporter.cpp
+index 158fa96..602a55c 100644
+--- a/src/rtcpsrreporter.cpp
++++ b/src/rtcpsrreporter.cpp
+@@ -40,6 +40,13 @@ void RtcpSrReporter::setNeedsToReport() {
+ 
+ uint32_t RtcpSrReporter::lastReportedTimestamp() const { return mLastReportedTimestamp; }
+ 
++void RtcpSrReporter::setNtpAnchor(uint32_t rtpTimestamp, uint64_t ntpTimestamp) {
++	std::lock_guard lock(mNtpAnchorMutex);
++	mHasNtpAnchor = true;
++	mNtpAnchorRtpTimestamp = rtpTimestamp;
++	mNtpAnchorNtpTimestamp = ntpTimestamp;
++}
++
+ void RtcpSrReporter::outgoing(message_vector &messages, const message_callback &send) {
+ 	if (messages.empty())
+ 		return;
+@@ -80,7 +87,17 @@ message_ptr RtcpSrReporter::getSenderReport(uint32_t timestamp) {
+ 	auto msg = make_message(srSize + RtcpSdes::Size({{uint8_t(rtpConfig->cname.size())}}),
+ 	                        Message::Control);
+ 	auto sr = reinterpret_cast<RtcpSr *>(msg->data());
+-	sr->setNtpTimestamp(ntp_time());
++	uint64_t ntp = ntp_time();
++	{
++		std::lock_guard lock(mNtpAnchorMutex);
++		if (mHasNtpAnchor && rtpConfig->clockRate > 0) {
++			// Signed 32-bit distance: valid for timestamps within 2^31 ticks of the anchor
++			const int64_t ticks = int32_t(timestamp - mNtpAnchorRtpTimestamp);
++			const double fraction = double(ticks) * 4294967296.0 / double(rtpConfig->clockRate);
++			ntp = uint64_t(int64_t(mNtpAnchorNtpTimestamp) + int64_t(std::llround(fraction)));
++		}
++	}
++	sr->setNtpTimestamp(ntp);
+ 	sr->setRtpTimestamp(timestamp);
+ 	sr->setPacketCount(mPacketCount);
+ 	sr->setOctetCount(mPayloadOctets);

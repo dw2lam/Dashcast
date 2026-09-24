@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+
+# SwiftPM / build output
+.build/
+build/
+*.xcodeproj/xcuserdata/
+.swiftpm/
+
+# Vendored libdatachannel: sources and build products come from scripts/build-libdatachannel.sh
+Vendor/src/
+Vendor/build/
+Vendor/libdatachannel/
+
+# Web client
+Web/node_modules/
+Web/dist/
+Web/dev/.cache/
+
+# Website (website/.gitignore covers the rest)
+website/node_modules/
+website/dist/
+
+# Capability probe (Vercel)
+Probe/.vercel/
+Probe/.env*
+
+# Design scratch (exploration renders; finals stay tracked)
+Design/icon/archive-dark/
+Design/icon/concepts/
+Design/dmg/archive-dark/
+Design/dmg/work/
+
+# Local secrets, just in case
+*.p12
+*.pem
+*.key
+.env
+.env.*
+
+# Local signing identity (see scripts/build-app.sh)
+.sign-identity
+
+# Agent working brief (internal)
+website/BRIEF.md

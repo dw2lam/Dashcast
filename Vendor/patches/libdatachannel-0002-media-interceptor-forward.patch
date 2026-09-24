@@ -1,0 +1,15 @@
+diff --git a/src/capi.cpp b/src/capi.cpp
+index 4777e9a..235cf49 100644
+--- a/src/capi.cpp
++++ b/src/capi.cpp
+@@ -318,6 +318,10 @@ public:
+ 				    make_message_from_opaque_ptr(std::move(reinterpret_cast<rtcMessage *>(res))));
+ 			}
+ 		}
++
++		// Dashcast patch 0002: hand the filtered messages on. Without this, the moved-from (null)
++		// messages are dispatched and PeerConnection::dispatchMedia dereferences null.
++		messages.swap(result);
+ 	}
+ 
+ private:

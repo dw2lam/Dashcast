@@ -1,0 +1,2 @@
+CONCEPT — "Handoff sweep": a small 16:10 Mac screen (frosted white glass pane with crisp blue #0A6CFF edge) in the upper-left and a WIDE crisp blue→cyan display (about 2.3:1) in the lower-right, NOT overlapping, clear white space between them. One smooth, bold ribbon-arc in the blue→cyan gradient sweeps from the Mac screen down into the wide display, like the picture being thrown across. Flat-ish matte vector shapes, soft shadows, white glass tile. Iconic and legible at 32px.
+OUTPUT PATH: Design/icon/concepts/L4.png

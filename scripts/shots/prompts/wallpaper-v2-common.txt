@@ -1,0 +1,9 @@
+TASK: create ONE original macOS desktop wallpaper image. One image only, no board, no mockup, no device frame, no text.
+
+CONTEXT: the wallpaper sits behind the Liquid Glass windows of "Dashcast", a calm, precise, premium native Mac utility that casts a Mac's display to a car's wide touchscreen. Brand: light, airy frosted glass with a crisp electric-blue to cyan gradient (#0872FE -> #15ABFE -> #18D3FD).
+
+ARTWORK: an abstract composition of a few (3-5) broad, smooth, gently curving bands of thick frosted glass that overlap in layers, each band tinted along the brand gradient. Where bands overlap, the colour deepens and light refracts softly through their rounded edges (thin bright rim highlights, soft internal caustics). The bands sweep in one long confident arc across the lower two-thirds of the frame, like light flowing past at night along a wide horizon. Silky smooth gradients, precise, minimal, expensive. It must feel ORIGINAL and sculptural (not a generic stock "wave" graphic, not thin wispy smoke lines).
+COMPOSITION: landscape 16:10. Upper-centre calm with a large smooth gradient field. Very subtle fine grain.
+ABSOLUTELY NOT: text, letters, numbers, logos, cars, roads, screens, devices, people, stars, particles, sparkles, lens flares, neon glow, bokeh, hard geometric polygons, plastic 3D look, rainbow hues, purple, pink, green.
+
+DELIVERY: Use your image generation tool to create exactly ONE image at the LARGEST landscape size available. Then copy the generated PNG file (from ~/.codex/generated_images/...) to the OUTPUT PATH below using `cp`. Do not create any other files. Finish by printing the output path.

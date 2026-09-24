@@ -1,0 +1,3 @@
+REFERENCE: the attached image is our round-1 favourite. Keep its concept, stage and lighting.
+CONCEPT — refine it: make the glowing glass display about 2:1 (a little less wide) so it sits comfortably inside the central 76% of the canvas with dark space on both sides. Turn the cast beam into a crisp, deliberate wedge of light entering the display from the upper-left (like the image being beamed in), narrower and cleaner. Dashboard curve: smooth satin graphite (no leather grain), thin cyan rim light along the crest, the display's glow reflecting softly on it. Stronger contrast between glowing display and ink background. Very minimal, iconic, Apple-grade.
+OUTPUT PATH: Design/icon/concepts/r2c.png

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Dashcast</string>
+	<key>CFBundleExecutable</key>
+	<string>Dashcast</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>online.davidlam.dashcast</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Dashcast</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Dashcast uses an administrator script to install its small network helper, which keeps car.davidlam.online pointed at this Mac.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 David Lam</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Dashcast streams this Mac’s display to your car over the local network.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,184 @@
+/*
+ * Dashcast design tokens, distilled from tesla.com's TDS ("Tesla Design System") custom properties,
+ * measured 2026-09-24 on /, /model3, /modely and /models. See DESIGN.md for where each value comes from.
+ * Shared contract: the demo and showcase agents read these variables. Rename nothing without telling them.
+ */
+:root {
+  /* ---------- type ---------- */
+  /* Tesla's own faces (Universal Sans Display/Text) are licensed to Tesla, so the site uses Helvetica:
+     the system copy on Apple devices (Helvetica Neue has the Medium 500 that Tesla titles use), Arial elsewhere.
+     No font files ship. */
+  --font-display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-text: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-display: 500;
+  --ls-display: -0.01em;
+
+  /* TDS type scale: --tds-font-size-* / --tds-line-height-* (px) */
+  --fs-10: 10px;  --lh-10: 18px;
+  --fs-20: 12px;  --lh-20: 20px;
+  --fs-30: 14px;  --lh-30: 20px;
+  --fs-40: 17px;  --lh-40: 24px;
+  --fs-50: 20px;  --lh-50: 28px;
+  --fs-60: 24px;  --lh-60: 28px;
+  --fs-70: 28px;  --lh-70: 36px;
+  --fs-75: 34px;  --lh-75: 44px;
+  --fs-80: 40px;  --lh-80: 48px;
+  --fs-90: 48px;  --lh-90: 56px;
+  --fs-100: 56px; --lh-100: 64px;
+  --fs-110: 64px; --lh-110: 64px;
+
+  /* Semantic roles (responsive; see the media queries below) */
+  --type-hero: var(--fs-110);          /* model-page hero title, 64/64 */
+  --type-hero-lh: var(--lh-110);
+  --type-section: var(--fs-90);        /* "Meet Model 3", 48/56 */
+  --type-section-lh: var(--lh-90);
+  --type-sub: var(--fs-50);            /* hero subtitle, 20/28 */
+  --type-sub-lh: var(--lh-50);
+  --type-stat: var(--fs-110);          /* big spec number, 64/64 */
+  --type-stat-lh: var(--lh-110);
+  --type-stat-unit: var(--fs-70);      /* unit next to it, 28/36 */
+  --type-stat-label: var(--fs-50);     /* label under it, 20/28 */
+  --type-body: var(--fs-30);           /* body copy, 14/20 */
+  --type-body-lh: var(--lh-30);
+
+  /* ---------- colour (TDS light theme) ---------- */
+  --c-white: #ffffff;
+  --c-black: #000000;
+  --c-ink: #171a20;            /* --tds-theme-foreground-high-contrast: headings, nav items */
+  --c-text: #393c41;           /* --tds-theme-foreground: body */
+  --c-text-low: #5c5e62;       /* --tds-theme-foreground-low-contrast: labels, footer */
+  --c-grey-10: #171a20;
+  --c-grey-20: #393c41;
+  --c-grey-30: #5c5e62;
+  --c-grey-35: #8e8e8e;        /* spec labels on black */
+  --c-grey-40: #a2a3a5;
+  --c-grey-50: #d0d1d2;        /* --tds-theme-border */
+  --c-grey-60: #e2e3e3;        /* --tds-theme-border-low-contrast */
+  --c-grey-65: #eeeeee;        /* --tds-theme-background-container-highlight */
+  --c-grey-70: #f4f4f4;        /* --tds-theme-background-container */
+  --c-hover: rgba(0, 0, 0, 0.05);            /* --tds-theme-background-container-alt (nav pill) */
+  --c-hover-hi: rgba(0, 0, 0, 0.075);
+  --c-hover-dark: rgba(255, 255, 255, 0.12); /* same pill on photos / dark sections */
+
+  --c-blue: #3e6ae1;           /* --tds-theme-primary: the one CTA colour */
+  --c-blue-hover: #3457b1;     /* --tds-theme-primary-highlight */
+  --c-positive: #12bb00;
+  --c-warning: #fbb01b;
+  --c-negative: #b74134;
+
+  /* Dashcast brand (from the app icon). Use sparingly: wordmark mark, diagram signal lines. */
+  --c-brand-1: #0872fe;
+  --c-brand-2: #15abfe;
+  --c-brand-3: #18d3fd;
+  --grad-brand: linear-gradient(90deg, var(--c-brand-1), var(--c-brand-2) 55%, var(--c-brand-3));
+
+  /* Dark section palette (Tesla's black specs table) */
+  --c-dark-bg: #000000;
+  --c-dark-ink: #ffffff;
+  --c-dark-text: #eeeeee;
+  --c-dark-low: #8e8e8e;
+  --c-dark-line: rgba(255, 255, 255, 0.14);
+
+  /* ---------- space: TDS --tds-size--Nx, 8px grid ---------- */
+  --s-half: 4px;
+  --s-1: 8px;
+  --s-2: 16px;
+  --s-3: 24px;
+  --s-4: 32px;
+  --s-5: 40px;
+  --s-6: 48px;
+  --s-7: 56px;
+  --s-8: 64px;
+  --s-9: 72px;
+  --s-10: 80px;
+  --s-12: 96px;
+  --s-13: 104px;
+
+  --gutter: 32px;              /* site header inline padding ≥1200px */
+  --section-pad: 104px;        /* specs section block padding */
+  --content-max: 1200px;
+
+  /* ---------- shape ---------- */
+  --radius: 4px;               /* every TDS radius: pill, card, button */
+  --radius-media: 8px;         /* --tcl-border-radius (media cards) */
+  --hairline: 1px solid var(--c-grey-60);
+  --hairline-dark: 1px solid var(--c-dark-line);
+  --shadow-sm: 0 4px 8px 0 rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 16px 0 rgba(0, 0, 0, 0.12);
+  --blur-pill: 16px;           /* --tds-blur--button */
+
+  /* ---------- components ---------- */
+  --nav-h: 56px;               /* --tds-site-header--height */
+  --nav-item-h: 32px;          /* --tds-nav-item--block-size */
+  --btn-h: 40px;               /* --tds-height--pill */
+  --btn-min-w: 200px;          /* measured CTA width on every model page */
+  --btn-fs: 14px;
+
+  /* ---------- motion ---------- */
+  --ease: cubic-bezier(0.5, 0, 0, 0.75);        /* --tds-bezier: panels, modals */
+  --ease-mktg: cubic-bezier(0.165, 0.84, 0.44, 1); /* --tds-animate-transition-function--mktg: reveals */
+  --ease-slide: cubic-bezier(0.75, 0, 0, 1);    /* animated backdrop pill, carousel dots */
+  --dur-ui: 0.33s;             /* colour/background on buttons + nav items */
+  --dur-short: 0.5s;
+  --dur-medium: 0.6s;
+  --dur-long: 1.5s;
+  --reveal-small: 30px;        /* .tds-animate_small--to_reveal */
+  --reveal-large: 100px;       /* .tds-animate_large--to_reveal */
+
+  /* ---------- breakpoints (reference only; CSS vars can't drive @media) ----------
+     phone < 600 · tablet-portrait 600–899 · tablet-landscape 900–1199 · desktop 1200–1799 · large ≥ 1800 */
+  --bp-tablet: 600px;
+  --bp-tablet-l: 900px;
+  --bp-desktop: 1200px;
+  --bp-large: 1800px;
+
+  /* z layers */
+  --z-nav: 500;
+  --z-menu: 490;
+  --z-overlay: 480;
+}
+
+@media (max-width: 1199px) {
+  :root {
+    --gutter: 20px;
+    --section-pad: 80px;
+    --type-hero: var(--fs-100);
+    --type-hero-lh: var(--lh-100);
+    --type-section: var(--fs-80);
+    --type-section-lh: var(--lh-80);
+    --type-stat: var(--fs-100);
+    --type-stat-lh: var(--lh-100);
+  }
+}
+
+@media (max-width: 599px) {
+  :root {
+    --gutter: 16px;
+    --section-pad: 64px;
+    --type-hero: var(--fs-80);
+    --type-hero-lh: var(--lh-80);
+    --type-section: var(--fs-70);
+    --type-section-lh: var(--lh-70);
+    --type-sub: var(--fs-40);
+    --type-sub-lh: var(--lh-40);
+    --type-stat: var(--fs-75);
+    --type-stat-lh: var(--lh-75);
+    --type-stat-unit: var(--fs-50);
+    --type-stat-label: var(--fs-30);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-ui: 0.01s;
+    --dur-short: 0.01s;
+    --dur-medium: 0.01s;
+    --dur-long: 0.01s;
+    --reveal-small: 0px;
+    --reveal-large: 0px;
+  }
+}

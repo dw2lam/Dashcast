@@ -1,0 +1,46 @@
+/* Fingertips on the glass (panel px). */
+.dm-fg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.dm-fg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.dm-fg-dot,
+.dm-fg-ring {
+  position: absolute;
+  top: -32px;
+  left: -32px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.dm-fg-dot {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.34) 55%, rgba(255, 255, 255, 0.12) 72%, rgba(255, 255, 255, 0) 74%);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28), 0 6px 22px rgba(0, 0, 0, 0.35);
+}
+
+.dm-fg-ring {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55);
+  opacity: 0;
+}
+
+/* MCU2's 1242×736 stream is upscaled to the 1920×1140 page: a touch softer than MCU3's 1920×1138.
+   The film's window is left out: its footage is already soft, and a filter over a <video> under a
+   3D transform loses the window's rounded clip in Chrome. */
+[data-tier='mcu2'] .dm-mac > :not(.dm-mw-player) {
+  filter: blur(0.42px);
+}

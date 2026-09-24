@@ -1,0 +1,7 @@
+REFERENCE: the attached image is the CHOSEN icon. Make its SMALL-SIZE variant, used only when the icon is rendered at 16x16 and 32x32 px: the SAME composition, simplified and bolder.
+- Same layout: wide blue→cyan display (about 2.1:1) with the small white Mac pane in front overlapping its lower-left corner, pane protruding below and left.
+- Make the whole group LARGER: it spans ~84% of the tile width and is optically centered.
+- The white Mac pane gets a crisp, clearly visible mid-grey outline (#8A96AB, about 2% of tile width thick) and a slightly stronger soft shadow, so it separates from the white tile at tiny sizes.
+- Inside the pane, the blue→cyan screen is large (white border only ~8% of the pane width).
+- Pure flat vector colours, no frosting blur, no haze, no fine detail. Tile: white #FFFFFF → mist #EEF2F7.
+OUTPUT PATH: Design/icon/concepts/S1.png

@@ -1,0 +1,333 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: var(--nav-h);
+}
+
+body {
+  margin: 0;
+  background: var(--c-white);
+  color: var(--c-text);
+  font-family: var(--font-text);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ol,
+ul,
+figure,
+dl,
+dd {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+img,
+svg,
+video,
+canvas,
+picture {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(62, 106, 225, 0.22);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- type roles ---------- */
+.t-hero,
+.t-section,
+.t-title,
+.t-sub,
+.t-stat {
+  font-family: var(--font-display);
+  letter-spacing: var(--ls-display);
+  text-wrap: balance;
+  color: var(--c-ink);
+}
+
+.t-hero {
+  font-size: var(--type-hero);
+  line-height: var(--type-hero-lh);
+  font-weight: var(--fw-display);
+}
+
+.t-section {
+  font-size: var(--type-section);
+  line-height: var(--type-section-lh);
+  font-weight: var(--fw-display);
+}
+
+.t-title {
+  font-size: var(--fs-70);
+  line-height: var(--lh-70);
+  font-weight: var(--fw-display);
+}
+
+.t-sub {
+  font-size: var(--type-sub);
+  line-height: var(--type-sub-lh);
+  font-weight: var(--fw-regular);
+  color: var(--c-text);
+}
+
+.t-body {
+  font-size: var(--type-body);
+  line-height: var(--type-body-lh);
+  color: var(--c-text);
+}
+
+.t-label {
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-text-low);
+}
+
+.on-dark,
+.on-dark .t-hero,
+.on-dark .t-section,
+.on-dark .t-title,
+.on-dark .t-stat,
+.on-dark .t-sub {
+  color: var(--c-white);
+}
+
+.on-dark .t-body {
+  color: var(--c-dark-text);
+}
+
+.on-dark .t-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ---------- buttons (TDS .tds-btn) ---------- */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--btn-h);
+  min-width: var(--btn-min-w);
+  padding: var(--s-half) var(--s-3);
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  font-family: var(--font-text);
+  font-size: var(--btn-fs);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-ui),
+    background-color var(--dur-ui),
+    color var(--dur-ui),
+    box-shadow 0.25s;
+}
+
+.btn--primary {
+  background-color: var(--c-blue);
+  color: var(--c-white);
+}
+
+.btn--primary:hover {
+  background-color: var(--c-blue-hover);
+}
+
+/* Secondary on light surfaces: TDS tertiary (#f4f4f4) */
+.btn--secondary {
+  background-color: var(--c-grey-70);
+  color: var(--c-text);
+}
+
+.btn--secondary:hover {
+  background-color: var(--c-grey-60);
+}
+
+/* Secondary on photos / dark surfaces: tcl-btn--high-contrast inverted */
+.btn--light {
+  background-color: var(--c-white);
+  color: var(--c-text);
+}
+
+.btn--light:hover {
+  background-color: var(--c-grey-60);
+}
+
+.btn--dark {
+  background-color: var(--c-ink);
+  color: var(--c-white);
+}
+
+.btn--dark:hover {
+  background-color: var(--c-grey-20);
+}
+
+/* Two CTAs, side by side from 600px; equal columns below. Grid, not flex gap (Chromium 79). */
+.btn-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: center;
+  grid-gap: var(--s-2) var(--s-1);
+  gap: var(--s-2) var(--s-1);
+}
+
+@media (max-width: 599px) {
+  .btn {
+    min-width: 0;
+    width: 100%;
+    padding: var(--s-half) var(--s-2);
+  }
+
+  .btn-row {
+    grid-auto-columns: 1fr;
+    width: 100%;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ---------- spec stats (TDS .tcl-badge-group) ---------- */
+.stats {
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.stat {
+  display: grid;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  text-align: center;
+  padding: 0 var(--s-5);
+}
+
+.stat + .stat {
+  border-left: 1px solid var(--c-grey-50);
+}
+
+.on-dark .stat + .stat {
+  border-left-color: rgba(255, 255, 255, 0.28);
+}
+
+.stat__value {
+  display: flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-size: var(--type-stat);
+  line-height: var(--type-stat-lh);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__unit {
+  margin-left: var(--s-half);
+  font-size: var(--type-stat-unit);
+  line-height: var(--lh-70);
+}
+
+.stat__label {
+  margin-top: var(--s-half);
+  font-family: var(--font-display);
+  font-size: var(--type-stat-label);
+  line-height: var(--lh-50);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-low);
+  white-space: nowrap;
+}
+
+.on-dark .stat__value {
+  color: var(--c-white);
+}
+
+.on-dark .stat__label {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ---------- section scaffolding ---------- */
+.section {
+  position: relative;
+}
+
+.wrap {
+  width: 100%;
+  max-width: calc(var(--content-max) + var(--gutter) * 2);
+  margin: 0 auto;
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+.section-head {
+  text-align: center;
+}
+
+.section-head .t-sub {
+  margin-top: var(--s-half);
+}
+
+/* Reveal targets start visible; motion.ts hides them only once GSAP is ready to animate them in. */
+[data-reveal] {
+  will-change: transform, opacity;
+}

@@ -1,0 +1,15 @@
+OVERRIDE OF THE DEFAULT BOARD LAYOUT: this task is NOT a brand board. Custom layout requested: ONE single macOS app icon artwork, one image, nothing else. Apply the skill's logo standards (reduction, symbolic meaning, scalability, restraint) but output only the icon.
+
+PRODUCT: "Dashcast" — a lightweight native SwiftUI Mac utility that wirelessly extends or mirrors a MacBook's display onto a car's wide center touchscreen (it streams to the car's built-in browser). Feeling: calm, precise, premium, Apple-grade.
+
+ICON STYLE: modern macOS 26 app icon ("Liquid Glass" era, like Apple's Sidecar / Screen Sharing / Freeform / Image Playground icons). Layered frosted-glass shapes with soft specular edge highlights, gentle refraction, subtle material lighting from the top, real depth between layers, soft inner glow. Clean vector-like forms rendered with photographic glass/material quality. NOT flat clip-art, NOT skeuomorphic 3D render of a real laptop or car, NOT a mockup.
+
+PALETTE: deep graphite/ink background (#0C111B to #161D2A, subtle top-light gradient, gentle vignette). Single cool electric accent: gradient electric blue #2F6BFF to cyan #3FD8FF, hottest highlights near ice #BFF3FF. Glass whites at low opacity. No other hues.
+
+HARD RULES:
+- NO text, NO letters, NO numbers, NO logos, NO Tesla "T", NO brand marks, NO steering wheel, NO car silhouette clip-art.
+- Must read at 16x16 and 32x32 px: 2-3 bold primary shapes max, strong silhouette, high contrast between the glowing accent and the dark background. Avoid thin hairlines and tiny details carrying meaning.
+- COMPOSITION FOR POST-PROCESSING: the artwork is FULL-BLEED — the dark background fills the ENTIRE square canvas edge to edge (no rounded corners, no outer white/transparent margin, no drop shadow, no device frame). It will be masked to Apple's squircle later, so keep all meaningful content inside the central ~78% of the canvas (corners will be cut away).
+- Square 1:1, 1024x1024 (or the largest square size available).
+
+DELIVERY: Use your image generation tool to create exactly ONE image. Then copy the generated PNG file (from ~/.codex/generated_images/...) to the OUTPUT PATH below using `cp`. Do not create any other files. Finish by printing the output path.
