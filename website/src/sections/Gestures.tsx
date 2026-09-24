@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
  * Animated gesture art for the Touch cards: a small car screen with the Mac on it and fingertips
  * doing the gesture. Pure SVG + CSS keyframes (Touch.css); static under reduced motion.
  */
-export type Gesture = 'tap' | 'drag' | 'scroll' | 'hold' | 'keys';
+export type Gesture = 'sound' | 'mcu' | 'tap' | 'drag' | 'scroll' | 'hold' | 'keys';
 
 function Screen({ fill, children }: { fill: string; children?: ReactNode }) {
   return (
@@ -53,6 +53,52 @@ export function GestureArt({ kind }: { kind: Gesture }) {
         </linearGradient>
       </defs>
       <g>
+        {kind === 'sound' && (
+          <Screen fill={`url(#gd-${kind})`}>
+            <linearGradient id="gv-sound" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#f3a55a" />
+              <stop offset="0.55" stopColor="#b8577a" />
+              <stop offset="1" stopColor="#3b2a63" />
+            </linearGradient>
+            <rect x="42" y="64" width="316" height="184" fill="url(#gv-sound)" />
+            <circle cx="252" cy="118" r="18" fill="#ffe2b0" opacity="0.9" />
+            <path d="M42 200l52-42 40 26 58-54 62 50 44-30 60 44v54H42z" fill="#2a1f45" opacity="0.92" />
+            <rect className="g-player" x="42" y="214" width="316" height="34" />
+            <path className="g-play" d="M60 223.5v13l11-6.5z" />
+            <rect className="g-track" x="84" y="229" width="200" height="3" rx="1.5" />
+            <rect className="g-progress" x="84" y="229" width="200" height="3" rx="1.5" />
+            <path className="g-speaker" d="M301 226h5l6-5v18l-6-5h-5z" />
+            <g className="g-waves">
+              <path d="M317 225a7 7 0 0 1 0 10" />
+              <path d="M321 221a12 12 0 0 1 0 18" />
+              <path d="M325 217a17 17 0 0 1 0 26" />
+            </g>
+          </Screen>
+        )}
+        {kind === 'mcu' && (
+          <Screen fill={`url(#gd-${kind})`}>
+            {[
+              { y: 104, cls: 'g-lane--mcu2', ticks: 7 },
+              { y: 180, cls: 'g-lane--mcu3', ticks: 13 },
+            ].map((l) => (
+              <g key={l.cls} className={`g-lane ${l.cls}`}>
+                <rect className="g-chip" x="66" y={l.y - 20} width="40" height="40" rx="7" />
+                <rect className="g-chip-core" x="76" y={l.y - 10} width="20" height="20" rx="3" />
+                {[0, 1, 2, 3].map((i) => (
+                  <g key={i}>
+                    <rect className="g-pin" x={72 + i * 9} y={l.y - 26} width="3" height="6" rx="1" />
+                    <rect className="g-pin" x={72 + i * 9} y={l.y + 20} width="3" height="6" rx="1" />
+                  </g>
+                ))}
+                <rect className="g-rail" x="126" y={l.y - 1.5} width="206" height="3" rx="1.5" />
+                {Array.from({ length: l.ticks }, (_, i) => (
+                  <rect key={i} className="g-tick" x={126 + (i * 206) / (l.ticks - 1) - 1} y={l.y - 8} width="2" height="16" rx="1" />
+                ))}
+                <circle className="g-frame" cx="126" cy={l.y} r="8" />
+              </g>
+            ))}
+          </Screen>
+        )}
         {kind === 'tap' && (
           <Screen fill={`url(#gd-${kind})`}>
             <Window lines={4} />

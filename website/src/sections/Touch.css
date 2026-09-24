@@ -35,6 +35,35 @@
   display: none;
 }
 
+.cards__track:focus {
+  outline: none;
+}
+
+.cards__track:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Mouse/trackpad: free native scrolling, then Touch.tsx settles on a card in the direction of travel.
+     Touch screens keep the browser's own mandatory snap (flick velocity picks the card). */
+  .cards__track {
+    cursor: -webkit-grab;
+    cursor: grab;
+    scroll-snap-type: none;
+  }
+
+  .cards__track.is-dragging {
+    cursor: -webkit-grabbing;
+    cursor: grabbing;
+  }
+}
+
+.cards__track.is-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .card {
   position: relative;
   height: 500px;
@@ -76,6 +105,13 @@
   font-size: var(--fs-30);
   line-height: var(--lh-30);
   color: rgba(255, 255, 255, 0.72);
+}
+
+.card__detail {
+  margin-top: var(--s-half);
+  font-size: var(--fs-20);
+  line-height: 18px;
+  color: rgba(255, 255, 255, 0.52);
 }
 
 .cards__nav {
@@ -247,8 +283,96 @@
   transform-origin: left top;
 }
 
+/* sound: a film playing on the car screen, audio waves off the speaker */
+.g-player {
+  fill: rgba(0, 0, 0, 0.5);
+}
+
+.g-play,
+.g-speaker {
+  fill: rgba(255, 255, 255, 0.92);
+}
+
+.g-track {
+  fill: rgba(255, 255, 255, 0.28);
+}
+
+.g-progress {
+  fill: rgba(255, 255, 255, 0.92);
+  transform-box: fill-box;
+  transform-origin: left center;
+  transform: scaleX(0.42);
+}
+
+.g-waves path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* mcu: two computers, the same motion at 30 and 60 frames per second */
+.g-chip {
+  fill: #15171c;
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 1;
+}
+
+.g-chip-core {
+  fill: rgba(255, 255, 255, 0.2);
+}
+
+.g-lane--mcu3 .g-chip-core {
+  fill: var(--c-brand-2);
+}
+
+.g-pin {
+  fill: rgba(255, 255, 255, 0.34);
+}
+
+.g-rail {
+  fill: rgba(255, 255, 255, 0.16);
+}
+
+.g-tick {
+  fill: rgba(255, 255, 255, 0.26);
+}
+
+.g-frame {
+  fill: rgba(255, 255, 255, 0.95);
+  transform: translateX(103px);
+}
+
+.g-lane--mcu3 .g-frame {
+  fill: #9fdcff;
+}
+
 /* ---------- motion (only while the section is on screen, never under reduced motion) ---------- */
 @media (prefers-reduced-motion: no-preference) {
+  .is-live .g--sound .g-progress {
+    animation: g-progress 6s linear infinite;
+  }
+
+  .is-live .g--sound .g-waves path {
+    animation: g-wave 1.2s var(--ease) infinite;
+  }
+
+  .is-live .g--sound .g-waves path:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .is-live .g--sound .g-waves path:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .is-live .g--mcu .g-lane--mcu2 .g-frame {
+    animation: g-frames 2.4s steps(6, end) infinite;
+  }
+
+  .is-live .g--mcu .g-lane--mcu3 .g-frame {
+    animation: g-frames 2.4s linear infinite;
+  }
+
   .is-live .g--tap .g-tip {
     animation: g-tap-tip 2.4s var(--ease) infinite;
   }
@@ -309,6 +433,34 @@
 
   .is-live .g--keys .g-key--5 {
     animation-delay: 0.53s;
+  }
+}
+
+@keyframes g-progress {
+  0% {
+    transform: scaleX(0.02);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes g-wave {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+@keyframes g-frames {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(206px);
   }
 }
 

@@ -9,10 +9,11 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100svh;
-  min-height: 640px;
-  padding-top: calc(var(--nav-h) + var(--s-3));
+  /* Pinned just below the sticky white nav, so the stage owns the rest of the viewport. */
+  height: calc(100vh - var(--nav-h));
+  height: calc(100svh - var(--nav-h));
+  min-height: 584px;
+  padding-top: var(--s-3);
   padding-bottom: var(--s-4);
   background: var(--c-white);
 }
@@ -330,7 +331,7 @@
 
 @media (max-width: 599px) {
   .sc__pin {
-    padding-top: calc(var(--nav-h) + var(--s-2));
+    padding-top: var(--s-2);
     padding-bottom: var(--s-3);
   }
 

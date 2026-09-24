@@ -2,17 +2,17 @@ import { Nav } from './sections/Nav';
 import { Hero } from './sections/Hero';
 import { Extend } from './sections/Extend';
 import { Touch } from './sections/Touch';
-import { Feature } from './sections/Highlights';
+import { Band } from './sections/Band';
+import { Office } from './sections/Office';
 import { Connect } from './sections/Connect';
 import { Tech } from './sections/Tech';
 import { Compare } from './sections/Compare';
 import { Faq } from './sections/Faq';
-import { Download } from './sections/Download';
-import { Footer } from './sections/Footer';
+import { Closing } from './sections/Closing';
 import { DemoSection } from './demo';
 import { Showcase } from './showcase';
 
-// Section order: tesla.com's rhythm of full-bleed media broken up by white sections.
+// Section order: tesla.com's rhythm, white sections broken up by black and full-bleed photo ones.
 // Owners: sections/* = site lead, demo/* = Tesla demo, showcase/* = app screenshots.
 export default function App() {
   return (
@@ -23,17 +23,16 @@ export default function App() {
         <Extend />
         <DemoSection />
         <Touch />
-        <Feature id="sound" />
+        <Office />
         <Showcase />
-        <Feature id="mcu" />
+        <Band />
         <Connect />
         <Tech />
         <Compare />
         <Faq />
-        <Download />
       </main>
-      {/* The demo section carries the parked/charging/passenger line, so the footer doesn't repeat it. */}
-      <Footer safetyLine={false} />
+      {/* Download + footer share one photo; the demo section carries the parked/charging/passenger line. */}
+      <Closing />
     </>
   );
 }

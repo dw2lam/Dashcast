@@ -74,6 +74,11 @@ button {
   outline-offset: 2px;
 }
 
+/* Section headings take focus after an in-page jump; only show it for keyboard users. */
+[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
 ::selection {
   background: rgba(62, 106, 225, 0.22);
 }

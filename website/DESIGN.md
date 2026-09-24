@@ -120,22 +120,49 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
   - Buttons carry `aria-expanded` and `aria-controls` → `role="region"` panels, and closed panels are `hidden`.
   - The height animates over 0.5s with `--ease`; reduced motion snaps it. Buttons are at least 40px tall (Tesla's are 20px plus 24px spacing) for touch.
 
-## Section order (round 3)
-| # | Section | Surface |
-|---|---|---|
-| 1 | Hero | full-bleed |
-| 2 | Extend split card | white |
-| 3 | Demo | black |
-| 4 | Touch card carousel | white |
-| 5 | Sound | full-bleed |
-| 6 | App showcase | white |
-| 7 | MCU2/MCU3 | full-bleed |
-| 8 | Connect | white |
-| 9 | Under the hood | black |
-| 10 | Compare | white |
-| 11 | FAQ | white |
-| 12 | Download (Donate is the secondary CTA) | full-bleed |
-| 13 | Footer | white |
+## Section order (round 4)
+| # | Section | Surface | Notes |
+|---|---|---|---|
+| 1 | Hero | full-bleed (the demo's cabin composite) | |
+| 2 | Extend | white, grey split card | |
+| 3 | Demo | black | |
+| 4 | Made for the car | white feature-card carousel | Sound · MCU2 and MCU3 · Tap · Drag · Two fingers · Hold · Keyboard |
+| 5 | Your office, anywhere | graphite | our own animated line drawing plus three steps |
+| 6 | The Mac app showcase | white | |
+| 7 | Band: "Nothing to install in the car." | full-bleed | MCU interior photo |
+| 8 | Connect | white | |
+| 9 | Under the hood | black | |
+| 10 | Compare | white | |
+| 11 | FAQ | white | |
+| 12 | Closing | full-bleed | Download plus the footer on one photo (Teslas at a Supercharger at night) |
+
+There are never more than two white sections in a row. Sound and MCU are now feature cards, not full-bleed sections.
+
+## Carousel input (Made for the car)
+The track is a native `overflow-x: auto` scroller. The JS never blocks vertical page scroll or the browser's own gestures.
+- **Trackpad and shift+wheel:** native.
+  - Shift+wheel is converted to horizontal scroll only when the OS hasn't already done that.
+  - On mouse/trackpad screens CSS snap is off. Once a gesture stops (160ms with no scroll events), Touch.tsx settles on a card in the direction of travel. Any intentional swipe (24px or more) pages to the next card.
+- **Mouse drag:**
+  - Pointer events with grab/grabbing cursors. Pointer capture starts after 5px of movement, so plain clicks still reach their targets.
+  - Velocity-projected momentum, then a glide to the nearest card with `--ease-mktg`.
+  - No text selection while dragging, and the click that ends a drag is swallowed.
+- **Touch:** native, with CSS `scroll-snap-type: x mandatory` on coarse pointers, so the browser's flick velocity picks the card.
+- **Keyboard:** the focusable track handles ←/→ (one card), Home and End.
+- **Buttons and ARIA:** prev/next buttons carry `aria-controls` and are disabled at the ends. The wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of 7".
+
+## In-page navigation (`lib/navigate.ts`)
+- **Interception:** every same-page `#anchor` click goes through `goTo(id)`: nav links, the Menu sheet (after it closes), the hero CTAs and in-copy links.
+- **Target:** the section's flow top (the pin spacer's position when a ScrollTrigger pin has lifted it out of flow) minus the 56px nav.
+- **Scroll:** one GSAP ScrollTo tween, which works on Chromium 79, with `--ease-slide`, lasting 0.45s plus distance/6000, capped at 1.2s.
+- **After it lands:** a correction against the live layout, `history.replaceState` for the hash, and focus on the section's h1/h2 (`tabindex=-1`, `preventScroll`).
+- **Reduced motion:** instant.
+- **Deep links:** they land once fonts load and the page settles, and are re-checked at 0.4s, 1.2s and 2.4s unless the visitor scrolls first.
+- **Nav pill:** it holds on the destination for the whole jump rather than sweeping past other links.
+
+## Closing and footer
+- **Download:** the app icon, "Dashcast for Mac", one line, the primary CTA (the release .dmg, or GitHub as the fallback), Donate as the secondary button, then "macOS 15 or later · Apple silicon · v0.0.1".
+- **Footer:** OpenHue/NotchTune pattern on the same photo behind a hairline. One row: icon, wordmark and tagline on the left; GitHub · Donate · David Lam on the right. Beneath it, one legal line.
 
 ## Layout
 - **Breakpoints (TDS):**
@@ -172,4 +199,4 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
 ## Reserved global class names (site lead)
 The site's CSS is global. The other agents should prefix their classes; the demo agent's `.seg` already collided once.
 
-`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.cards*`, `.card*`, `.g`, `.g-*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
+`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.cards*`, `.card*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`

@@ -2,14 +2,13 @@
 
 ## Site lead — highlight photos
 
-Originals in `research/tesla-web/refs/photos/` (git-ignored). Shipped derivatives in `public/media/` (`<prefix>-960/1600/2400` and `<prefix>-p750/p1125`, `.avif` + `.webp`). All four were checked as free (not Unsplash+/premium) on 2026-09-24. Every photo shows a Tesla interior or a Tesla. None comes from the demo cabin's shoot (I'M ZION) or the MCU photo's shoot (Bram Van Oost). Since round 3 the Touch section uses animated drawings instead of a photo, so no Touch photo is shipped.
+Originals in `research/tesla-web/refs/photos/` (git-ignored). Shipped derivatives in `public/media/` (`<prefix>-960/1600/2400` and `<prefix>-p750/p1125`, `.avif` + `.webp`). All three were checked as free (not Unsplash+/premium) on 2026-09-24. Every photo shows a Tesla interior or a Tesla, and none comes from the demo cabin's shoot (I'M ZION). The Touch, Sound, MCU and car-office visuals are our own animated drawings, so no photos ship for them.
 
 | slot | file prefix | photographer | source page URL | licence |
 |---|---|---|---|---|
 | Extend or mirror | `extend` | [Priscilla Du Preez](https://unsplash.com/@priscilladupreez) | https://unsplash.com/photos/a-car-dashboard-with-a-monitor-and-steering-wheel-518PH1Y_1EI | Unsplash License |
-| Sound through the car | `sound` | [Priscilla Du Preez](https://unsplash.com/@priscilladupreez) | https://unsplash.com/photos/the-interior-of-a-car-with-a-steering-wheel-and-dashboard-5ZZlwluVR0U | Unsplash License (same 2023-09-16 shoot as `extend`) |
-| Built for MCU2 and MCU3 | `mcu` | [Bram Van Oost](https://unsplash.com/@ort) | https://unsplash.com/photos/the-interior-of-a-car-with-a-laptop-on-the-dashboard-1tm9Rkp_43Q | Unsplash License |
-| Download | `parked` | [Jp Valery](https://unsplash.com/@jpvalery) | https://unsplash.com/photos/black-sedan-FdBfCrKnR4I | Unsplash License |
+| Band: “Nothing to install in the car.” | `mcu` | [Bram Van Oost](https://unsplash.com/@ort) | https://unsplash.com/photos/the-interior-of-a-car-with-a-laptop-on-the-dashboard-1tm9Rkp_43Q | Unsplash License |
+| Download (closing section + footer) | `charge` | [Prometheus](https://unsplash.com/@iamateapot) | https://unsplash.com/photos/a-group-of-cars-parked-in-a-parking-lot-at-night-OcFDX9_kfLg | Unsplash License |
 
 ## Site lead — fonts
 

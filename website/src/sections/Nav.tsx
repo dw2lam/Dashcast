@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Wordmark } from '../ui/Wordmark';
 import { CloseIcon, GitHubIcon } from '../ui/icons';
 import { REPO_URL } from '../lib/links';
+import { NAV_EVENT, type NavPhase } from '../lib/navigate';
 import './Nav.css';
 
 const LINKS = [
@@ -19,14 +20,18 @@ export function Nav() {
   const listRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
   const hovering = useRef(false);
+  const locked = useRef<string | null>(null);
 
   useEffect(() => {
     const seen = new Map<string, boolean>();
+    const pick = () => {
+      const current = LINKS.find((l) => seen.get(l.id));
+      setActive(current ? current.id : null);
+    };
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) seen.set(e.target.id, e.isIntersecting);
-        const current = LINKS.find((l) => seen.get(l.id));
-        setActive(current ? current.id : null);
+        if (!locked.current) pick();
       },
       { rootMargin: '-45% 0px -54% 0px' },
     );
@@ -36,10 +41,23 @@ export function Nav() {
         if (el) io.observe(el);
       }
     };
+    // While a nav jump is in flight the pill holds on its destination instead of sweeping every link it passes.
+    const onNav = (e: Event) => {
+      const { phase, id } = (e as CustomEvent<{ phase: NavPhase; id: string }>).detail;
+      if (phase === 'start') {
+        locked.current = id;
+        setActive(LINKS.some((l) => l.id === id) ? id : null);
+      } else {
+        locked.current = null;
+        requestAnimationFrame(pick);
+      }
+    };
     observe();
     const retry = window.setTimeout(observe, 1500);
+    window.addEventListener(NAV_EVENT, onNav);
     return () => {
       window.clearTimeout(retry);
+      window.removeEventListener(NAV_EVENT, onNav);
       io.disconnect();
     };
   }, []);

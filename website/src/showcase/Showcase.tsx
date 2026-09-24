@@ -199,6 +199,7 @@ export function Showcase() {
     const undoReveal = revealWithin(root);
     if (reduced) return undoReveal;
 
+    const navHeight = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56;
     const pinLength = () => `+=${Math.round(window.innerHeight * CHAPTER_VH * N)}`;
     const ctx = gsap.context(() => {
       const rise = { trigger: root, start: 'top 92%', end: 'top 8%', scrub: 0.6 };
@@ -220,7 +221,7 @@ export function Showcase() {
 
       pinTrigger.current = ScrollTrigger.create({
         trigger: pin,
-        start: 'top top',
+        start: () => `top ${navHeight()}px`,
         end: pinLength,
         pin: true,
         anticipatePin: 1,
@@ -228,7 +229,7 @@ export function Showcase() {
         onUpdate: (self) => setChapter(Math.min(N - 1, Math.floor(self.progress * N))),
       });
 
-      const drift = { trigger: pin, start: 'top top', end: pinLength, scrub: 0.8, invalidateOnRefresh: true };
+      const drift = { trigger: pin, start: () => `top ${navHeight()}px`, end: pinLength, scrub: 0.8, invalidateOnRefresh: true };
       gsap.fromTo('.sc__walls', { y: 0 }, { y: () => -DEPTH.wall * uRef.current, ease: 'none', scrollTrigger: drift });
       for (const layer of LAYERS) {
         gsap.fromTo(`.sc__win--${layer} .sc__par`, { y: 0 },

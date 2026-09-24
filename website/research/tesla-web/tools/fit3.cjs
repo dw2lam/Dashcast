@@ -10,7 +10,7 @@ const sizes = [[1920, 1080], [1512, 945], [1440, 900], [1255, 784], [1180, 820],
     await new Promise((r) => setTimeout(r, 700));
     const r = await p.evaluate(() => {
       const issues = [];
-      const sel = '.split__title, .split__sub, .split__value, .split__label, .card__title, .card__label, .cmp__name, .cmp__label, .cmp__value, .cmp__note, .faq__title, .faq__a, .faq__heading, .tabs__tab, .nav__item, .btn, .stat__value, .stat__label, .t-section, .t-sub, .compare__foot';
+      const sel = '.split__title, .split__sub, .split__value, .split__label, .card__title, .card__label, .cmp__name, .cmp__label, .cmp__value, .cmp__note, .faq__title, .faq__a, .faq__heading, .tabs__tab, .nav__item, .btn, .stat__value, .stat__label, .t-section, .t-sub, .compare__foot, .card__detail, .office__title, .office__body, .office__note, .band__title, .foot__mark, .foot__tag, .foot__links a, .foot__legal, .closing__meta';
       for (const el of document.querySelectorAll(sel)) {
         const rr = el.getBoundingClientRect();
         if (!rr.width) continue;
@@ -25,8 +25,8 @@ const sizes = [[1920, 1080], [1512, 945], [1440, 900], [1255, 784], [1180, 820],
           a = a.parentElement;
         }
       }
-      const small = [...document.querySelectorAll('#extend *, #touch *, #compare *, #faq *')].filter((e) => e.children.length === 0 && e.textContent.trim() && e.getBoundingClientRect().width && parseFloat(getComputedStyle(e).fontSize) < 11).map((e) => e.textContent.trim().slice(0, 20));
-      const taps = [...document.querySelectorAll('#extend a, #touch button, #compare a, #faq button, .nav a, .nav button')].filter((e) => { const rr = e.getBoundingClientRect(); return rr.width && getComputedStyle(e).display !== 'none' && (rr.height < 40 || rr.width < 40); }).map((e) => (e.textContent.trim() || e.getAttribute('aria-label')).slice(0, 16) + ' ' + Math.round(e.getBoundingClientRect().width) + 'x' + Math.round(e.getBoundingClientRect().height));
+      const small = [...document.querySelectorAll('#extend *, #touch *, #compare *, #faq *, #office *, .band *, .closing *')].filter((e) => e.children.length === 0 && e.textContent.trim() && e.getBoundingClientRect().width && parseFloat(getComputedStyle(e).fontSize) < 11).map((e) => e.textContent.trim().slice(0, 20));
+      const taps = [...document.querySelectorAll('#extend a, #touch button, #compare a, #faq button, .nav a, .nav button, .closing a')].filter((e) => { const rr = e.getBoundingClientRect(); return rr.width && getComputedStyle(e).display !== 'none' && (rr.height < 40 || rr.width < 40); }).map((e) => (e.textContent.trim() || e.getAttribute('aria-label')).slice(0, 16) + ' ' + Math.round(e.getBoundingClientRect().width) + 'x' + Math.round(e.getBoundingClientRect().height));
       return { issues: [...new Set(issues)], small, taps, hs: document.documentElement.scrollWidth === document.documentElement.clientWidth };
     });
     console.log(`${w}x${h} noHScroll:${r.hs} issues:${r.issues.join('; ') || 'none'} small:${r.small.join(',') || 'none'} taps<40:${r.taps.join(', ') || 'none'}`);

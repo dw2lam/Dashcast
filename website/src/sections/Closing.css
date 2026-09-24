@@ -1,0 +1,168 @@
+/* Closing: Download over a night-time Supercharger, the footer on the same photo behind a hairline. */
+.closing {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100svh - var(--nav-h));
+  overflow: hidden;
+  background: #08090b;
+  color: var(--c-white);
+}
+
+.closing__scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.3) 34%, rgba(0, 0, 0, 0) 52%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
+}
+
+.closing__download {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-12) var(--gutter) var(--s-8);
+  text-align: center;
+}
+
+.closing__icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--s-2);
+}
+
+.closing__sub {
+  margin-top: var(--s-half);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.closing__ctas {
+  margin-top: var(--s-3);
+}
+
+.closing__meta {
+  margin-top: var(--s-2);
+  font-size: var(--fs-20);
+  line-height: var(--lh-20);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern, in our Helvetica tokens) ---- */
+.foot {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - var(--gutter) * 2);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--s-2) 0 calc(var(--s-4) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.foot__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.foot__brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  min-width: 0;
+  color: var(--c-white);
+}
+
+.foot__icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.foot__mark {
+  margin-left: 10px;
+  font-family: var(--font-display);
+  font-size: var(--fs-40);
+  line-height: var(--lh-40);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.foot__tag {
+  margin-left: var(--s-2);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -10px;
+}
+
+.foot__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-medium);
+  color: rgba(255, 255, 255, 0.74);
+  transition:
+    color var(--dur-ui),
+    background-color var(--dur-ui);
+}
+
+.foot__links a:hover {
+  color: var(--c-white);
+  background-color: var(--c-hover-dark);
+}
+
+.foot__legal {
+  margin-top: var(--s-half);
+  font-size: var(--fs-20);
+  line-height: var(--lh-20);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 599px) {
+  .closing__download {
+    padding-top: var(--s-9);
+  }
+
+  .closing__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .closing__ctas {
+    width: 100%;
+  }
+
+  .foot__brand {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .foot__tag {
+    flex-basis: 100%;
+    margin-left: 38px;
+    margin-top: -6px;
+  }
+
+  .foot__links {
+    width: 100%;
+    margin: var(--s-1) 0 0 -10px;
+  }
+}
