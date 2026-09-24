@@ -96,6 +96,12 @@ scripts/make-dmg.sh       # build/Dashcast.app → build/Dashcast.dmg
 | `website/` | [dashcast.davidlam.online](https://dashcast.davidlam.online) |
 | `PROTOCOL.md` | The wire protocol between the Mac and the car |
 
+## Donate
+
+Dashcast is free and open source. A donation isn't required, but it's greatly appreciated and helps fund the updates and fixes planned from your suggestions.
+
+[![Donate with PayPal](https://raw.githubusercontent.com/stefan-niedermann/paypal-donate-button/master/paypal-donate-button.png)](https://paypal.me/dw2lam)
+
 ## License
 
 [MIT](LICENSE). Photos and footage on the website carry their own licences, listed in [website/research/LICENSES.md](website/research/LICENSES.md).
