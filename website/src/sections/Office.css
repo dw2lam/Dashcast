@@ -78,54 +78,139 @@
   min-width: 0;
 }
 
-.office__scene {
+/* A real Model 3 cabin (Bram Van Oost, Unsplash) with the setup drawn in its own perspective. The model's
+   2700×1460 px space is scaled to the box in Office.tsx. No aspect-ratio (Chromium 79): padding box. */
+.office__photo {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-top: 54.074%;
+  overflow: hidden;
+  border-radius: var(--radius-media);
+  background: #15161a;
+}
+
+.office__base,
+.o-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.office__base {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+}
+
+.o-world {
+  width: 2700px;
+  height: 1460px;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.o-world > svg,
+.o-screen,
+.o-mac-display {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.o-world > svg {
   overflow: visible;
 }
 
-.o-line {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.62);
+/* The car's screen: its own glass (Tesla UI), then the Mac's desktop fading in over the active area. */
+.o-screen {
+  width: 1072px;
+  height: 704px;
+  overflow: hidden;
+  border-radius: 30px;
+}
+
+.o-screen i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-position: 0 0;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.o-screen .o-screen-ui {
+  background-image: url(/demo/office-screen-ui.webp);
+}
+
+.o-screen .o-screen-mac {
+  background-image: url(/demo/office-screen-mac.webp);
+  opacity: 0;
+}
+
+.o-side {
+  fill: #1c1d20;
+  stroke: rgba(255, 255, 255, 0.28);
   stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
-.o-faint {
-  stroke: rgba(255, 255, 255, 0.24);
-}
-
-.o-glass,
-.o-mac-lid {
-  fill: var(--c-black);
-}
-
-.o-ext-win,
-.o-mac-win {
-  fill: rgba(255, 255, 255, 0.94);
-}
-
-.o-board-top,
-.o-board-edge,
-.o-mac-base,
-.o-mac-lid {
-  stroke: rgba(255, 255, 255, 0.62);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-
+/* The trunk's subfloor cover: a dark board with a hairline where the light from the windshield catches it. */
 .o-board-top {
-  fill: var(--c-grey-20);
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 2;
+  stroke-linejoin: round;
 }
 
-.o-board-edge {
-  fill: var(--c-grey-30);
+.o-board-front {
+  fill: #141416;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.5;
 }
 
-.o-mac-base {
-  fill: var(--c-ink);
+.o-mac-shadow {
+  fill: rgba(0, 0, 0, 0.45);
+  filter: blur(6px);
+}
+
+.o-mac-left {
+  fill: #3b3c40;
+}
+
+.o-mac-deck {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.o-mac-keys {
+  fill: #1e1f22;
+}
+
+.o-mac-pad {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1;
+}
+
+.o-mac-front {
+  fill: #2c2d30;
+}
+
+.o-mac-lid {
+  fill: #0d0d0e;
+  stroke: rgba(255, 255, 255, 0.38);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.o-mac-display {
+  width: 1100px;
+  height: 714px;
+  border-radius: 6px;
+  background: url(/demo/office-macbook.webp) 0 0 / 100% 100% no-repeat;
 }
 
 .office__note {
@@ -135,7 +220,16 @@
   color: var(--c-dark-low);
 }
 
-/* Tablets and phones: the drawing above the steps. */
+/* Narrow desktops and landscape tablets: a slimmer step list, so the photo keeps its size. */
+@media (max-width: 1199px) {
+  .office__row {
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    grid-column-gap: var(--s-5);
+    column-gap: var(--s-5);
+  }
+}
+
+/* Tablets and phones: the photo above the steps. */
 @media (max-width: 899px) {
   .office__row {
     grid-template-columns: minmax(0, 1fr);

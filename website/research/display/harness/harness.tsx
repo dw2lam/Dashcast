@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../../../src/styles/tokens.css';
 import '../../../src/styles/global.css';
-import { CabinScreen, DemoSection, DemoStage, McuVisual, SoundVisual } from '../../../src/demo';
+import { CabinScreen, DemoStage, McuVisual, SoundVisual } from '../../../src/demo';
 import { DemoScreen } from '../../../src/demo/screen';
 
 const q = new URLSearchParams(location.search);
@@ -15,6 +15,7 @@ function Panel() {
       display: (q.get('display') as any) || 'extend',
       tier: (q.get('tier') as any) || 'mcu3',
       stats: q.has('stats'),
+      story: (q.get('story') as any) || undefined,
     });
     ref.current!.appendChild(s.el);
     s.play();
@@ -63,7 +64,7 @@ function Harness() {
           <CabinScreen autoplay={!q.has('still')} interactive={q.has('touch')} />
         </div>
       )}
-      {only !== 'hero' && <DemoSection />}
+      {only !== 'hero' && <div style={{ position: 'relative', width: '100%', paddingTop: '62.5%' }}><DemoStage display="extend" tier="mcu2" /></div>}
     </main>
   );
 }
