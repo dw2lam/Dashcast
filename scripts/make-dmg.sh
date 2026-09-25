@@ -90,7 +90,8 @@ MOUNT_DIR="$(hdiutil attach -readwrite -noverify -noautoopen -nobrowse -owners o
   -mountrandom /Volumes "$RW_DMG" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
 [[ -n "$MOUNT_DIR" && -d "$MOUNT_DIR" ]] || die "could not mount $RW_DMG"
 
-# Volume icon = the app's own icon, when the bundle declares one; hide the ".app" extension.
+# Volume icon = the app's own icon, when the bundle declares one. (No hidden-extension flag on the app:
+# it writes com.apple.FinderInfo into the bundle, which breaks its code signature.)
 ICON_FILE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$STAGE/$APP_NAME/Contents/Info.plist" 2>/dev/null || true)"
 [[ -n "$ICON_FILE" && "$ICON_FILE" != *.icns ]] && ICON_FILE="$ICON_FILE.icns"
 if command -v SetFile >/dev/null 2>&1; then
@@ -99,9 +100,8 @@ if command -v SetFile >/dev/null 2>&1; then
     SetFile -c icnC "$MOUNT_DIR/.VolumeIcon.icns"
     SetFile -a C "$MOUNT_DIR"
   fi
-  SetFile -a E "$MOUNT_DIR/$APP_NAME"
 else
-  log "SetFile not found (Xcode Command Line Tools): skipping volume icon + hidden extension"
+  log "SetFile not found (Xcode Command Line Tools): skipping the volume icon"
 fi
 
 # ── 3. Window layout: write the .DS_Store that Finder reads when the volume opens ───────────

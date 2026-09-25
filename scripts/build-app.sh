@@ -147,6 +147,8 @@ else
 fi
 
 BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+# Licenses of everything the app bundles or statically links (libdatachannel + deps, Mbed TLS, lego).
+[[ -f THIRD_PARTY_LICENSES.txt ]] && cp THIRD_PARTY_LICENSES.txt LICENSE "$CONTENTS/Resources/"
 if [[ -n "$BREW_PREFIX" && -x "$BREW_PREFIX/bin/lego" ]]; then
     mkdir -p "$CONTENTS/Resources/bin"
     cp "$BREW_PREFIX/bin/lego" "$CONTENTS/Resources/bin/lego"
