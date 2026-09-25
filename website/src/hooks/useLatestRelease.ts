@@ -38,12 +38,14 @@ export function useLatestRelease(): LatestRelease {
   useEffect(() => {
     if (release.state !== 'loading') return;
     const ctrl = new AbortController();
-    fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    // The list (not /releases/latest) answers 200 with [] before the first release, so no console 404.
+    fetch(`https://api.github.com/repos/${REPO}/releases?per_page=1`, {
       headers: { Accept: 'application/vnd.github+json' },
       signal: ctrl.signal,
     })
-      .then((r) => (r.ok ? (r.json() as Promise<GhRelease>) : null))
-      .then((rel) => {
+      .then((r) => (r.ok ? (r.json() as Promise<GhRelease[]>) : null))
+      .then((list) => {
+        const rel = list && list.length ? list[0] : null;
         const dmg = rel && rel.assets.find((a) => /\.dmg$/i.test(a.name));
         const value: LatestRelease =
           rel && dmg
