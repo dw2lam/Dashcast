@@ -41,6 +41,12 @@ Dashcast is a native macOS app that turns a Tesla's touchscreen into a wireless 
   </picture>
 </p>
 
+## Download
+
+Get **[Dashcast-0.0.1.dmg](https://github.com/dw2lam/Dashcast/releases/latest)** from Releases, open it, and drag Dashcast to Applications.
+
+Dashcast isn't notarized yet. On first launch, macOS will say it can't verify the app: go to **System Settings → Privacy & Security** and click **Open Anyway**. The setup assistant takes it from there.
+
 ## How it connects
 
 **The Tesla browser refuses private LAN addresses** (192.168.x, 10.x, 172.16–31.x). That's why opening a home server's IP in the car fails. Dashcast instead:
