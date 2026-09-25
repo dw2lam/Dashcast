@@ -25,7 +25,6 @@ Originals in `research/photos/` (the ranked shortlist is `research/photos/candid
 | use | shipped files | author | source page URL | licence |
 |---|---|---|---|---|
 | Cabin photo (hero and `#demo`) | `cabin-1600/2560/3840/5504.webp` (cropped to y 360–4000; the screen area is retouched to dark glass interpolated from the photo's own bezel); `screen-ui.webp` (the photo's own screen, perspective-rectified to 1920×1200); `screen-glare.png` (reflection field sampled from the photo's bezel) | [I'M ZION](https://unsplash.com/@ziontech) | https://unsplash.com/photos/a-car-dashboard-with-a-laptop-on-it-u4FO_unYC8I | Unsplash License |
-| Extended-display wallpaper | `wallpaper.webp` (1920×1200 crop) | [Milad Fakurian](https://unsplash.com/@fakurian) | https://unsplash.com/photos/blue-orange-and-yellow-wallpaper-E8Ufcyxz514 | Unsplash License |
 | Film in the QuickTime window | `clip.mp4`, `clip.webm`, `clip-poster.jpg` (10 s loop from 1.0–11.6 s, 960×540, no audio) | Mixkit | https://mixkit.co/free-stock-video/boats-and-motorboats-sailing-along-a-coastline-during-sunset-40074/ | Mixkit Stock Video Free License |
 
-The mirror-mode wallpaper is `public/shots/wallpaper.jpg`, used read-only from the screenshots agent (see its rows). The car client UI inside the demo is Dashcast's own (`Web/src/`), and the macOS-style desktop is drawn in CSS/SVG: no Apple wallpaper, icon or font files are shipped.
+Every streamed Mac desktop uses the brand wallpaper `public/shots/wallpaper.jpg`, read-only from the screenshots agent (see its rows). The car client UI inside the demo is Dashcast's own (`Web/src/`), and the macOS-style desktop is drawn in CSS/SVG: no Apple wallpaper, icon or font files are shipped.

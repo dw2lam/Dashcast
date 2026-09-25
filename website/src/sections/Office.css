@@ -1,19 +1,85 @@
-/* "Your office, anywhere": a graphite break with our own line drawing, three steps in a text grid. */
+/* "Your office, anywhere" on /powerwall's vertical carousel: black, a left-aligned heading, the steps as a list
+   (24/28 titles, the active one white with its 14/20 text open) beside the media, which follows the active step.
+   The drawing is ours: white hairlines on black, Tesla greys for the solid parts, the brand wallpaper on screen. */
 .office {
   padding: var(--section-pad) 0;
-  background: #111317;
+  background: var(--c-dark-bg);
 }
 
 .office__sub {
-  color: rgba(255, 255, 255, 0.72);
+  margin-top: var(--s-half);
+  color: var(--c-grey-50);
+}
+
+.office__row {
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  grid-column-gap: var(--s-6);
+  column-gap: var(--s-6);
+  align-items: center;
+  margin-top: var(--head-gap);
+}
+
+.office__steps li {
+  padding-bottom: var(--s-4);
+}
+
+.office__steps li:last-child {
+  padding-bottom: 0;
+}
+
+.office__step {
+  display: block;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+}
+
+.office__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-60);
+  line-height: var(--lh-60);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-dark-low);
+  transition: color var(--dur-ui);
+}
+
+.office__step:hover .office__title,
+.office__steps .is-on .office__title {
+  color: var(--c-white);
+}
+
+.office__step:focus-visible {
+  outline: 2px solid var(--c-white);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+}
+
+.office__body {
+  max-width: 30em;
+  margin-top: var(--s-1);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-grey-50);
+  animation: office-body var(--dur-short) var(--ease-mktg);
+}
+
+@keyframes office-body {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .office__art {
-  max-width: 960px;
-  margin: var(--head-gap) auto 0;
+  min-width: 0;
 }
 
 .office__scene {
+  display: block;
   width: 100%;
   height: auto;
   overflow: visible;
@@ -31,99 +97,58 @@
   stroke: rgba(255, 255, 255, 0.24);
 }
 
-.o-glass {
-  fill: #0b0c0f;
+.o-glass,
+.o-mac-lid {
+  fill: var(--c-black);
 }
 
 .o-ext-win,
 .o-mac-win {
-  fill: rgba(250, 250, 252, 0.94);
+  fill: rgba(255, 255, 255, 0.94);
+}
+
+.o-board-top,
+.o-board-edge,
+.o-mac-base,
+.o-mac-lid {
+  stroke: rgba(255, 255, 255, 0.62);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
 
 .o-board-top {
-  fill: #23262d;
-  stroke: rgba(255, 255, 255, 0.62);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
+  fill: var(--c-grey-20);
 }
 
 .o-board-edge {
-  fill: #2d3139;
-  stroke: rgba(255, 255, 255, 0.62);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
+  fill: var(--c-grey-30);
 }
 
 .o-mac-base {
-  fill: #1c1f25;
-  stroke: rgba(255, 255, 255, 0.62);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-
-.o-mac-lid {
-  fill: #0b0c0f;
-  stroke: rgba(255, 255, 255, 0.62);
-  stroke-width: 1.5;
-}
-
-.office__steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-column-gap: var(--s-4);
-  column-gap: var(--s-4);
-  max-width: 1000px;
-  margin: var(--s-6) auto 0;
-}
-
-.office__steps li {
-  padding-top: var(--s-2);
-  border-top: var(--hairline-dark);
-}
-
-.office__n {
-  font-family: var(--font-display);
-  font-size: var(--fs-50);
-  line-height: var(--lh-50);
-  font-weight: var(--fw-display);
-  color: var(--c-brand-2);
-}
-
-.office__title {
-  margin-top: var(--s-half);
-  font-family: var(--font-display);
-  font-size: var(--fs-50);
-  line-height: var(--lh-50);
-  font-weight: var(--fw-display);
-  color: var(--c-white);
-}
-
-.office__body {
-  margin-top: var(--s-half);
-  font-size: var(--fs-30);
-  line-height: var(--lh-30);
-  color: rgba(255, 255, 255, 0.66);
+  fill: var(--c-ink);
 }
 
 .office__note {
-  margin-top: var(--s-5);
-  text-align: center;
+  margin-top: var(--head-gap);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--c-dark-low);
 }
 
+/* Tablets and phones: the drawing above the steps. */
 @media (max-width: 899px) {
-  .office__steps {
+  .office__row {
     grid-template-columns: minmax(0, 1fr);
-    grid-row-gap: var(--s-3);
-    row-gap: var(--s-3);
-    max-width: 560px;
+  }
+
+  .office__art {
+    grid-row: 1;
+    margin-bottom: var(--s-5);
   }
 }
 
-@media (max-width: 599px) {
-  .office__steps {
-    margin-top: var(--s-4);
+@media (prefers-reduced-motion: reduce) {
+  .office__body {
+    animation: none;
   }
 }

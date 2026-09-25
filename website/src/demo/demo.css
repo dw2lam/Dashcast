@@ -369,3 +369,20 @@
     line-height: var(--lh-60, 28px);
   }
 }
+
+/* ---- DemoStage: the screen alone, filling a 16:10 parent ---- */
+.dm-dstage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.dm-stg-flat .dm-stg-bezel {
+  box-shadow: 0 0 0 26px #050506, 0 0 0 27px rgba(255, 255, 255, 0.09);
+}

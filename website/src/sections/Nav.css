@@ -14,6 +14,23 @@
   padding: 0 var(--s-4);
   color: var(--c-ink);
   background-color: var(--c-white);
+  /* tesla.com's only entrance: the header fades in over 1s on load (tds--fade-in). */
+  animation: nav-in 1s both;
+}
+
+@keyframes nav-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav {
+    animation: none;
+  }
 }
 
 .nav__brand {

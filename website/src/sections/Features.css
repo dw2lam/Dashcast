@@ -1,274 +1,206 @@
-/* Section 2: tesla.com home's big split cards (#f4f4f4, 8px radius, copy left, media right) in a row, each
-   ~88% of the content width with the next one peeking; arrows at the edges and dots below. */
-.split-section {
+/* tesla.com home's card carousel (measured at 1800px: 1024×580 cards, 8px radius, 24px apart; copy 40px in from
+   the bottom-left: 48/56 title, 20/28 subtitle, a 160×40 blue + white pair 24px below; a 40×40 arrow in 75% white
+   over the media; 12px dots, 8px apart, 24px under the cards, inactive at 50%). */
+.fcards {
   padding: var(--s-6) 0;
   background: var(--c-white);
 }
 
-.srow {
+.fcards__wrap {
   --track-pad: max(var(--gutter), calc((100% - var(--content-max)) / 2));
+  --card-w: min(1024px, calc(100vw - var(--gutter) * 2 - 96px));
   position: relative;
 }
 
-.srow__track {
-  grid-auto-columns: 88%;
+.fcards__track {
+  grid-auto-columns: var(--card-w);
   grid-column-gap: var(--s-3);
   column-gap: var(--s-3);
   padding: 0 var(--track-pad);
   scroll-padding: 0 var(--track-pad);
 }
 
-.split {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  min-height: 508px;
+.fcard {
+  position: relative;
+  height: calc(var(--card-w) * 0.5664);
+  min-height: 440px;
   border-radius: var(--radius-media);
-  background: var(--c-grey-70);
   overflow: hidden;
+  background: var(--c-ink);
 }
 
-.split__copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--s-6);
+.fcard__media {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 
-.split__title {
+/* A soft shade under the copy, so white type holds on any media. */
+.fcard__scrim {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 70%;
+  pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.28) 45%, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0) 60%);
+}
+
+.fcard__copy {
+  position: absolute;
+  left: var(--s-5);
+  right: var(--s-5);
+  bottom: var(--s-5);
+}
+
+.fcard__title {
   font-family: var(--font-display);
-  font-size: var(--fs-80);
-  line-height: var(--lh-80);
+  font-size: var(--type-section);
+  line-height: var(--type-section-lh);
   font-weight: var(--fw-display);
   letter-spacing: var(--ls-display);
-  color: var(--c-ink);
+  color: var(--c-white);
 }
 
-.split__sub {
-  margin-top: var(--s-1);
+.fcard__sub {
+  max-width: 28em;
   font-size: var(--fs-50);
   line-height: var(--lh-50);
-  color: var(--c-text-low);
-  max-width: 24em;
+  color: var(--c-white);
 }
 
-.split__stats {
+.fcard__ctas {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, max-content);
-  justify-content: start;
-  grid-column-gap: var(--s-5);
-  column-gap: var(--s-5);
-  margin-top: var(--s-5);
+  grid-auto-columns: max-content;
+  grid-column-gap: var(--s-1);
+  column-gap: var(--s-1);
+  margin-top: var(--s-3);
 }
 
-.split__stats li {
-  display: grid;
-  align-content: start;
+.fcard .btn {
+  min-width: 160px;
 }
 
-.split__value {
-  font-family: var(--font-display);
-  font-size: var(--fs-75);
-  line-height: var(--lh-75);
-  font-weight: var(--fw-display);
-  letter-spacing: var(--ls-display);
-  color: var(--c-ink);
-  white-space: nowrap;
-}
-
-.split__label {
-  font-size: var(--fs-30);
-  line-height: var(--lh-30);
-  color: var(--c-text-low);
-}
-
-/* three stats share the copy column: one size down so they never touch */
-.split__stats--3 {
-  grid-column-gap: var(--s-4);
-  column-gap: var(--s-4);
-}
-
-.split__stats--3 .split__value {
-  font-size: var(--fs-60);
-  line-height: var(--lh-60);
-}
-
-.split__ctas {
-  margin-top: var(--s-5);
-}
-
-.split__media {
-  position: relative;
-  min-height: 320px;
-}
-
-/* Arrows sit beside the dots, never over a card: the peeking card shows copy, not a photo. */
-.srow__controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: var(--s-2);
-}
-
-/* tesla.com carousel controls: 40×40 arrows (4px radius), 12px dots. */
-.srow__nav {
+/* Arrows sit over media only: the previous one over the active card's left edge (its copy is at the bottom),
+   the next one over the peeking card. Hover screens of 900px and up, hidden at either end. */
+.fcards__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  margin: 0 var(--s-1);
+  margin-top: -20px;
   border-radius: var(--radius);
-  color: var(--c-text);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--c-ink);
   transition:
     opacity var(--dur-ui),
     background-color var(--dur-ui);
 }
 
-.srow__nav:hover {
-  background: var(--c-grey-70);
+.fcards__arrow:hover {
+  background: rgba(255, 255, 255, 0.92);
 }
 
-.srow__nav:disabled {
-  opacity: 0.3;
+.fcards__arrow:disabled {
+  opacity: 0;
   pointer-events: none;
 }
 
+.fcards__arrow--prev {
+  left: calc(var(--track-pad) + var(--s-2));
+}
+
+.fcards__arrow--next {
+  right: var(--gutter);
+}
+
 @media (max-width: 899px), (hover: none) {
-  .srow__nav {
+  .fcards__arrow {
     display: none;
   }
 }
 
-.srow__dots {
+.fcards__dots {
   display: flex;
   justify-content: center;
+  margin-top: var(--s-3);
 }
 
-/* 24px-wide hit areas give a 12px gap between the dots and still meet the 24px target minimum. */
-.srow__dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 40px;
-  border-radius: var(--radius);
-}
-
-.srow__dot::before {
-  content: '';
+/* 12px, 8px apart; the tap area reaches 24×40 without changing the dot. */
+.fcards__dot {
+  position: relative;
   width: 12px;
   height: 12px;
+  margin: 0 var(--s-half);
   border-radius: 50%;
-  background: var(--c-grey-50);
-  transition: background-color var(--dur-ui);
-}
-
-.srow__dot[aria-current='true']::before {
   background: var(--c-ink);
+  opacity: 0.5;
 }
 
-.srow__dot:hover::before {
-  background: var(--c-grey-40);
+.fcards__dot::after {
+  content: '';
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  left: -6px;
+  right: -6px;
 }
 
-.srow__dot[aria-current='true']:hover::before {
-  background: var(--c-ink);
+.fcards__dot[aria-current='true'] {
+  opacity: 1;
+}
+
+.fcards__dot:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 3px;
 }
 
 @media (max-width: 1199px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    min-height: 440px;
-  }
-
-  .split__copy {
-    padding: var(--s-5);
-  }
-
-  .split__stats {
-    grid-column-gap: var(--s-4);
-    column-gap: var(--s-4);
-  }
-}
-
-@media (max-width: 899px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    min-height: 0;
-  }
-
-  .split__copy {
-    justify-content: flex-start;
-  }
-
-  .split__media {
-    order: -1;
-    min-height: 0;
-  }
-
-  /* 16:9 box without aspect-ratio (Chromium 79) */
-  .split__media::before {
-    content: '';
-    display: block;
-    padding-top: 56%;
+  .fcard__sub {
+    font-size: var(--fs-40);
+    line-height: var(--lh-40);
   }
 }
 
 @media (max-width: 599px) {
-  .split-section {
+  .fcards {
     padding: var(--s-3) 0;
   }
 
-  .srow__track {
-    grid-auto-columns: 90%;
+  .fcards__wrap {
+    --card-w: calc(100vw - var(--gutter) - 48px);
+  }
+
+  .fcards__track {
     grid-column-gap: var(--s-1);
     column-gap: var(--s-1);
   }
 
-  .split__copy {
-    padding: var(--s-3) var(--s-3) var(--s-4);
+  .fcard {
+    height: 480px;
+    min-height: 0;
   }
 
-  .split__title {
-    font-size: var(--fs-70);
-    line-height: var(--lh-70);
+  .fcard__copy {
+    left: var(--s-3);
+    right: var(--s-3);
+    bottom: var(--s-3);
   }
 
-  .split__sub {
-    font-size: var(--fs-40);
-    line-height: var(--lh-40);
-  }
-
-  .split__stats {
+  .fcard__ctas {
     grid-auto-columns: minmax(0, 1fr);
-    grid-column-gap: var(--s-2);
-    column-gap: var(--s-2);
-    margin-top: var(--s-3);
   }
 
-  .split__value,
-  .split__stats--3 .split__value {
-    font-size: var(--fs-50);
-    line-height: var(--lh-50);
-  }
-
-  .split__stats--3 {
-    grid-column-gap: var(--s-2);
-    column-gap: var(--s-2);
-  }
-
-  .split__label {
-    font-size: 13px;
-    line-height: 18px;
-  }
-
-  .split__ctas {
-    margin-top: var(--s-3);
-  }
-
-  .split__ctas .btn {
-    width: 100%;
+  .fcard .btn {
+    min-width: 0;
   }
 }

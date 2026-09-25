@@ -406,7 +406,3 @@ button {
   }
 }
 
-/* Reveal targets start visible; motion.ts hides them only once GSAP is ready to animate them in. */
-[data-reveal] {
-  will-change: transform, opacity;
-}

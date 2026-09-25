@@ -1,0 +1,212 @@
+/* "Media + content row" (tesla.com home, "Find Your Charge"). The demo and the Mac app are a pair on the same
+   template: the same #f4f4f4 media block, the same 16:10 stage inside it, the same row underneath. */
+.mrow {
+  --mrow-pad-x: 48px;
+  --mrow-pad-y: 40px;
+  /* The block's width without measuring: the content column, or the viewport less the gutters. */
+  --mrow-w: min(var(--content-max), calc(100vw - var(--gutter) * 2));
+  /* 16:10 stage plus the block's padding, capped so the pair never outgrows a laptop screen. */
+  --mrow-h: min(600px, calc((var(--mrow-w) - var(--mrow-pad-x) * 2) * 0.625 + var(--mrow-pad-y) * 2));
+  padding: var(--section-pad) 0;
+  background: var(--c-white);
+}
+
+/* The second of the pair starts where the first one's padding ends, so the two read as one set. */
+.mrow + .mrow {
+  padding-top: 0;
+}
+
+.mrow__media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--mrow-h);
+  padding: var(--mrow-pad-y) var(--mrow-pad-x);
+  border-radius: var(--radius-media);
+  background: var(--c-grey-70);
+  overflow: hidden;
+}
+
+.mrow__stage {
+  position: relative;
+  width: 100%;
+  max-width: calc((var(--mrow-h) - var(--mrow-pad-y) * 2) * 1.6);
+}
+
+/* 16:10 without aspect-ratio (Chromium 79) */
+.mrow__stage::before {
+  content: '';
+  display: block;
+  padding-top: 62.5%;
+}
+
+.mrow__stage > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mrow__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-column-gap: var(--s-6);
+  column-gap: var(--s-6);
+  align-items: start;
+  margin-top: var(--s-5);
+}
+
+.mrow__title {
+  font-family: var(--font-display);
+  font-size: var(--type-section);
+  line-height: var(--type-section-lh);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
+}
+
+.mrow__sub {
+  max-width: 40em;
+  margin-top: var(--s-half);
+  font-size: var(--type-sub);
+  line-height: var(--type-sub-lh);
+  color: var(--c-text);
+}
+
+/* Tesla's button pair, as segmented controls: 24px under the subtitle, 8px apart. */
+.mrow__controls {
+  display: flex;
+  flex-wrap: wrap;
+  margin: var(--s-3) calc(var(--s-1) * -1) 0 0;
+}
+
+.mrow__controls > * {
+  margin: 0 var(--s-1) var(--s-1) 0;
+}
+
+.mrow__caption {
+  min-height: var(--lh-30);
+  margin-top: var(--s-1);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-text);
+}
+
+.mrow__note {
+  margin-top: var(--s-half);
+  font-size: var(--fs-20);
+  line-height: var(--lh-20);
+  color: var(--c-text-low);
+}
+
+.mrow__stats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  grid-column-gap: var(--s-6);
+  column-gap: var(--s-6);
+  padding-top: var(--s-1);
+}
+
+.mrow__stat {
+  display: grid;
+  align-content: start;
+}
+
+.mrow__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-80);
+  line-height: var(--lh-80);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
+  white-space: nowrap;
+}
+
+.mrow__unit {
+  margin-left: var(--s-half);
+  font-size: var(--fs-50);
+  line-height: var(--lh-50);
+}
+
+.mrow__label {
+  display: flex;
+  align-items: center;
+  margin-top: var(--s-1);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-text-low);
+  white-space: nowrap;
+}
+
+.mrow__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--s-1);
+  border-radius: 50%;
+  background: var(--c-ink);
+  color: var(--c-white);
+}
+
+.mrow__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 1199px) {
+  .mrow {
+    --mrow-pad-x: 32px;
+    --mrow-pad-y: 32px;
+  }
+
+  .mrow__stats {
+    grid-column-gap: var(--s-5);
+    column-gap: var(--s-5);
+  }
+}
+
+/* Tablets and phones: the stats move under the copy. */
+@media (max-width: 899px) {
+  .mrow__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mrow__stats {
+    margin-top: var(--s-4);
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 599px) {
+  .mrow {
+    --mrow-pad-x: 12px;
+    --mrow-pad-y: 12px;
+  }
+
+  .mrow__row {
+    margin-top: var(--s-4);
+  }
+
+  .mrow__stats {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: auto;
+    grid-column-gap: var(--s-3);
+    column-gap: var(--s-3);
+  }
+
+  .mrow__value {
+    font-size: var(--fs-75);
+    line-height: var(--lh-75);
+  }
+
+  .mrow__label {
+    white-space: normal;
+  }
+}

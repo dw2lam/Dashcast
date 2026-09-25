@@ -1,6 +1,7 @@
 import { Nav } from './sections/Nav';
 import { Hero } from './sections/Hero';
 import { Features } from './sections/Features';
+import { Demo } from './sections/Demo';
 import { Touch } from './sections/Touch';
 import { Band } from './sections/Band';
 import { Office } from './sections/Office';
@@ -9,11 +10,10 @@ import { Tech } from './sections/Tech';
 import { Compare } from './sections/Compare';
 import { Faq } from './sections/Faq';
 import { Closing } from './sections/Closing';
-import { DemoSection } from './demo';
 import { Showcase } from './showcase';
 
-// Section order: tesla.com's rhythm, white sections broken up by black and full-bleed photo ones.
-// Owners: sections/* = site lead, demo/* = Tesla demo, showcase/* = app screenshots.
+// Every section is one of tesla.com's templates (DESIGN.md, "Template catalogue"). The demo and the Mac app are
+// a matched pair, back to back. The site lead owns the section chrome; demo/* supplies the live car screen.
 export default function App() {
   return (
     <>
@@ -21,17 +21,16 @@ export default function App() {
       <main>
         <Hero />
         <Features />
-        <DemoSection />
+        <Demo />
+        <Showcase />
         <Touch />
         <Office />
-        <Showcase />
         <Band />
         <Connect />
         <Tech />
         <Compare />
         <Faq />
       </main>
-      {/* Download + footer share one photo; the demo section carries the parked/charging/passenger line. */}
       <Closing />
     </>
   );

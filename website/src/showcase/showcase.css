@@ -1,47 +1,13 @@
-/* #app: native window captures of the Mac app on a small desktop stage. Every class is sc-prefixed
-   (the CSS is global). Chromium 79 floor: grid gap only, no aspect-ratio, no inset, no :is(). */
-
-.sc {
-  /* Section spacing like the rest of the page: --section-pad from the previous section to the title,
-     split between this outer padding and the pin's own top padding (which also clears the nav while pinned). */
-  padding-top: calc(var(--section-pad) - var(--sc-pin-pad));
-  background: var(--c-white);
-  /* nav → title while pinned: tesla.com's 48 (the home hero's title sits 48 below the header).
-     subtitle → stage is tighter than the page's --head-gap on purpose: the stage reads as part of the heading. */
-  --sc-pin-pad: var(--s-6);
-  --sc-stage-gap: var(--s-3);
-}
-
-.sc__pin {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  /* Pinned just below the sticky white nav, so the stage owns the rest of the viewport. */
-  height: calc(100vh - var(--nav-h));
-  height: calc(100svh - var(--nav-h));
-  min-height: 584px;
-  padding-top: var(--sc-pin-pad);
-  padding-bottom: var(--s-4);
-  background: var(--c-white);
-}
-
-.sc__head {
-  flex: 0 0 auto;
-}
-
-.sc__box {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: var(--sc-stage-gap) var(--gutter) 0;
-}
+/* #app: native window captures of the Mac app on a small 16:10 desktop, the media of a MediaRow. Every class is
+   sc-prefixed (the CSS is global). Chromium 79 floor: grid gap only, no aspect-ratio, no inset, no :is(). */
 
 /* ---------- the stage: a screen with a wallpaper, windows placed in points via --u (px per pt) ---------- */
 .sc__stage {
-  position: relative;
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   border-radius: var(--radius-media);
   background: #050b1a;
@@ -55,15 +21,12 @@
   background: #eaf2fb;
 }
 
-/* Taller than the stage so the scroll drift never shows an edge. */
 .sc__walls {
   position: absolute;
-  top: -2%;
+  top: 0;
   right: 0;
-  bottom: -4%;
+  bottom: 0;
   left: 0;
-  transform-origin: 50% 62%;
-  will-change: transform;
 }
 
 .sc__wall {
@@ -110,14 +73,6 @@
 
 .sc__win--panel {
   z-index: 4;
-}
-
-.sc__par {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
 }
 
 /* A new capture fades in on top; the old one stays opaque underneath, then goes. No see-through dip,
@@ -226,176 +181,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- controls: chapter tabs, appearance, one caption ---------- */
-.sc__controls {
-  flex: 0 0 auto;
-  display: grid;
-  padding: 0 var(--gutter);
-  grid-template-columns: auto auto;
-  justify-content: center;
-  align-items: center;
-  grid-gap: var(--s-2) var(--s-2);
-  gap: var(--s-2) var(--s-2);
-  margin-top: var(--s-3);
-}
-
-.sc__tabs,
-.sc__look {
-  position: relative;
-  z-index: 0;
-  display: grid;
-  grid-auto-flow: column;
-  padding: var(--s-half);
-  border-radius: var(--radius);
-  background: var(--c-grey-70);
-}
-
-.sc__tabs {
-  grid-auto-columns: auto;
-}
-
-.sc__look {
-  grid-auto-columns: 1fr;
-}
-
-.sc__pill {
-  position: absolute;
-  top: var(--s-half);
-  left: 0;
-  z-index: -1;
-  width: 0;
-  height: calc(100% - var(--s-1));
-  border-radius: var(--radius);
-  background: var(--c-white);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition:
-    transform var(--dur-short) var(--ease-slide),
-    width var(--dur-short) var(--ease-slide);
-}
-
-.sc__tab,
-.sc__lookbtn {
-  height: 36px;
-  padding: 0 var(--s-2);
-  border-radius: var(--radius);
-  font-size: var(--fs-30);
-  line-height: var(--lh-30);
-  font-weight: var(--fw-medium);
-  color: var(--c-text-low);
-  white-space: nowrap;
-  transition: color var(--dur-ui);
-}
-
-.sc__tab[aria-selected='true'],
-.sc__tab:hover,
-.sc__lookbtn[aria-pressed='true'],
-.sc__lookbtn:hover {
-  color: var(--c-ink);
-}
-
-.sc__caption {
-  grid-column: 1 / -1;
-  min-height: var(--lh-40);
-  font-size: var(--fs-40);
-  line-height: var(--lh-40);
-  color: var(--c-text);
-  text-align: center;
-  animation: sc-caption 0.6s var(--ease-mktg);
-}
-
-@keyframes sc-caption {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (max-width: 899px) {
-  .sc__controls {
-    grid-template-columns: auto;
-    grid-gap: var(--s-1);
-    gap: var(--s-1);
-  }
-
-  .sc__tabs {
-    justify-self: center;
-  }
-
-  .sc__look {
-    justify-self: center;
-    grid-row: 3;
-  }
-
-  .sc__caption {
-    grid-row: 2;
-  }
-}
-
-@media (max-width: 599px) {
-  .sc {
-    --sc-pin-pad: var(--s-4);
-    --sc-stage-gap: var(--s-2);
-  }
-
-  .sc__pin {
-    padding-top: var(--sc-pin-pad);
-    padding-bottom: var(--s-3);
-  }
-
-  .sc__tabs {
-    width: 100%;
-    grid-auto-columns: 1fr;
-  }
-
-  .sc__tab {
-    padding: 0 var(--s-half);
-    font-size: 13px;
-  }
-
-  .sc__lookbtn {
-    height: 32px;
-    font-size: 13px;
-  }
-
-  .sc__caption {
-    font-size: var(--fs-30);
-    line-height: var(--lh-30);
-    min-height: 40px;
-  }
-}
-
-/* Touch: 44px hit areas without changing the 32–36px look. */
-@media (pointer: coarse) {
-  .sc__tab,
-  .sc__lookbtn {
-    position: relative;
-  }
-
-  .sc__tab::after,
-  .sc__lookbtn::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 44px;
-    margin-top: -22px;
-  }
-}
-
-/* Reduced motion: no pin, no wipes, no loops; the tabs switch screens in place. */
+/* Reduced motion: no loops, no glides; the tabs switch screens in place. */
 .sc--still .sc__img,
 .sc--still .sc__wall--dark,
 .sc--still .sc__bar,
-.sc--still .sc__status,
-.sc--still .sc__pill {
+.sc--still .sc__status {
   transition: none;
 }
 
-.sc--still .sc__caption {
-  animation: none;
+/* The chapter tabs fill the row on phones. */
+@media (max-width: 599px) {
+  .app-row__tabs {
+    display: grid;
+    width: 100%;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+
+  .app-row__tabs .ui-seg__opt {
+    padding: 0 var(--s-half);
+    font-size: 13px;
+  }
 }

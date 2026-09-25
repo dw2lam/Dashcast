@@ -47,10 +47,11 @@ export function GestureArt({ kind }: { kind: Gesture }) {
   return (
     <svg className={`g g--${kind}`} viewBox="0 0 400 300" aria-hidden="true">
       <defs>
-        <linearGradient id={`gd-${kind}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#1d3b7a" />
-          <stop offset="0.55" stopColor="#35307a" />
-          <stop offset="1" stopColor="#5b2a7a" />
+        {/* The brand wallpaper (public/shots/wallpaper.jpg): deep navy into its blue wave. */}
+        <linearGradient id={`gd-${kind}`} x1="0" y1="0" x2="0.35" y2="1">
+          <stop offset="0" stopColor="#011138" />
+          <stop offset="0.6" stopColor="#0a3f93" />
+          <stop offset="1" stopColor="#0b52e0" />
         </linearGradient>
       </defs>
       <g>

@@ -1,70 +1,102 @@
-/* Closing: Download over a night-time Supercharger, the footer on the same photo behind a hairline. */
+/* The close: tesla.com home's grey tile pair (measured at 1800px: #f4f4f4 tiles, 8px radius, 24px apart; copy
+   padded 32/24/32/48 with a 34/44 title, a 20/28 grey subtitle and white 40px buttons 16px lower; the image in
+   the tile's right column, full height), then the footer on white. */
 .closing {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - var(--nav-h));
-  min-height: calc(100svh - var(--nav-h));
-  overflow: hidden;
-  background: #08090b;
-  color: var(--c-white);
-}
-
-.closing__scrim {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.3) 34%, rgba(0, 0, 0, 0) 52%),
-    linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
+  background: var(--c-white);
 }
 
 .closing__download {
+  padding: var(--section-pad) 0 var(--head-gap);
+}
+
+.closing__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column-gap: var(--s-3);
+  column-gap: var(--s-3);
+}
+
+.ctile {
   position: relative;
-  z-index: 1;
   display: flex;
-  flex: 1 0 auto;
   flex-direction: column;
-  align-items: center;
-  padding: var(--photo-title-top) var(--gutter) var(--s-8);
-  text-align: center;
+  min-height: 440px;
+  border-radius: var(--radius-media);
+  background: var(--c-grey-70);
+  overflow: hidden;
 }
 
-.closing__icon {
-  width: 72px;
-  height: 72px;
-  margin-bottom: var(--s-2);
+.ctile__copy {
+  padding: var(--s-4) var(--s-4) 0 var(--s-6);
 }
 
-.closing__sub {
-  margin-top: var(--s-half);
-  color: rgba(255, 255, 255, 0.9);
+.ctile__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-75);
+  line-height: var(--lh-75);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
 }
 
-.closing__ctas {
-  margin-top: var(--s-3);
+.ctile__sub {
+  max-width: 26em;
+  font-size: var(--fs-50);
+  line-height: var(--lh-50);
+  color: var(--c-text-low);
 }
 
-.closing__meta {
+.ctile__ctas {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  grid-column-gap: var(--s-1);
+  column-gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+
+.ctile .btn {
+  min-width: 180px;
+}
+
+.ctile__meta {
   margin-top: var(--s-2);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
-  color: rgba(255, 255, 255, 0.7);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  color: var(--c-text-low);
 }
 
-/* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern, in our Helvetica tokens) ---- */
-.foot {
+/* The image takes whatever height the copy leaves: the icon floats at the bottom right, the photo bleeds off
+   the tile's bottom and sides. */
+.ctile__media {
   position: relative;
-  z-index: 1;
+  flex: 1 0 180px;
+}
+
+.ctile__media--icon {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--s-3) var(--s-6) var(--s-5);
+}
+
+.ctile__media--icon img {
+  display: block;
+  width: 160px;
+  height: auto;
+}
+
+.ctile__media--photo {
+  margin-top: var(--s-4);
+}
+
+/* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern), on white ---- */
+.foot {
   width: calc(100% - var(--gutter) * 2);
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--s-2) 0 calc(var(--s-4) + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: var(--hairline);
 }
 
 .foot__row {
@@ -79,7 +111,7 @@
   align-items: center;
   min-height: 40px;
   min-width: 0;
-  color: var(--c-white);
+  color: var(--c-ink);
 }
 
 .foot__icon {
@@ -101,7 +133,7 @@
   margin-left: var(--s-2);
   font-size: var(--fs-30);
   line-height: var(--lh-30);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--c-text-low);
 }
 
 .foot__links {
@@ -119,39 +151,98 @@
   font-size: var(--fs-30);
   line-height: var(--lh-30);
   font-weight: var(--fw-medium);
-  color: rgba(255, 255, 255, 0.74);
+  color: var(--c-text);
   transition:
     color var(--dur-ui),
     background-color var(--dur-ui);
 }
 
 .foot__links a:hover {
-  color: var(--c-white);
-  background-color: var(--c-hover-dark);
+  color: var(--c-ink);
+  background-color: var(--c-hover);
 }
 
 .foot__legal {
   margin-top: var(--s-half);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--c-text-low);
+}
+
+@media (max-width: 1199px) {
+  .ctile__copy {
+    padding: var(--s-4) var(--s-4) 0;
+  }
+
+  .ctile__ctas {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+
+  .ctile .btn {
+    min-width: 0;
+    padding: var(--s-half) var(--s-2);
+  }
+
+  .ctile__media--icon {
+    padding: var(--s-3) var(--s-4) var(--s-4);
+  }
+
+  .ctile__media--icon img {
+    width: 128px;
+  }
 }
 
 @media (max-width: 599px) {
-  /* The download block reaches further down the photo on a phone; the top scrim follows it. */
-  .closing__scrim {
-    background:
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0) 76%),
-      linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
+  .closing__tiles {
+    grid-template-columns: minmax(0, 1fr);
+    grid-row-gap: var(--s-2);
+    row-gap: var(--s-2);
   }
 
-  .closing__icon {
-    width: 64px;
-    height: 64px;
+  .ctile {
+    min-height: 0;
   }
 
-  .closing__ctas {
-    width: 100%;
+  .ctile__copy {
+    padding: var(--s-3) var(--s-3) 0;
+  }
+
+  .ctile__media {
+    flex-basis: 160px;
+  }
+
+  .ctile__title {
+    font-size: var(--fs-70);
+    line-height: var(--lh-70);
+  }
+
+  .ctile__sub {
+    font-size: var(--fs-40);
+    line-height: var(--lh-40);
+  }
+
+  .ctile__ctas {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-row-gap: var(--s-1);
+    row-gap: var(--s-1);
+  }
+
+  .ctile .btn {
+    min-width: 0;
+  }
+
+  .ctile__media--icon {
+    flex: 0 0 auto;
+    padding: var(--s-3);
+  }
+
+  .ctile__media--icon img {
+    width: 96px;
+  }
+
+  .ctile__media--photo {
+    margin-top: var(--s-3);
   }
 
   .foot__brand {

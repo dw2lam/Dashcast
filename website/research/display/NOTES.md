@@ -242,6 +242,12 @@ Reddit returned 403 and was not used.
 - **Reduced motion:** a static settled frame, with no timeline and no timers.
 - **`?capture=1`:** a 10 s seamless loop plus `window.__dashcastCapture.seek(t)` for frame-exact recording.
 
+## Exports for the site (2026-09-25)
+
+- `DemoStage` `{display, tier, stats?}`: the screen alone (flat `Stage` framing `'screen'`, no photo), the 10 s loop, fills a 16:10 parent; prop changes swap the stream behind a 0.24 s dip to black and a 0.42 s return. Plays only once a quarter of it is visible.
+- `SoundVisual`, `McuVisual`: the Features card media (see their files).
+- Every streamed desktop uses the brand wallpaper `public/shots/wallpaper.jpg` (shared with the Mac app showcase).
+
 ## Open questions
 
 - **Theater `innerHeight` in a real car:** 745 CSS is expected, not verified.

@@ -1,13 +1,14 @@
-/* tesla.com's small feature set (/modely "Everything You Want"): the whole set at once, no track. Five equal
-   tiles in a row on desktop, 3 + 2 on tablets, 2 + 2 + one wide Keyboard tile on phones. Every tile's art box
-   has the same fixed height per breakpoint, so the rows match whatever the column widths are. */
+/* /modely's "Everything You Want": a left-aligned 48/56 heading and grey subtitle, then the whole set at once.
+   Five equal #f4f4f4 tiles (Tesla's grey card) in a row on desktop, 3 + 2 on tablets, 2 + 2 + one wide Keyboard
+   tile on phones. Every tile's art box has the same fixed height per breakpoint, so the rows always match. */
 .touch {
   --tile-art-h: 168px;
   padding: var(--section-pad) 0;
   background: var(--c-white);
 }
 
-.touch__sub {
+.touch__head .t-sub {
+  margin-top: var(--s-half);
   color: var(--c-text-low);
 }
 
@@ -24,7 +25,7 @@
   flex-direction: column;
   border-radius: var(--radius-media);
   overflow: hidden;
-  background: radial-gradient(120% 80% at 50% 0%, #2b3240 0%, #1b1e25 55%, #15171c 100%);
+  background: var(--c-grey-70);
 }
 
 /* The art carries its own margin around the car screen, so it runs edge to edge. */
@@ -53,14 +54,14 @@
   line-height: var(--lh-60);
   font-weight: var(--fw-display);
   letter-spacing: var(--ls-display);
-  color: var(--c-white);
+  color: var(--c-ink);
 }
 
 .tile__label {
   margin-top: var(--s-half);
   font-size: var(--fs-30);
   line-height: var(--lh-30);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--c-text-low);
 }
 
 /* 3 + 2 on a six-column grid: the second row's two tiles share the full width, so nothing is left hanging. */

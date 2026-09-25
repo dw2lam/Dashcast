@@ -1,9 +1,10 @@
 import { mapQuad, placePhoto, quadMatrix, quadUV, type Quad } from './geometry';
 import { PHOTO } from './photo';
+import { fitSlab } from './visuals/slab';
 import { PANEL } from './tesla/tesla';
 import type { DemoScreen } from './screen';
 
-export type Framing = 'hero' | 'section';
+export type Framing = 'hero' | 'section' | 'screen';
 
 /** Hero chrome the screen keeps clear of: title + CTAs above, the stats row below (px). */
 export const HERO_TOP = 260;
@@ -47,6 +48,7 @@ export class Stage {
   private cabinQuad: Quad | null = null;
   private flatQuad: Quad | null = null;
   private listeners: (() => void)[] = [];
+  private fadeTimer = 0;
   view = 0;
 
   constructor(
@@ -67,16 +69,39 @@ export class Stage {
     this.glass.className = 'dm-stg-glass';
     this.glow = document.createElement('div');
     this.glow.className = 'dm-stg-glow';
-    this.el.append(this.img, this.glow, this.bezel, this.glass);
+    const flat = opts.framing === 'screen';
+    if (flat) {
+      this.view = 1;
+      this.el.classList.add('dm-stg-flat');
+      this.el.append(this.bezel, this.glass);
+    } else this.el.append(this.img, this.glow, this.bezel, this.glass);
     host.appendChild(this.el);
     this.ro = new ResizeObserver(() => this.layout());
     this.ro.observe(host);
     this.layout();
+    if (flat) return;
     // srcset only once `sizes` is known, so the first request is already the right width.
     this.img.srcset = Object.entries(PHOTO.src)
       .map(([w, u]) => u + ' ' + w + 'w')
       .join(', ');
     this.img.src = PHOTO.src[1600];
+  }
+
+  /** Swaps what's on the screen behind a brief, calm dip to the black of the glass. */
+  fade(change: () => void) {
+    clearTimeout(this.fadeTimer);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      change();
+      return;
+    }
+    const g = this.glass;
+    g.style.transition = 'opacity 0.22s ease-in';
+    g.style.opacity = '0';
+    this.fadeTimer = window.setTimeout(() => {
+      change();
+      g.style.transition = 'opacity 0.42s ease-out';
+      g.style.opacity = '1';
+    }, 240);
   }
 
   attach(screen: DemoScreen) {
@@ -97,6 +122,18 @@ export class Stage {
     const cw = this.host.clientWidth;
     const ch = this.host.clientHeight;
     if (!cw || !ch) return;
+    if (this.opts.framing === 'screen') {
+      // Just the screen: the slab (panel + bezel) filling the host.
+      const f = fitSlab(cw, ch, 0);
+      this.flatQuad = this.cabinQuad = [
+        [f.x, f.y],
+        [f.x + f.w, f.y],
+        [f.x + f.w, f.y + f.h],
+        [f.x, f.y + f.h],
+      ];
+      this.apply();
+      return;
+    }
     const f = frame(this.opts.framing, cw, ch);
     const p = placePhoto(cw, ch, PHOTO.width, PHOTO.height, PHOTO.focus, f.targetW, f.bias);
     Object.assign(this.img.style, { width: p.w + 'px', height: p.h + 'px', transform: `translate(${p.x}px, ${p.y}px)` });
@@ -152,6 +189,7 @@ export class Stage {
   }
 
   destroy() {
+    clearTimeout(this.fadeTimer);
     this.ro.disconnect();
     this.listeners = [];
     this.el.remove();

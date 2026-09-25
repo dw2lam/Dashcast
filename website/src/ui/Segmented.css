@@ -1,0 +1,116 @@
+/* Segmented control (ui/Segmented.tsx). Shared by the demo and the Mac app, so every class is ui-seg-prefixed.
+   40px track, 4px radius, 32px segments on a 4px inset, and one pill that slides to the active segment. */
+.ui-seg {
+  position: relative;
+  z-index: 0;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  max-width: 100%;
+  height: var(--btn-h);
+  padding: var(--s-half);
+  border-radius: var(--radius);
+  background: var(--c-grey-70);
+  vertical-align: middle;
+}
+
+.ui-seg--fill {
+  display: grid;
+  width: 100%;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.ui-seg__pill {
+  position: absolute;
+  top: var(--s-half);
+  left: 0;
+  z-index: -1;
+  width: 0;
+  height: calc(100% - var(--s-1));
+  border-radius: var(--radius);
+  background: var(--c-white);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.06);
+  opacity: 0;
+  transition:
+    transform var(--dur-short) var(--ease-slide),
+    width var(--dur-short) var(--ease-slide);
+}
+
+.ui-seg__opt {
+  position: relative;
+  height: 32px;
+  padding: 0 var(--s-2);
+  border-radius: var(--radius);
+  font-family: var(--font-text);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-low);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--dur-ui);
+}
+
+.ui-seg__opt[data-on='true'],
+.ui-seg__opt:hover {
+  color: var(--c-ink);
+}
+
+.ui-seg__opt:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: -2px;
+}
+
+/* Black sections: a faint track, a lighter pill, white type. */
+.ui-seg--dark {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ui-seg--dark .ui-seg__pill {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+
+.ui-seg--dark .ui-seg__opt {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.ui-seg--dark .ui-seg__opt[data-on='true'],
+.ui-seg--dark .ui-seg__opt:hover {
+  color: var(--c-white);
+}
+
+.ui-seg--dark .ui-seg__opt:focus-visible {
+  outline-color: var(--c-white);
+}
+
+@media (max-width: 599px) {
+  .ui-seg--fill .ui-seg__opt {
+    padding: 0 var(--s-half);
+    font-size: 13px;
+  }
+}
+
+/* Touch: 44px hit areas without changing the 32px look. */
+@media (pointer: coarse) {
+  .ui-seg__opt {
+    overflow: visible;
+  }
+
+  .ui-seg__opt::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 44px;
+    margin-top: -22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-seg__pill {
+    transition: none;
+  }
+}

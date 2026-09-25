@@ -286,3 +286,44 @@ Model pages set it per section with CSS variables on `.tcl-section-padding`:
 - Phone titles 40/48 with 20/28 subtitles; phone hero 48/56.
 - Photo titles 64/48.
 - Dots 12px.
+
+## Round 8: motion and section templates (2026-09-25, Claude-in-Chrome, JS only, 1800×876)
+
+### Motion (/, /modely, /model3, /powerwall)
+- The body carries `animate-onscroll` and `tcl-parallax-effect--off`, but no element has a `tds-animate_*` reveal class on any of the four pages. The CSS still ships them: `body:not(.animate-onscroll) .tds-animate_large--to_reveal {opacity:1; transform:translateZ(0)}`.
+- The header gets `tds--fade-in`, a 1s opacity 0 → 1 keyframe on load.
+- Videos are `autoplay loop muted`: 1 on the home page, 3 on /powerwall.
+- /powerwall has `tcl-carousel-v2--fade-animation`: its pictures crossfade over .8s ease-in-out.
+- `tcl-parallax-zoom__*` rules exist in the CSS but no page uses them.
+
+### Home card carousel (`tcl-freeflow-carousel`, the "Solar Panels · Powerwall · Megapack" row)
+- **Slides:** flex, 24px gap, 48px side padding. Each card is 1024×580, a `picture` with an 8px radius.
+- **Copy:** a flex column, 40px padding, sitting at the bottom: 48/56 white h1, 20/28 white h4, then a `tcl-button-group` 24px lower (flex, 8px gap) of two 160×40 buttons. The first is #3e6ae1 with white text, the second white with #393c41 text; both 4px radius, 14/500.
+- **Arrow:** only "Next Slide" at the start. `tds-icon-btn tcl-carousel__nav-button`, 40×40, `rgba(255,255,255,.75)`, 4px radius, at x = viewport − 48 − 40, vertically centred on the cards.
+- **Dots:** `tds-tab-list--dots tcl-carousel__tab-list`, a 12px grid with 8px gaps, 24px under the cards.
+  - Every dot is 12×12 with `background: #171a20` (`--tds-theme-foreground-high-contrast`). `[aria-selected=false]` dots get `opacity: .5`.
+  - The transition is `background-color .3s, box-shadow .3s, color .3s`, so the opacity change is instant.
+  - The hit area is the 12px dot itself.
+
+### Home grey tiles ("Current Offers | Inventory")
+- Each tile is 840×800 on a grid of 3 × 280px columns.
+- **Copy:** spans two columns with padding 32/24/32/48: a 34/44 ink h1, then a 20/28 #5c5e62 h4, then a 180×40 white button (#393c41 text) 16px lower.
+- **Image:** the right column, 280×800, 8px radius.
+
+### Home split card (FSD)
+- **Copy column:** 682px, padding 32/48/16.
+- **Title:** 40/48 (an ink → blue gradient on the text).
+- **Subtitle:** 17/24 #5c5e62.
+- **Stats:** a `tcl-badge-group` (flex, 40px gap) of 34/44 values over 17/24 labels.
+
+### "Find Your Charge"
+- `#charging-map-component` is a lazily loaded React bundle that stays empty in a background tab, so the numbers for this template come from David's screenshot.
+
+### /powerwall (black page, `tds-layout` 12-column grid: 1440px wide, 48px padding, 1116px main column)
+- **Hero:** 64px title with stats.
+- **Text on media (`tcl-text-on-media-v2`):** a full-bleed 1800×1125 (16:10) image with a heading block in the main column. The heading block is either centred at the top (28/36 ink on a light image) or left-aligned over the bottom (28/36 white plus 14/20 text).
+- **Vertical carousel (`tcl-vertical-carousel-v2`):**
+  - A 432px list of buttons with 24/28 titles, 32px apart. Inactive titles are #d0d1d2 and the active one is white; the active item opens a 14/20 #d0d1d2 paragraph.
+  - The media on the right is 620×465 with an 8px radius. Pictures crossfade over .8s ease-in-out.
+  - The list advances by itself; the aria state changed between reads.
+- **Specs table:** a 28/36 title with a tab list on the right, over a spec grid.

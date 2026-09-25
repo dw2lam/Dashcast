@@ -130,7 +130,7 @@
   height: 16px;
   margin-right: 2px;
   border-radius: 1.5px;
-  background: #3ddc84;
+  background: var(--c-brand-2, #15abfe);
   transform: scaleY(0.4);
 }
 
@@ -152,7 +152,7 @@
 }
 
 .dm-sv-hud .dm-sv-good {
-  color: #3ddc84;
+  color: #f2f3f5;
 }
 
 .dm-sv-seg {

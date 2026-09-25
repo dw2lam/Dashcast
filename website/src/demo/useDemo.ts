@@ -69,10 +69,15 @@ export function useDemo(opts: DemoOptions) {
       },
       { rootMargin: '240px 0px' },
     );
-    const io = new IntersectionObserver((entries) => {
-      visible = entries[entries.length - 1].isIntersecting;
-      sync();
-    });
+    // Plays once a quarter of it is on screen, so nothing is already moving as it scrolls in.
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1];
+        visible = e.isIntersecting && e.intersectionRatio >= 0.25;
+        sync();
+      },
+      { threshold: [0, 0.25, 0.5] },
+    );
     near.observe(el);
     io.observe(el);
     document.addEventListener('visibilitychange', sync);

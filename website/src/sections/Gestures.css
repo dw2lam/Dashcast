@@ -1,7 +1,7 @@
 /* Gesture / feature art (Gestures.tsx): a static key frame by default, animated only inside an .is-live
    ancestor and never under reduced motion. */
 .g-bezel {
-  fill: #0b0c0f;
+  fill: var(--c-black);
   stroke: rgba(255, 255, 255, 0.14);
   stroke-width: 1;
 }
@@ -23,16 +23,10 @@
   fill: #c9ccd3;
 }
 
-.g-dot-r {
-  fill: #ff5f57;
-}
-
-.g-dot-y {
-  fill: #febc2e;
-}
-
+.g-dot-r,
+.g-dot-y,
 .g-dot-g {
-  fill: #28c840;
+  fill: #c9ccd3;
 }
 
 .g-field {
@@ -48,7 +42,7 @@
 }
 
 .g-caret {
-  fill: var(--c-blue);
+  fill: var(--c-brand-2);
 }
 
 .g-key {

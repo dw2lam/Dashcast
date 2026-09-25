@@ -1,6 +1,4 @@
-import { useEffect, useRef } from 'react';
 import { Mark } from '../ui/Wordmark';
-import { revealWithin } from '../lib/motion';
 import './Compare.css';
 
 type Cell = { mark?: 'yes' | 'no'; value: string; note?: string };
@@ -68,23 +66,20 @@ function CellView({ cell, us }: { cell: Cell; us?: boolean }) {
 
 /** tesla.com /compare pattern: columns of values per product, a label per row, quiet marks, sparse words. */
 export function Compare() {
-  const root = useRef<HTMLElement>(null);
-  useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
-
   return (
-    <section id="compare" className="compare section" ref={root} aria-labelledby="compare-title">
+    <section id="compare" className="compare section" aria-labelledby="compare-title">
       <div className="wrap compare__wrap">
         <header className="section-head">
-          <h2 id="compare-title" className="t-section" data-reveal="large">
+          <h2 id="compare-title" className="t-section">
             How it compares
           </h2>
-          <p className="t-sub compare__sub" data-reveal="small" data-reveal-delay="0.1">
+          <p className="t-sub compare__sub">
             Free, open source, and no cloud in between.
           </p>
         </header>
 
         <div className="cmp" role="table" aria-label="Dashcast compared with other browser display apps">
-          <div className="cmp__head" role="row" data-reveal="small">
+          <div className="cmp__head" role="row">
             <span className="cmp__corner" role="columnheader">
               <span className="sr-only">Feature</span>
             </span>
@@ -96,8 +91,8 @@ export function Compare() {
               Others
             </span>
           </div>
-          {ROWS.map((r, i) => (
-            <div className="cmp__row" role="row" key={r.label} data-reveal="small" data-reveal-delay={String(0.05 * i)}>
+          {ROWS.map((r) => (
+            <div className="cmp__row" role="row" key={r.label}>
               <span className="cmp__label" role="rowheader">
                 {r.label}
               </span>

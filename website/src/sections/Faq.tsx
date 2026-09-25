@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { revealWithin, prefersReducedMotion } from '../lib/motion';
+import { prefersReducedMotion } from '../lib/motion';
 import { CAR_ADDRESS } from '../lib/links';
 import './Faq.css';
 
@@ -94,12 +94,11 @@ export function Faq() {
   const root = useRef<HTMLElement>(null);
   const [open, setOpen] = useState<boolean[]>(() => FAQS.map(() => false));
   const allOpen = open.every(Boolean);
-  useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
 
   return (
     <section id="faq" className="faq section" ref={root} aria-labelledby="faq-title">
       <div className="faq__wrap">
-        <div className="faq__head" data-reveal="small">
+        <div className="faq__head">
           <h2 id="faq-title" className="faq__heading">
             Frequently Asked Questions
           </h2>
@@ -107,7 +106,7 @@ export function Faq() {
             {allOpen ? 'Hide All' : 'Show All'}
           </button>
         </div>
-        <ul className="faq__list" data-reveal="small" data-reveal-delay="0.1">
+        <ul className="faq__list">
           {FAQS.map((f, i) => (
             <Item
               key={f.q}

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { gsap, ease, prefersReducedMotion, revealWithin } from '../lib/motion';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { gsap, ease, prefersReducedMotion } from '../lib/motion';
 import './Office.css';
 
 const STEPS = [
@@ -53,10 +53,11 @@ function Scene() {
   return (
     <svg className="office__scene" viewBox="0 0 960 520" aria-hidden="true">
       <defs>
-        <linearGradient id="office-screen" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#0872FE" />
-          <stop offset="0.55" stopColor="#15ABFE" />
-          <stop offset="1" stopColor="#18D3FD" />
+        {/* The brand wallpaper (public/shots/wallpaper.jpg): deep navy into its blue wave. */}
+        <linearGradient id="office-screen" x1="0" y1="0" x2="0.35" y2="1">
+          <stop offset="0" stopColor="#011138" />
+          <stop offset="0.6" stopColor="#0a3f93" />
+          <stop offset="1" stopColor="#0b52e0" />
         </linearGradient>
       </defs>
       <g className="o-cabin">
@@ -95,63 +96,134 @@ function Scene() {
   );
 }
 
-/** "Your office, anywhere": the car-office setup as a dark, illustrated break between white sections. */
+/** How long each step stays up before the next, while nobody has picked one. */
+const STEP_MS = 4800;
+
+/**
+ * "Your office, anywhere" on Powerwall's vertical carousel: the steps as a list on the left (the active one opens
+ * its text), our line drawing on the right showing that step. The steps advance by themselves while the section
+ * is on screen, until someone picks one; each change animates only the part of the scene that step adds.
+ */
 export function Office() {
   const root = useRef<HTMLElement>(null);
+  const [active, setActive] = useState(0);
+  const [inView, setInView] = useState(false);
+  const [picked, setPicked] = useState(false);
+  const [reduced] = useState(prefersReducedMotion);
+  const shown = useRef(-1);
 
-  useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
+  /** Puts the scene in step `k`'s state: every earlier step already done, step k itself animated in. */
+  const show = useCallback(
+    (k: number, animate: boolean) => {
+      const el = root.current;
+      if (!el) return;
+      const q = gsap.utils.selector(el);
+      const parts = ['.o-bezel', '.o-glass, .o-ext', '.o-board', '.o-mac', '.o-ext-win'];
+      parts.forEach((p) => gsap.killTweensOf(q(p)));
+      const d = animate && !reduced ? 1 : 0;
+      const screen = (turned: boolean) => {
+        gsap.set(q('.o-bezel'), { attr: { d: turned ? SCREEN.turned : SCREEN.flat } });
+        gsap.set(q('.o-glass, .o-ext'), { attr: { d: turned ? GLASS.turned : GLASS.flat } });
+      };
+      const board = (on: boolean) => gsap.set(q('.o-board'), { x: on ? 0 : 260, autoAlpha: on ? 1 : 0 });
+      const desk = (on: boolean) => {
+        gsap.set(q('.o-mac'), { y: on ? 0 : -40, autoAlpha: on ? 1 : 0 });
+        gsap.set(q('.o-ext-win'), { x: on ? 0 : 276, y: on ? 0 : 64, scale: on ? 1 : 0.62, autoAlpha: on ? 1 : 0, transformOrigin: '0% 0%' });
+      };
+
+      screen(k > 0);
+      board(k > 1);
+      desk(false);
+      if (k === 0) {
+        screen(false);
+        gsap.to(q('.o-bezel'), { attr: { d: SCREEN.turned }, duration: 0.9 * d, ease: ease.tds, delay: 0.3 * d });
+        gsap.to(q('.o-glass, .o-ext'), { attr: { d: GLASS.turned }, duration: 0.9 * d, ease: ease.tds, delay: 0.3 * d });
+      } else if (k === 1) {
+        board(false);
+        gsap.to(q('.o-board'), { x: 0, autoAlpha: 1, duration: 1 * d, ease: ease.mktg });
+      } else {
+        gsap.to(q('.o-mac'), { y: 0, autoAlpha: 1, duration: 0.7 * d, ease: ease.mktg });
+        gsap.to(q('.o-ext-win'), { x: 0, y: 0, scale: 1, autoAlpha: 1, duration: 1 * d, ease: ease.slide, delay: 0.7 * d });
+      }
+      shown.current = k;
+    },
+    [reduced],
+  );
 
   useEffect(() => {
     const el = root.current;
-    if (!el || prefersReducedMotion()) return;
-    const ctx = gsap.context(() => {
-      const draws = gsap.utils.toArray<SVGGeometryElement>('.o-draw');
-      draws.forEach((p) => {
-        const len = p.getTotalLength ? p.getTotalLength() : 1000;
-        gsap.set(p, { strokeDasharray: len, strokeDashoffset: len });
-      });
-      const tl = gsap.timeline({ scrollTrigger: { trigger: '.office__scene', start: 'top 72%', once: true } });
-      tl.to(draws, { strokeDashoffset: 0, duration: 1, stagger: 0.04, ease: ease.mktg }, 0)
-        .set(draws, { clearProps: 'strokeDasharray,strokeDashoffset' }, 1.5)
-        .fromTo('.o-bezel', { attr: { d: SCREEN.flat } }, { attr: { d: SCREEN.turned }, duration: 0.9, ease: ease.tds }, 1.5)
-        .fromTo('.o-glass, .o-ext', { attr: { d: GLASS.flat } }, { attr: { d: GLASS.turned }, duration: 0.9, ease: ease.tds }, 1.5)
-        .fromTo('.o-board', { x: 260, opacity: 0 }, { x: 0, opacity: 1, duration: 1, ease: ease.mktg }, 2.3)
-        .fromTo('.o-mac', { y: -40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: ease.mktg }, 3.1)
-        .fromTo('.o-ext', { opacity: 0 }, { opacity: 1, duration: 0.6, ease: 'none' }, 3.7)
-        .fromTo('.o-ext-win', { x: 276, y: 64, scale: 0.62, opacity: 0, transformOrigin: '0% 0%' }, { x: 0, y: 0, scale: 1, opacity: 1, duration: 1, ease: ease.slide }, 3.8);
-    }, el);
-    return () => ctx.revert();
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.35 });
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
+
+  // Before it is first seen the scene waits on its opening frame: the screen flat, no board, no MacBook.
+  useLayoutEffect(() => {
+    const q = gsap.utils.selector(root.current);
+    gsap.set(q('.o-bezel'), { attr: { d: SCREEN.flat } });
+    gsap.set(q('.o-glass, .o-ext'), { attr: { d: GLASS.flat } });
+    gsap.set(q('.o-board'), { x: 260, autoAlpha: 0 });
+    gsap.set(q('.o-mac, .o-ext-win'), { autoAlpha: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (!inView && shown.current === -1) return;
+    if (shown.current !== active) show(active, true);
+  }, [active, inView, show]);
+
+  useEffect(() => {
+    if (reduced || !inView || picked) return;
+    const t = window.setTimeout(() => setActive((a) => (a + 1) % STEPS.length), STEP_MS);
+    return () => window.clearTimeout(t);
+  }, [active, inView, picked, reduced]);
+
+  useEffect(() => {
+    const el = root.current;
+    return () => {
+      if (el) gsap.killTweensOf(gsap.utils.selector(el)('*'));
+    };
+  }, []);
+
+  const choose = (i: number) => {
+    setPicked(true);
+    if (i === active && shown.current === i) show(i, true);
+    setActive(i);
+  };
 
   return (
     <section id="office" className="office section on-dark" ref={root} aria-labelledby="office-title">
       <div className="wrap">
-        <header className="section-head">
-          <h2 id="office-title" className="t-section" data-reveal="large">
+        <header className="office__head">
+          <h2 id="office-title" className="t-section">
             Your office, anywhere
           </h2>
-          <p className="t-sub office__sub" data-reveal="small" data-reveal-delay="0.1">
-            Park, swivel, set up. A desk and a second screen, wherever you charge.
-          </p>
+          <p className="t-sub office__sub">Park, swivel, set up. A desk and a second screen, wherever you charge.</p>
         </header>
 
-        <div className="office__art">
-          <Scene />
+        <div className="office__row">
+          <ol className="office__steps">
+            {STEPS.map((s, i) => {
+              const on = i === active;
+              return (
+                <li key={s.title} className={on ? 'is-on' : undefined}>
+                  <button type="button" className="office__step" aria-expanded={on} aria-controls={`office-step-${i}`} onClick={() => choose(i)}>
+                    <span className="office__title">{s.title}</span>
+                  </button>
+                  <p className="office__body" id={`office-step-${i}`} hidden={!on}>
+                    {s.body}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+
+          <div className="office__art">
+            <Scene />
+          </div>
         </div>
 
-        <ol className="office__steps">
-          {STEPS.map((s, i) => (
-            <li key={s.title} data-reveal="small" data-reveal-delay={String(0.08 * i)}>
-              <span className="office__n">{i + 1}</span>
-              <p className="office__title">{s.title}</p>
-              <p className="office__body">{s.body}</p>
-            </li>
-          ))}
-        </ol>
-
-        <p className="office__note" data-reveal="small">
-          Our setup, in a Model 3/Y. Parked only. Take the board out before you drive.
-        </p>
+        <p className="office__note">Our setup, in a Model 3/Y. Parked only. Take the board out before you drive.</p>
       </div>
     </section>
   );

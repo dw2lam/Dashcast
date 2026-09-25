@@ -38,39 +38,6 @@ export const ease = {
 export const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-type RevealKind = 'small' | 'large';
-
-/**
- * Tesla's two reveal presets, driven by ScrollTrigger:
- *  small — 30px rise, 0.5s, marketing ease (.tds-animate_small--to_reveal)
- *  large — 100px rise, 1.5s, marketing ease (.tds-animate_large--to_reveal)
- * Elements opt in with data-reveal="small|large" and an optional data-reveal-delay (s).
- * Returns a cleanup function.
- */
-export function revealWithin(root: HTMLElement): () => void {
-  if (prefersReducedMotion()) return () => {};
-  const ctx = gsap.context(() => {
-    const els = gsap.utils.toArray<HTMLElement>('[data-reveal]', root);
-    for (const el of els) {
-      const kind = (el.dataset.reveal as RevealKind) || 'small';
-      const delay = Number(el.dataset.revealDelay || 0);
-      gsap.fromTo(
-        el,
-        { y: kind === 'large' ? 100 : 30, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: kind === 'large' ? 1.5 : 0.5,
-          delay,
-          ease: ease.mktg,
-          scrollTrigger: { trigger: el, start: 'top 92%', once: true },
-        },
-      );
-    }
-  }, root);
-  return () => ctx.revert();
-}
-
 /**
  * Sections owned by other agents (the demo, the showcase) settle their height after load; keep every
  * ScrollTrigger's start/end in step with the document instead of the first layout.

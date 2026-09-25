@@ -4,7 +4,7 @@
   min-height: 440px;
   max-height: 760px;
   overflow: hidden;
-  background: #1a1c20;
+  background: var(--c-dark-bg);
 }
 
 .band__scrim {

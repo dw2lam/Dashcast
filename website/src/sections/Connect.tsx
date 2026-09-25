@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Topology, type Mode } from './Topology';
-import { revealWithin } from '../lib/motion';
 import { CAR_ADDRESS } from '../lib/links';
 import './Connect.css';
 
@@ -87,8 +86,6 @@ export function Connect() {
     return () => window.removeEventListener('resize', onResize);
   }, [movePill]);
 
-  useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
-
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const i = METHODS.findIndex((m) => m.id === mode);
     const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : -9;
@@ -103,15 +100,15 @@ export function Connect() {
     <section id="connect" className="section connect" ref={root} aria-labelledby="connect-title">
       <div className="wrap">
         <header className="section-head">
-          <h2 id="connect-title" className="t-section" data-reveal="large">
+          <h2 id="connect-title" className="t-section">
             Connect
           </h2>
-          <p className="t-sub" data-reveal="small" data-reveal-delay="0.1">
+          <p className="t-sub">
             Your Mac makes the Wi‑Fi. The car joins it.
           </p>
         </header>
 
-        <div className="tabs" role="tablist" aria-label="Connection method" ref={tabsRef} onKeyDown={onKey} data-reveal="small" data-reveal-delay="0.15">
+        <div className="tabs" role="tablist" aria-label="Connection method" ref={tabsRef} onKeyDown={onKey}>
           <span className="tabs__pill" ref={pillRef} aria-hidden="true" />
           {METHODS.map((m) => (
             <button
@@ -131,7 +128,7 @@ export function Connect() {
           ))}
         </div>
 
-        <div className="connect__panel" id="connect-panel" role="tabpanel" aria-labelledby={`tab-${mode}`} data-reveal="small" data-reveal-delay="0.2">
+        <div className="connect__panel" id="connect-panel" role="tabpanel" aria-labelledby={`tab-${mode}`}>
           <div className="connect__diagram">
             <Topology mode={mode} />
           </div>
@@ -154,12 +151,12 @@ export function Connect() {
         </div>
 
         <div className="incar">
-          <h3 className="t-title incar__title" data-reveal="small">
+          <h3 className="t-title incar__title">
             In the car
           </h3>
           <ol className="incar__steps">
             {IN_CAR.map((s, i) => (
-              <li key={s.title} data-reveal="small" data-reveal-delay={String(0.06 * i)}>
+              <li key={s.title}>
                 <span className="incar__n">{i + 1}</span>
                 <span className="incar__text">{s.title}</span>
                 {s.note && <span className="incar__note">{s.note}</span>}

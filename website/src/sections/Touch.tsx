@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { GestureArt, type Gesture } from './Gestures';
-import { revealWithin } from '../lib/motion';
 import './Touch.css';
 
 const GESTURES: { kind: Gesture; title: string; label: string }[] = [
@@ -11,7 +10,7 @@ const GESTURES: { kind: Gesture; title: string; label: string }[] = [
   { kind: 'keys', title: 'Keyboard', label: 'Type into any app' },
 ];
 
-/** tesla.com's small feature set ("Everything You Want" on /modely): the whole set at once, in an even grid. */
+/** /modely's "Everything You Want": a left-aligned heading over the whole set at once, as even grey tiles. */
 export function Touch() {
   const root = useRef<HTMLElement>(null);
   const [live, setLive] = useState(false);
@@ -24,23 +23,21 @@ export function Touch() {
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => (root.current ? revealWithin(root.current) : undefined), []);
-
   return (
     <section id="touch" className={`touch section${live ? ' is-live' : ''}`} ref={root} aria-labelledby="touch-title">
       <div className="wrap">
-        <header className="section-head">
-          <h2 id="touch-title" className="t-section" data-reveal="large">
+        <header className="touch__head">
+          <h2 id="touch-title" className="t-section">
             Touch is the mouse
           </h2>
-          <p className="t-sub touch__sub" data-reveal="small" data-reveal-delay="0.1">
+          <p className="t-sub touch__sub">
             The car&rsquo;s screen drives your Mac. Keyboard included.
           </p>
         </header>
 
         <ul className="touch__grid" aria-label="Gestures">
-          {GESTURES.map((g, i) => (
-            <li className={`tile tile--${g.kind}`} key={g.kind} data-reveal="small" data-reveal-delay={String(0.12 + 0.05 * i)}>
+          {GESTURES.map((g) => (
+            <li className={`tile tile--${g.kind}`} key={g.kind}>
               <div className="tile__art">
                 <GestureArt kind={g.kind} />
               </div>
