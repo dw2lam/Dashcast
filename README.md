@@ -54,8 +54,14 @@ Dashcast isn't notarized yet. On first launch, macOS will say it can't verify th
 - answers the car's DNS and its connectivity check on the Mac, so the car is happy with no internet at all.
 
 **Two modes are picked automatically:**
-- **Secure:** HTTPS on your own domain with a free Let's Encrypt certificate. This unlocks WebCodecs, the lowest-latency path.
 - **Compatibility:** plain `http://203.0.113.77`, streamed over WebRTC. No setup needed.
+- **Secure (optional):** HTTPS on a domain you own, with a free Let's Encrypt certificate. This unlocks WebCodecs, the lowest-latency path.
+
+**Setting up Secure mode.** In **Settings → Network → Secure Mode**, enter a name on a domain you own, such as `car.yourdomain.com`, and pick its DNS provider:
+- **Cloudflare (automatic):** on [Cloudflare's API Tokens page](https://dash.cloudflare.com/profile/api-tokens), click **Create Token**, use the **Edit zone DNS** template, add **Zone · Zone · Read**, and set **Zone Resources** to your domain. Paste the token into Dashcast (it stays in your Keychain) and click **Get Certificate**. Dashcast adds the A record `car.yourdomain.com → 203.0.113.77` (DNS only, not proxied) and gets the certificate over DNS-01. Renew it from the same place.
+- **Any other DNS provider:** add the A record yourself (`car.yourdomain.com`, `A`, `203.0.113.77`, not proxied), get a certificate for that name, and import it: a `.p12` with its passphrase, or PEM certificate and key files. Automatic certificates are Cloudflare-only for now.
+
+The Connection Guide and the setup assistant link to the same settings.
 
 **Choose how the car reaches your Mac:**
 
@@ -68,7 +74,7 @@ Dashcast isn't notarized yet. On first launch, macOS will say it can't verify th
 **In the car:**
 1. Join the Mac's Wi-Fi.
 2. Open the Browser.
-3. Go to `http://203.0.113.77` (or your hostname).
+3. Go to `http://203.0.113.77` (or your own domain, in Secure mode).
 4. Tap to Start. The tap turns on sound.
 5. Go fullscreen.
 
@@ -88,7 +94,7 @@ scripts/make-dmg.sh       # build/Dashcast.app → build/Dashcast.dmg
 
 - **Tools:** Xcode, Node, `cmake` and `git`.
 - **libdatachannel:** it and Mbed TLS are built from source into `Vendor/` on the first run.
-- **Certificates:** `brew install lego` if you want Secure mode's certificate tool bundled.
+- **Certificates:** `brew install lego` if you want Secure mode's certificate tool (Cloudflare domains) bundled.
 - **Tests:** `swift test`.
 
 | Path | What's there |

@@ -15,9 +15,13 @@ struct ListenerError: Error, CustomStringConvertible {
 final class HTTPServer: @unchecked Sendable {   // confined to `queue`
     let queue: DispatchQueue
     let pages: ClientPageProvider
-    let publicHostname: String
+    /// The certificate's hostname while HTTPS mode is on (nil in HTTP mode).
+    var publicHostname: String?
+    private let baseAllowedHosts: Set<String>
     /// Hostnames accepted in `Host` and in a WebSocket `Origin` (DNS-rebinding / cross-site guard).
-    let allowedHosts: Set<String>
+    var allowedHosts: Set<String> {
+        publicHostname.map { baseAllowedHosts.union([$0.lowercased()]) } ?? baseAllowedHosts
+    }
     weak var webSocketDelegate: WebSocketDelegate?
     /// HTTP mode (no TLS listener): the plain :80 listener serves the page and /ws itself instead of
     /// redirecting to https.
@@ -33,11 +37,11 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
     private var nextConnectionID: UInt64 = 1
     private var sweepTimer: DispatchSourceTimer?
 
-    init(queue: DispatchQueue, pages: ClientPageProvider, publicHostname: String, allowedHosts: Set<String>) {
+    init(queue: DispatchQueue, pages: ClientPageProvider, publicHostname: String? = nil, allowedHosts: Set<String>) {
         self.queue = queue
         self.pages = pages
         self.publicHostname = publicHostname
-        self.allowedHosts = Set(allowedHosts.map { $0.lowercased() })
+        baseAllowedHosts = Set(allowedHosts.map { $0.lowercased() })
     }
 
     static func tcpOptions() -> NWProtocolTCP.Options {
@@ -193,7 +197,7 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
             return .respond(probe, close: false)
         }
 
-        if role == .plain && !plainServesApp {
+        if role == .plain && !plainServesApp, let publicHostname {
             // HTTPS mode: everything else on :80 goes to the https origin (same path when it was already our name).
             let target = host == publicHostname.lowercased() && request.target.hasPrefix("/") ? request.target : "/"
             let location = "https://\(publicHostname)\(target)"
@@ -205,7 +209,7 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         guard let host, allowedHosts.contains(host) else {
             if role == .plain {
                 // HTTP mode: send stray names (whatever the car resolved to us) to the car page.
-                let location = "http://\(publicHostname)/"
+                let location = "http://\(DashcastDefaults.serviceAddress)/"
                 return .respond(HTTPResponse(status: 301, headers: [("Location", location), ("Content-Type", "text/plain; charset=utf-8")],
                                              body: Data("Moved to \(location)\n".utf8)), close: true)
             }

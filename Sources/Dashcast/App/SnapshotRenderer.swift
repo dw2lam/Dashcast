@@ -53,6 +53,25 @@ enum SnapshotRenderer {
             Shot(name: "settings-advanced", scenario: .init(phase: .streaming), width: 520,
                  content: { AnyView(AdvancedSettings()) }),
 
+            // Secure mode on the user's own domain (Settings → Network's sections, unscrolled).
+            Shot(name: "domain-none", scenario: .init(certificate: false), size: CGSize(width: 520, height: 300),
+                 content: { AnyView(DomainSectionsSnapshot()) }),
+            Shot(name: "domain-cloudflare", scenario: .init(domain: .cloudflare), size: CGSize(width: 520, height: 620),
+                 content: { AnyView(DomainSectionsSnapshot()) }),
+            Shot(name: "domain-cloudflare-token", scenario: .init(domain: .cloudflare, token: true), size: CGSize(width: 520, height: 420),
+                 content: { AnyView(DomainSectionsSnapshot()) }),
+            Shot(name: "domain-manual", scenario: .init(domain: .manual), size: CGSize(width: 520, height: 470),
+                 content: { AnyView(DomainSectionsSnapshot()) }),
+            Shot(name: "domain-secure", size: CGSize(width: 520, height: 420), content: { AnyView(DomainSectionsSnapshot()) }),
+            Shot(name: "domain-sheet", scenario: .init(certificate: false), size: CGSize(width: 520, height: 600),
+                 content: { AnyView(OwnDomainSheet()) }),
+
+            // The drag-to-authorize panel that floats beside System Settings.
+            Shot(name: "permission-panel-screen", width: 300,
+                 content: { AnyView(PermissionPanelView(pane: .screenRecording, relaunch: {}).padding(10)) }),
+            Shot(name: "permission-panel-accessibility", width: 300,
+                 content: { AnyView(PermissionPanelView(pane: .accessibility).padding(10)) }),
+
             // Menu bar panel.
             Shot(name: "menu-idle", width: 300, content: { AnyView(MenuBarPanel()) }),
             Shot(name: "menu-casting", scenario: .init(phase: .streaming), width: 300, content: { AnyView(MenuBarPanel()) }),
@@ -64,8 +83,12 @@ enum SnapshotRenderer {
                  content: { AnyView(SetupAssistant(step: 1)) }),
             Shot(name: "setup-2-connect-done", size: CGSize(width: 440, height: 480),
                  content: { AnyView(SetupAssistant(step: 1)) }),
-            Shot(name: "setup-3-tesla", size: CGSize(width: 440, height: 480),
+            Shot(name: "setup-3-secure", scenario: .init(certificate: false), size: CGSize(width: 440, height: 480),
                  content: { AnyView(SetupAssistant(step: 2)) }),
+            Shot(name: "setup-3-secure-done", size: CGSize(width: 440, height: 480),
+                 content: { AnyView(SetupAssistant(step: 2)) }),
+            Shot(name: "setup-4-tesla", scenario: .init(certificate: false), size: CGSize(width: 440, height: 480),
+                 content: { AnyView(SetupAssistant(step: 3)) }),
 
             // Connection guide: each method expanded, the real window, and live checks while casting.
             Shot(name: "guide-a-hotspot", scenario: .init(topology: .offline, fresh: true), width: 580,
@@ -166,5 +189,13 @@ enum SnapshotRenderer {
                  respectFlipped: true, hints: nil)
         NSGraphicsContext.restoreGraphicsState()
         return output.representation(using: .png, properties: [:])
+    }
+}
+
+/// The own-domain sections on their own (Settings → Network shows them among its other sections).
+private struct DomainSectionsSnapshot: View {
+    var body: some View {
+        Form { OwnDomainSections() }
+            .formStyle(.grouped)
     }
 }

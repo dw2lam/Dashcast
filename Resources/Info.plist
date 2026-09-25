@@ -29,7 +29,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Dashcast uses an administrator script to install its small network helper, which keeps car.davidlam.online pointed at this Mac.</string>
+	<string>Dashcast uses an administrator script to install its small network helper, which gives this Mac the address your car connects to.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

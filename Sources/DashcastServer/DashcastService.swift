@@ -15,12 +15,12 @@ public struct ServerOptions: Sendable {
     /// nil disables it.
     public var plainHTTPPort: UInt16? = 80
     public var plainHTTPHost = DashcastDefaults.serviceAddress
-    public var publicHostname = DashcastDefaults.hostname
     /// How long the engine (and the virtual display) survives a car disconnect.
     public var reconnectGracePeriod: TimeInterval = 5
     /// Directory containing the built client's index.html; nil = automatic lookup.
     public var clientDirectory: URL?
-    /// Extra hostnames accepted in Host/Origin (besides localhost, loopback, the service address and hostname).
+    /// Extra hostnames accepted in Host/Origin (besides localhost, loopback, the service address and
+    /// the certificate's hostname).
     public var extraAllowedHosts: [String] = []
 
     public init() {}
@@ -52,6 +52,8 @@ public final class DashcastService: DashcastServicing {
     private var graceTask: Task<Void, Never>?
     private var opTail: Task<Void, Never>?
     private var tlsFileStamp: String?
+    /// The certificate's hostname while the https listener runs.
+    private var tlsHostname: String?
     private var lastListenerProblem: [String: String] = [:]
     /// Last logged mode (true = HTTPS) so a refresh doesn't repeat it.
     private var loggedHTTPMode: Bool?
@@ -73,11 +75,11 @@ public final class DashcastService: DashcastServicing {
         self.rtc = rtc
         self.settings = settings
         self.options = options
-        var hosts: Set<String> = ["localhost", "127.0.0.1", "::1", options.publicHostname.lowercased(),
+        var hosts: Set<String> = ["localhost", "127.0.0.1", "::1",
                                   DashcastDefaults.serviceAddress, options.tlsHost, options.devHost]
         hosts.formUnion(options.extraAllowedHosts.map { $0.lowercased() })
         server = HTTPServer(queue: queue, pages: ClientPageProvider(directory: options.clientDirectory),
-                            publicHostname: options.publicHostname, allowedHosts: hosts)
+                            allowedHosts: hosts)
         hub = SessionHub(queue: queue, engine: engine, rtcFactory: rtc)
         server.webSocketDelegate = hub
         server.log = { [weak self] message in
@@ -124,6 +126,8 @@ public final class DashcastService: DashcastServicing {
         tlsPort = nil
         plainHTTPPort = nil
         tlsFileStamp = nil
+        tlsHostname = nil
+        await onQueue { $0.publicHostname = nil }
         loggedHTTPMode = nil
         lastListenerProblem = [:]
         await enqueue { [self] in
@@ -226,13 +230,14 @@ public final class DashcastService: DashcastServicing {
                 await onQueue { $0.stopListener("tls") }
                 tlsPort = nil
                 tlsFileStamp = nil
+                tlsHostname = nil
                 log("TLS certificate removed; stopped the https listener")
             }
             return
         }
         let stamp = TLSIdentity.fileStamp(for: material.pkcs12URL)
         let listening = await onQueue { $0.isListening("tls") }
-        if listening, stamp == tlsFileStamp { return }
+        if listening, stamp == tlsFileStamp, material.hostname == tlsHostname { return }
 
         let identity: TLSIdentity
         do {
@@ -245,12 +250,15 @@ public final class DashcastService: DashcastServicing {
         case .success(let bound):
             tlsPort = bound
             tlsFileStamp = stamp
+            if tlsHostname != material.hostname { loggedHTTPMode = nil }
+            tlsHostname = material.hostname
             lastListenerProblem["tls"] = nil
             let expiry = identity.expiry.map { " · certificate valid until \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
-            log("Listening on https://\(options.publicHostname) (\(options.tlsHost):\(bound))\(expiry)\(listening ? " · reloaded certificate" : "")")
+            log("Listening on https://\(material.hostname) (\(options.tlsHost):\(bound))\(expiry)\(listening ? " · reloaded certificate" : "")")
         case .failure(let error):
             tlsPort = nil
             tlsFileStamp = nil
+            tlsHostname = nil
             noteListenerProblem("tls", "Can't listen on \(options.tlsHost):\(options.tlsPort) yet (\(Self.describe(error))); will retry")
         }
     }
@@ -258,12 +266,16 @@ public final class DashcastService: DashcastServicing {
     /// HTTP mode (no https listener): :80 serves the page and /ws (media over WebRTC, or JPEG).
     /// HTTPS mode: :80 redirects to https. Connectivity probes are answered either way.
     private func updateHTTPMode() async {
-        let tlsUp = await onQueue { $0.isListening("tls") }
-        await onQueue { $0.plainServesApp = !tlsUp }
+        let hostname = await onQueue { $0.isListening("tls") } ? tlsHostname : nil
+        await onQueue { server in
+            server.publicHostname = hostname
+            server.plainServesApp = hostname == nil
+        }
+        let tlsUp = hostname != nil
         guard plainHTTPPort != nil, loggedHTTPMode != tlsUp else { return }
         loggedHTTPMode = tlsUp
-        log(tlsUp ? "HTTPS mode: http://\(options.plainHTTPHost) redirects to https://\(options.publicHostname)"
-                  : "HTTP mode: serving the car at http://\(options.plainHTTPHost) (no certificate)")
+        log(hostname.map { "HTTPS mode: http://\(options.plainHTTPHost) redirects to https://\($0)" }
+            ?? "HTTP mode: serving the car at http://\(options.plainHTTPHost) (no certificate)")
     }
 
     private func noteListenerProblem(_ name: String, _ message: String) {

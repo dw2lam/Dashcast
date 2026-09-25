@@ -23,18 +23,25 @@ final class LegoTests: XCTestCase {
 
     func testArgumentsV5() {
         let path = "/Users/x/Library/Application Support/Dashcast/lego"
-        let expected = ["run", "--accept-tos", "--email", "inbox@davidlam.online", "--dns", "cloudflare",
-                        "--domains", "car.davidlam.online", "--path", path, "--renew-days", "30", "--no-random-sleep"]
-        XCTAssertEqual(Lego.arguments(major: 5, email: "inbox@davidlam.online", domain: "car.davidlam.online", path: path, renew: false), expected)
-        XCTAssertEqual(Lego.arguments(major: 5, email: "inbox@davidlam.online", domain: "car.davidlam.online", path: path, renew: true), expected)
+        let expected = ["run", "--accept-tos", "--email", "you@example.com", "--dns", "cloudflare",
+                        "--domains", "car.example.com", "--path", path, "--renew-days", "30", "--no-random-sleep"]
+        XCTAssertEqual(Lego.arguments(major: 5, email: "you@example.com", domain: "car.example.com", path: path, renew: false), expected)
+        XCTAssertEqual(Lego.arguments(major: 5, email: "you@example.com", domain: "car.example.com", path: path, renew: true), expected)
+    }
+
+    /// No contact email by default: the flag is left out entirely.
+    func testArgumentsWithoutEmail() {
+        XCTAssertEqual(Lego.arguments(major: 5, email: nil, domain: "car.example.com", path: "/p", renew: false),
+                       ["run", "--accept-tos", "--dns", "cloudflare", "--domains", "car.example.com", "--path", "/p",
+                        "--renew-days", "30", "--no-random-sleep"])
     }
 
     func testArgumentsV4() {
-        let common = ["--accept-tos", "--email", "inbox@davidlam.online", "--dns", "cloudflare",
-                      "--domains", "car.davidlam.online", "--path", "/p"]
-        XCTAssertEqual(Lego.arguments(major: 4, email: "inbox@davidlam.online", domain: "car.davidlam.online", path: "/p", renew: false),
+        let common = ["--accept-tos", "--email", "you@example.com", "--dns", "cloudflare",
+                      "--domains", "car.example.com", "--path", "/p"]
+        XCTAssertEqual(Lego.arguments(major: 4, email: "you@example.com", domain: "car.example.com", path: "/p", renew: false),
                        common + ["run"])
-        XCTAssertEqual(Lego.arguments(major: 4, email: "inbox@davidlam.online", domain: "car.davidlam.online", path: "/p", renew: true),
+        XCTAssertEqual(Lego.arguments(major: 4, email: "you@example.com", domain: "car.example.com", path: "/p", renew: true),
                        common + ["renew", "--days", "30", "--no-random-sleep"])
     }
 
@@ -59,7 +66,7 @@ final class LegoTests: XCTestCase {
         print("[lego] \(lego.path): \(version.stdout.trimmingCharacters(in: .whitespacesAndNewlines))")
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dashcast-lego-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let args = Lego.arguments(major: major, email: "inbox@davidlam.online", domain: "car.davidlam.online",
+        let args = Lego.arguments(major: major, email: nil, domain: "car.example.com",
                                   path: dir.path, renew: false) + ["--server", "http://127.0.0.1:9/directory"] // plain http: refused before any connection
         let result = try await ProcessRunner.run(lego.path, args,
                                                  environment: Lego.environment(token: "dummy", base: ProcessInfo.processInfo.environment),
@@ -84,9 +91,11 @@ final class ManagerTests: XCTestCase {
         try world.installHelper()
         let secrets = InMemorySecretStore()
         let manager = NetworkManager(environment: makeEnvironment(world: world, secrets: secrets))
+        try manager.setOwnDomain(OwnDomain(hostname: "car.example.com", provider: .cloudflare))
         StubURLProtocol.reset { request, _ in
             XCTAssertEqual(request.url?.host, "cloudflare-dns.com")
-            return (200, Data(#"{"Status":0,"Answer":[{"name":"car.davidlam.online","type":1,"TTL":300,"data":"\#(svc)"}]}"#.utf8))
+            XCTAssertEqual(request.url?.query, "name=car.example.com&type=A")
+            return (200, Data(#"{"Status":0,"Answer":[{"name":"car.example.com","type":1,"TTL":300,"data":"\#(svc)"}]}"#.utf8))
         }
 
         var status = await manager.currentStatus()
@@ -95,6 +104,7 @@ final class ManagerTests: XCTestCase {
         XCTAssertEqual(status.macLANAddress, "192.168.8.123")
         XCTAssertTrue(status.aliasActive)
         XCTAssertTrue(status.helperInstalled)
+        XCTAssertEqual(status.domain, OwnDomain(hostname: "car.example.com", provider: .cloudflare))
         XCTAssertFalse(status.hasCloudflareToken)
         XCTAssertTrue(status.dnsRecordOK)
         XCTAssertTrue(status.internetReachable)
@@ -104,7 +114,7 @@ final class ManagerTests: XCTestCase {
         XCTAssertTrue(status.summary.contains("add a Cloudflare API token"), status.summary)
         XCTAssertTrue(status.summary.contains("get a certificate"), status.summary)
         XCTAssertFalse(status.summary.contains("network helper"), status.summary)
-        XCTAssertTrue(status.summary.contains("Ready (HTTP mode): open http://car.davidlam.online or http://\(svc) in the car."), status.summary)
+        XCTAssertTrue(status.summary.contains("Ready (HTTP mode): open http://\(svc) in the car."), status.summary)
         XCTAssertTrue(status.summary.contains("For HTTPS (optional; until then the car uses HTTP + WebRTC): add a Cloudflare API token; get a certificate."), status.summary)
         XCTAssertTrue(status.summary.contains("Local DNS off."), status.summary)
 
@@ -152,12 +162,13 @@ final class ManagerTests: XCTestCase {
         status.internetReachable = true
         let now = Date()
         status.certificateExpiry = now.addingTimeInterval(80 * 86_400)
+        status.domain = OwnDomain(hostname: "car.example.com", provider: .cloudflare)
         let topology = TopologyResult(topology: .macHotspot, interfaceName: "bridge100", macLANAddress: "192.168.2.1",
                                       uplinkInterface: "en7", uplinkDescription: nil, gateway: nil, aliasActive: true,
                                       detail: "Mac hotspot.")
         XCTAssertEqual(NetworkManager.summary(status, topology: topology, now: now),
                        "Mac hotspot. Quit SideDisplay before using Dashcast; both reconfigure Internet Sharing. "
-                       + "Local DNS off. Ready: open https://car.davidlam.online in the car.")
+                       + "Local DNS off. Ready: open https://car.example.com in the car.")
         let redirected = NetworkManager.SummaryContext(
             localDNS: "\(svc):53530", helperVersion: 2,
             redirect: .init(version: 2, redirectActive: true, reason: nil, anchorPointPresent: true))
@@ -172,7 +183,16 @@ final class ManagerTests: XCTestCase {
             .contains("HTTPS: renew the certificate (expires in 10 days)."))
         status.certificateExpiry = nil
         XCTAssertTrue(NetworkManager.summary(status, topology: topology, now: now)
-            .contains("Ready (HTTP mode): open http://car.davidlam.online or http://\(svc) in the car."))
+            .contains("Ready (HTTP mode): open http://\(svc) in the car."))
+
+        // An imported certificate is replaced, not renewed.
+        status.domain?.provider = .manual
+        status.certificateExpiry = now.addingTimeInterval(5 * 86_400)
+        XCTAssertTrue(NetworkManager.summary(status, topology: topology, now: now)
+            .contains("HTTPS: replace the certificate (expires in 5 days)."))
+        status.certificateExpiry = nil
+        XCTAssertTrue(NetworkManager.summary(status, topology: topology, now: now)
+            .contains("For HTTPS (optional; until then the car uses HTTP + WebRTC): import a certificate for car.example.com."))
     }
 
     @MainActor
@@ -196,8 +216,9 @@ final class ManagerTests: XCTestCase {
     }
 
     @MainActor
-    func testProvisionWithoutTokenFailsFast() async {
+    func testProvisionWithoutTokenFailsFast() async throws {
         let manager = NetworkManager(environment: makeEnvironment(world: FakeWorld()))
+        try manager.setOwnDomain(OwnDomain(hostname: "car.example.com", provider: .cloudflare))
         do {
             try await manager.provisionCertificate()
             XCTFail("expected missingCloudflareToken")
@@ -208,17 +229,19 @@ final class ManagerTests: XCTestCase {
     }
 
     @MainActor
-    func testProvisionEnsuresDNSThenNeedsLego() async {
+    func testProvisionEnsuresDNSThenNeedsLego() async throws {
         let secrets = InMemorySecretStore()
         secrets.values["cloudflare-api-token"] = "tok"
         let manager = NetworkManager(environment: makeEnvironment(world: FakeWorld(), secrets: secrets))
+        try manager.setOwnDomain(OwnDomain(hostname: "car.example.com", provider: .cloudflare))
         StubURLProtocol.reset { request, _ in
             let ok: (Any) -> (Int, Data) = { (200, try! JSONSerialization.data(withJSONObject: ["success": true, "errors": [], "result": $0])) }
             switch (request.httpMethod, request.url?.path) {
-            case ("GET", "/client/v4/zones"): return ok([["id": "z", "name": "davidlam.online"]])
+            case ("GET", "/client/v4/zones"):
+                return ok(request.url?.query == "name=example.com" ? [["id": "z", "name": "example.com"]] : [])
             case ("GET", "/client/v4/zones/z/dns_records"): return ok([])
             case ("POST", "/client/v4/zones/z/dns_records"):
-                return ok(["id": "r", "type": "A", "name": "car.davidlam.online", "content": svc, "proxied": false, "ttl": 300])
+                return ok(["id": "r", "type": "A", "name": "car.example.com", "content": svc, "proxied": false, "ttl": 300])
             default: return (404, Data())
             }
         }
@@ -235,9 +258,11 @@ final class ManagerTests: XCTestCase {
     @MainActor
     func testContactEmailSetting() {
         let manager = NetworkManager(environment: makeEnvironment(world: FakeWorld()))
-        XCTAssertEqual(manager.acmeContactEmail, "inbox@davidlam.online")
+        XCTAssertNil(manager.acmeContactEmail, "no contact unless the user gives one")
+        manager.acmeContactEmail = " you@example.com "
+        XCTAssertEqual(manager.acmeContactEmail, "you@example.com")
         manager.acmeContactEmail = "  "
-        XCTAssertEqual(manager.acmeContactEmail, "inbox@davidlam.online")
+        XCTAssertNil(manager.acmeContactEmail)
     }
 
     func testInternetSharingURL() {

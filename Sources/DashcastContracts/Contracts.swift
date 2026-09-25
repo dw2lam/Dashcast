@@ -301,8 +301,10 @@ public struct NetworkStatus: Equatable, Sendable {
     /// serviceAddress present on lo0.
     public var aliasActive: Bool = false
     public var helperInstalled: Bool = false
+    /// The user's own domain (Secure mode). nil = Compatibility mode only.
+    public var domain: OwnDomain?
     public var hasCloudflareToken: Bool = false
-    /// car hostname resolves to the service address in public DNS.
+    /// The own domain resolves to the service address in public DNS (false without a domain).
     public var dnsRecordOK: Bool = false
     public var certificateExpiry: Date?
     public var internetReachable: Bool = false
@@ -315,11 +317,75 @@ public struct NetworkStatus: Equatable, Sendable {
 public struct TLSMaterial: Sendable {
     public var pkcs12URL: URL
     public var passphrase: String
-    public init(pkcs12URL: URL, passphrase: String) { self.pkcs12URL = pkcs12URL; self.passphrase = passphrase }
+    /// The name the certificate serves (the own domain's hostname).
+    public var hostname: String
+    public init(pkcs12URL: URL, passphrase: String, hostname: String) {
+        self.pkcs12URL = pkcs12URL; self.passphrase = passphrase; self.hostname = hostname
+    }
+}
+
+/// A name on a domain the user owns, pointed at the service address. It unlocks Secure mode
+/// (HTTPS, so WebCodecs); without one the car uses `http://<serviceAddress>` and WebRTC.
+public struct OwnDomain: Equatable, Sendable {
+    public enum Provider: String, Codable, Sendable, CaseIterable {
+        /// Dashcast publishes the A record and gets a Let's Encrypt certificate (DNS-01) itself.
+        case cloudflare
+        /// The user adds the A record and imports a certificate.
+        case manual
+    }
+
+    public var hostname: String
+    public var provider: Provider
+
+    public init(hostname: String, provider: Provider) {
+        self.hostname = hostname; self.provider = provider
+    }
+
+    public struct InvalidHostname: LocalizedError, Equatable, Sendable {
+        public var reason: String
+        public var errorDescription: String? { reason }
+    }
+
+    /// What the user typed → a lowercase FQDN ("https://Car.Example.com/" → "car.example.com"),
+    /// or why it can't be one.
+    public static func normalize(_ raw: String) -> Result<String, InvalidHostname> {
+        var name = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        for scheme in ["https://", "http://"] where name.hasPrefix(scheme) {
+            name.removeFirst(scheme.count)
+        }
+        while name.hasSuffix("/") { name.removeLast() }
+        if name.hasSuffix(".") { name.removeLast() }
+        func invalid(_ reason: String) -> Result<String, InvalidHostname> { .failure(InvalidHostname(reason: reason)) }
+
+        guard !name.isEmpty else { return invalid("Enter a hostname, like car.yourdomain.com.") }
+        guard name.unicodeScalars.allSatisfy(\.isASCII) else {
+            return invalid("Use the ASCII (xn--) form of an international name.")
+        }
+        guard !name.contains("/"), !name.contains(":"), !name.contains("@"), !name.contains(" ") else {
+            return invalid("Enter just the hostname, like car.yourdomain.com.")
+        }
+        guard name.count <= 253 else { return invalid("That name is too long.") }
+        let labels = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2 else { return invalid("Use a full name on your domain, like car.yourdomain.com.") }
+        for label in labels {
+            guard !label.isEmpty, label.count <= 63 else { return invalid("“\(name)” has an empty or overlong part.") }
+            guard label.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }), label.first != "-", label.last != "-" else {
+                return invalid("Only letters, digits and hyphens (not at either end of a part).")
+            }
+        }
+        guard !labels.last!.allSatisfy(\.isNumber) else { return invalid("That’s an IP address; enter a hostname.") }
+        return .success(name)
+    }
+}
+
+/// A certificate for the own domain obtained elsewhere (DNS providers Dashcast can't automate).
+public enum CertificateImport: Sendable {
+    case pkcs12(Data, passphrase: String)
+    /// PEM leaf (optionally followed by its chain) and its private key.
+    case pem(certificate: Data, key: Data)
 }
 
 public enum DashcastDefaults {
-    public static let hostname = "car.davidlam.online"
     public static let serviceAddress = "203.0.113.77"
     public static let tlsPort: UInt16 = 443
     public static let devPort: UInt16 = 8080
@@ -335,15 +401,19 @@ public protocol NetworkManaging: AnyObject {
     /// Installs a root LaunchDaemon (admin prompt) that keeps `lo0 alias <serviceAddress>/32` up.
     func installLoopbackHelper() async throws
     func uninstallLoopbackHelper() async throws
+    /// Sets the own domain (nil removes it). Throws for a hostname that isn't a usable FQDN.
+    func setOwnDomain(_ domain: OwnDomain?) throws
     func setCloudflareToken(_ token: String) throws
     func hasCloudflareToken() -> Bool
-    /// Ensures the DNS A record and a valid Let's Encrypt certificate (DNS-01). Needs internet.
+    /// Cloudflare domains: ensures the DNS A record and a valid Let's Encrypt certificate (DNS-01). Needs internet.
     func provisionCertificate() async throws
+    /// Installs a certificate for the own domain from elsewhere. It must cover the hostname.
+    func importCertificate(_ certificate: CertificateImport) async throws
     func tlsMaterial() -> TLSMaterial?
     /// OpenWrt/GL.iNet commands for topology B.
     func routerSetupScript(macLANAddress: String) -> String
-    /// Local DNS responder on serviceAddress:53 (car hostname, Tesla/Apple connectivity-check names),
-    /// so the car link works with no internet and no public DNS record.
+    /// Local DNS responder on serviceAddress:53 (the own domain if set, Tesla/Apple connectivity-check
+    /// names), so the car link works with no internet and no public DNS record.
     func startLocalServices() async
     func stopLocalServices() async
 }
@@ -407,8 +477,13 @@ public final class ServiceState {
     public var displays: [DisplayInfo] = []
     public var log: [LogLine] = []
 
-    /// URL the car should open.
-    public var carURL: String { "https://\(DashcastDefaults.hostname)" }
+    /// URL the car should open: the own domain once it has a valid certificate, else the service address.
+    public var carURL: String {
+        if let hostname = network.domain?.hostname, let expiry = network.certificateExpiry, expiry > Date() {
+            return "https://\(hostname)"
+        }
+        return "http://\(DashcastDefaults.serviceAddress)"
+    }
     /// Local preview URL (plain HTTP on localhost is a secure context).
     public var localURL: String { "http://localhost:\(DashcastDefaults.devPort)" }
 

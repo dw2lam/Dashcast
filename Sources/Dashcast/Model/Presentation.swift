@@ -57,22 +57,24 @@ enum Format {
 
 /// Both modes run entirely between this Mac and the car (the Mac answers DNS itself).
 enum ConnectionMode: Equatable {
-    /// A certificate is present: `https://car.davidlam.online`, WebCodecs. Fastest.
-    case secure
-    /// No certificate: `http://<service address>`, video over WebRTC.
+    /// The user's own domain has a certificate: `https://<hostname>`, WebCodecs. Fastest.
+    case secure(hostname: String)
+    /// No domain or no certificate yet: `http://<service address>`, video over WebRTC.
     case compatibility
 
     init(network: NetworkStatus, now: Date = Date()) {
-        if let expiry = network.certificateExpiry, expiry > now {
-            self = .secure
+        if let hostname = network.domain?.hostname, let expiry = network.certificateExpiry, expiry > now {
+            self = .secure(hostname: hostname)
         } else {
             self = .compatibility
         }
     }
 
+    var isSecure: Bool { self != .compatibility }
+
     var url: String {
         switch self {
-        case .secure: "https://\(DashcastDefaults.hostname)"
+        case .secure(let hostname): "https://\(hostname)"
         case .compatibility: "http://\(DashcastDefaults.serviceAddress)"
         }
     }
@@ -80,7 +82,7 @@ enum ConnectionMode: Equatable {
     /// What to type in the car: the bare hostname in secure mode; the full URL (with http://) otherwise.
     var addressToType: String {
         switch self {
-        case .secure: DashcastDefaults.hostname
+        case .secure(let hostname): hostname
         case .compatibility: "http://\(DashcastDefaults.serviceAddress)"
         }
     }
@@ -96,6 +98,20 @@ enum ConnectionMode: Equatable {
         switch self {
         case .secure: "lock.fill"
         case .compatibility: "bolt.horizontal.fill"
+        }
+    }
+
+    /// The Secure mode line's address: the own domain, or a plain description until there is one.
+    static func secureAddress(_ domain: OwnDomain?) -> String {
+        domain?.hostname ?? "Your own domain"
+    }
+}
+
+extension OwnDomain.Provider {
+    var title: String {
+        switch self {
+        case .cloudflare: "Cloudflare (automatic)"
+        case .manual: "Another provider (manual)"
         }
     }
 }

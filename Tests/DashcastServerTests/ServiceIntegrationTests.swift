@@ -444,7 +444,7 @@ final class ServiceIntegrationTests: XCTestCase {
         XCTAssertTrue(page.contains("Content-Type: text/html; charset=utf-8"))
 
         let stray = await rawHTTP(port: port, "GET /whatever HTTP/1.1\r\nHost: example.com\r\n\r\n")
-        XCTAssertTrue(stray.contains("\r\nLocation: http://car.davidlam.online/\r\n"), stray)
+        XCTAssertTrue(stray.contains("\r\nLocation: http://\(DashcastDefaults.serviceAddress)/\r\n"), stray)
 
         // A car on plain HTTP (no `secure` flag in its hello): WebRTC, bound to the listener's address.
         let client = WSClient(url: URL(string: "ws://127.0.0.1:\(port)/ws")!)
@@ -478,9 +478,9 @@ final class ServiceIntegrationTests: XCTestCase {
         XCTAssertTrue(tesla.contains("\r\nX-ConnMan-Status: online\r\n"), tesla)
         let other = await rawHTTP(port: port, "GET /whatever HTTP/1.1\r\nHost: example.com\r\n\r\n")
         XCTAssertTrue(other.hasPrefix("HTTP/1.1 301 Moved Permanently\r\n"), other)
-        XCTAssertTrue(other.contains("\r\nLocation: https://car.davidlam.online/\r\n"))
+        XCTAssertTrue(other.contains("\r\nLocation: https://\(TestPKI.hostname)/\r\n"), other)
         let own = await rawHTTP(port: port, "GET / HTTP/1.1\r\nHost: \(DashcastDefaults.serviceAddress)\r\n\r\n")
-        XCTAssertTrue(own.contains("\r\nLocation: https://car.davidlam.online/\r\n"), own)
+        XCTAssertTrue(own.contains("\r\nLocation: https://\(TestPKI.hostname)/\r\n"), own)
 
         // Certificate removed → back to HTTP mode on the next refresh.
         network.material = nil
@@ -600,7 +600,7 @@ final class ServiceIntegrationTests: XCTestCase {
 
     func testServiceAddressListenersFailGracefullyWithoutAlias() async throws {
         // The real service address isn't on lo0 on this Mac (unless the helper is installed).
-        network.material = TLSMaterial(pkcs12URL: URL(fileURLWithPath: "/nonexistent.p12"), passphrase: "x")
+        network.material = TLSMaterial(pkcs12URL: URL(fileURLWithPath: "/nonexistent.p12"), passphrase: "x", hostname: TestPKI.hostname)
         _ = try await startService { options in
             options.plainHTTPPort = 18_080
             options.tlsPort = 18_443

@@ -4,8 +4,6 @@ import SwiftUI
 struct NetworkSettings: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
-    @State private var token = ""
-    @State private var editingToken = false
     @State private var routerExpanded: Bool
     @State private var showingRouterLogin = false
 
@@ -21,10 +19,10 @@ struct NetworkSettings: View {
         Form {
             // How the car connects
             Section {
-                ModeRow(title: "Secure", detail: "\(DashcastDefaults.hostname) · the fastest video.",
-                        symbol: "lock.fill", active: mode == .secure)
-                ModeRow(title: "Compatibility", detail: "http://\(DashcastDefaults.serviceAddress) · works without a certificate.",
-                        symbol: "bolt.horizontal.fill", active: mode == .compatibility)
+                ModeRow(title: "Secure", detail: "\(ConnectionMode.secureAddress(status.domain)) · the fastest video.",
+                        symbol: "lock.fill", active: mode.isSecure)
+                ModeRow(title: "Compatibility", detail: "http://\(DashcastDefaults.serviceAddress) · works with no setup.",
+                        symbol: "bolt.horizontal.fill", active: !mode.isSecure)
                 LabeledContent {
                     Button("Connection Methods…") {
                         openWindow(id: SceneID.guide)
@@ -72,53 +70,8 @@ struct NetworkSettings: View {
                 }
             }
 
-            // Certificate (optional)
-            Section {
-                // Status goes under the title, like System Settings rows, so it never truncates.
-                if status.hasCloudflareToken && !editingToken {
-                    LabeledContent {
-                        Button("Replace…") { editingToken = true }
-                    } label: {
-                        Text("Cloudflare API token")
-                        StatusLabel("Saved in Keychain", .ok)
-                    }
-                } else {
-                    LabeledContent {
-                        HStack(spacing: 8) {
-                            SecureField("Cloudflare API token", text: $token, prompt: Text("Paste token"))
-                                .labelsHidden()
-                                .frame(minWidth: 150)
-                                .onSubmit { model.saveCloudflareToken(token) }
-                            ActionButton("Save", busy: activity == .savingToken) { model.saveCloudflareToken(token) }
-                                .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                    } label: {
-                        Text("Cloudflare API token")
-                        Text("DNS edit access to davidlam.online.")
-                    }
-                }
-                LabeledContent {
-                    if status.certificateExpiry == nil {
-                        ActionButton("Get Certificate", busy: activity == .provisioning) { model.provisionCertificate() }
-                            .disabled(!status.hasCloudflareToken)
-                    } else {
-                        ActionButton("Renew", busy: activity == .renewing) { model.renewCertificate() }
-                    }
-                } label: {
-                    Text("Certificate")
-                    certificateStatus(status.certificateExpiry)
-                }
-                if let error = model.networkError {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                }
-            } header: {
-                Text("Faster Video with a Free Certificate")
-            } footer: {
-                Text("Optional. A free Let’s Encrypt certificate unlocks secure mode. Getting or renewing one needs an internet connection for a moment.")
-                    .foregroundStyle(.secondary)
-            }
+            // Secure mode (optional)
+            OwnDomainSections()
 
             // Travel router
             Section {
@@ -160,19 +113,6 @@ struct NetworkSettings: View {
         .frame(height: 560)
         .task { await model.refreshNetwork() }
         .sheet(isPresented: $showingRouterLogin) { RouterLoginSheet() }
-        .onChange(of: status.hasCloudflareToken) { _, has in
-            if has { editingToken = false; token = "" }
-        }
-    }
-
-    @ViewBuilder
-    private func certificateStatus(_ expiry: Date?) -> some View {
-        if let expiry {
-            let soon = expiry.timeIntervalSinceNow < 14 * 86_400
-            StatusLabel("Valid until \(expiry.formatted(date: .abbreviated, time: .omitted))", soon ? .warning : .ok)
-        } else {
-            StatusLabel("None", .neutral)
-        }
     }
 }
 

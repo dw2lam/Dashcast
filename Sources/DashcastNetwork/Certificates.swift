@@ -1,11 +1,10 @@
-import DashcastContracts
 import Foundation
 import Security
 
-/// Where certificate material lives under the app-support directory.
+/// Where the own domain's certificate material lives under the app-support directory.
 struct CertificatePaths {
     var appSupport: URL
-    var domain: String = DashcastDefaults.hostname
+    var domain: String
 
     /// `lego --path` (accounts/ and certificates/ live under it).
     var legoDir: URL { appSupport.appendingPathComponent("lego", isDirectory: true) }
@@ -36,10 +35,12 @@ enum Lego {
         return Int(digits)
     }
 
-    /// Arguments to obtain (no certificate yet) or renew (within `renewDays` of expiry).
-    static func arguments(major: Int, email: String, domain: String, path: String,
+    /// Arguments to obtain (no certificate yet) or renew (within `renewDays` of expiry). Without an
+    /// email lego registers an account with no contact (Let's Encrypt no longer mails expiry notices).
+    static func arguments(major: Int, email: String?, domain: String, path: String,
                           renew: Bool, renewDays: Int = 30) -> [String] {
-        let common = ["--accept-tos", "--email", email, "--dns", "cloudflare", "--domains", domain, "--path", path]
+        let contact = email.map { ["--email", $0] } ?? []
+        let common = ["--accept-tos"] + contact + ["--dns", "cloudflare", "--domains", domain, "--path", path]
         if major >= 5 {
             // v5: `run` obtains or renews; flags belong to the command.
             return ["run"] + common + ["--renew-days", String(renewDays), "--no-random-sleep"]
@@ -131,7 +132,7 @@ enum PKCS12 {
     /// PEM cert + key → PKCS#12 at `output` (0600), verified with SecPKCS12Import before it
     /// replaces anything already there.
     static func build(certificate: URL, key: URL, output: URL, passphrase: String,
-                      friendlyName: String = DashcastDefaults.hostname,
+                      friendlyName: String = "Dashcast",
                       openssl: String = opensslPath) async throws -> BuildResult {
         let fm = FileManager.default
         let directory = output.deletingLastPathComponent()
@@ -170,5 +171,63 @@ enum PKCS12 {
     static func needsRenewal(expiry: Date?, now: Date, window: TimeInterval = 30 * 86_400) -> Bool {
         guard let expiry else { return true }
         return expiry.timeIntervalSince(now) < window
+    }
+}
+
+// MARK: - Names a certificate covers
+
+enum CertificateNames {
+    /// The certificate's subjectAltName DNS names, or its common name when it has none.
+    static func dnsNames(of certificate: SecCertificate) -> [String] {
+        let names = subjectAltNames(inDER: [UInt8](SecCertificateCopyData(certificate) as Data))
+        if !names.isEmpty { return names }
+        return (SecCertificateCopySubjectSummary(certificate) as String?).map { [$0.lowercased()] } ?? []
+    }
+
+    /// Exact match, or a `*.` wildcard standing in for exactly the leftmost label.
+    static func covers(_ names: [String], hostname: String) -> Bool {
+        let host = hostname.lowercased()
+        return names.contains { name in
+            let pattern = name.lowercased()
+            if pattern == host { return true }
+            guard pattern.hasPrefix("*."), let dot = host.firstIndex(of: ".") else { return false }
+            return host[host.index(after: dot)...] == pattern.dropFirst(2)
+        }
+    }
+
+    /// dNSName ([2] IA5String) entries of the subjectAltName extension (OID 2.5.29.17), read
+    /// straight from the certificate's DER so the result never depends on the system's locale.
+    static func subjectAltNames(inDER der: [UInt8]) -> [String] {
+        guard var index = der.firstRange(of: [0x06, 0x03, 0x55, 0x1D, 0x11] as [UInt8])?.upperBound else { return [] }
+        if index < der.count, der[index] == 0x01, let critical = element(der, at: index) {
+            index = critical.end
+        }
+        guard index < der.count, der[index] == 0x04, let octets = element(der, at: index),
+              octets.start < der.count, der[octets.start] == 0x30, let sequence = element(der, at: octets.start)
+        else { return [] }
+        var names: [String] = []
+        var cursor = sequence.start
+        while cursor < sequence.end, let entry = element(der, at: cursor) {
+            if der[cursor] == 0x82 {
+                names.append(String(decoding: der[entry.start..<entry.end], as: UTF8.self).lowercased())
+            }
+            cursor = entry.end
+        }
+        return names
+    }
+
+    /// Content bounds of the DER element whose tag is at `index`.
+    private static func element(_ der: [UInt8], at index: Int) -> (start: Int, end: Int)? {
+        guard index + 1 < der.count else { return nil }
+        var length = Int(der[index + 1])
+        var start = index + 2
+        if length & 0x80 != 0 {
+            let count = length & 0x7F
+            guard (1...3).contains(count), start + count <= der.count else { return nil }
+            length = der[start..<start + count].reduce(0) { $0 << 8 | Int($1) }
+            start += count
+        }
+        guard start + length <= der.count else { return nil }
+        return (start, start + length)
     }
 }

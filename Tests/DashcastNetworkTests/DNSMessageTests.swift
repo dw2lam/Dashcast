@@ -15,15 +15,15 @@ final class DNSMessageTests: XCTestCase {
     }
 
     func testQueryRoundTripWithEDNS() throws {
-        let raw = DNSMessage.query(id: 0xBEEF, name: "Car.DavidLam.online", type: DNSType.a,
+        let raw = DNSMessage.query(id: 0xBEEF, name: "Car.Example.com", type: DNSType.a,
                                    edns: DNSOpt(udpPayloadSize: 4096, dnssecOK: true, options: [0, 10, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8]))
         let query = try DNSMessage.parse(raw)
         XCTAssertEqual(query.id, 0xBEEF)
         XCTAssertFalse(query.isResponse)
         XCTAssertEqual(query.flags & 0x0100, 0x0100)
         XCTAssertEqual(query.questions.count, 1)
-        XCTAssertEqual(query.questions[0].name, "Car.DavidLam.online", "case preserved")
-        XCTAssertEqual(query.questions[0].key, "car.davidlam.online")
+        XCTAssertEqual(query.questions[0].name, "Car.Example.com", "case preserved")
+        XCTAssertEqual(query.questions[0].key, "car.example.com")
         XCTAssertEqual(query.questions[0].type, DNSType.a)
         XCTAssertEqual(query.opt, DNSOpt(udpPayloadSize: 4096, dnssecOK: true, options: [0, 10, 0, 8, 1, 2, 3, 4, 5, 6, 7, 8]))
         XCTAssertEqual(query.maxUDPResponseSize, 4096)
@@ -31,7 +31,7 @@ final class DNSMessageTests: XCTestCase {
     }
 
     func testLocalAnswerEncoding() throws {
-        let query = try DNSMessage.parse(DNSMessage.query(id: 7, name: "cAr.davidlam.ONLINE", type: DNSType.a,
+        let query = try DNSMessage.parse(DNSMessage.query(id: 7, name: "cAr.eXaMpLe.COM", type: DNSType.a,
                                                           edns: DNSOpt(udpPayloadSize: 1232, dnssecOK: true)))
         let data = DNSMessage.response(to: query, rcode: DNSRCode.noError,
                                        answers: [.init(type: DNSType.a, ttl: 60, rdata: [203, 0, 113, 77])])
@@ -39,10 +39,10 @@ final class DNSMessageTests: XCTestCase {
         XCTAssertEqual(Array(bytes[0..<12]), [0, 7, 0x85, 0x80, 0, 1, 0, 1, 0, 0, 0, 1],
                        "id 7; QR AA RD RA; 1 question, 1 answer, 1 additional (OPT)")
         let parsed = try DNSMessage.parse(data)
-        XCTAssertEqual(parsed.questions[0].name, "cAr.davidlam.ONLINE")
+        XCTAssertEqual(parsed.questions[0].name, "cAr.eXaMpLe.COM")
         XCTAssertEqual(parsed.records.count, 1)
         let answer = parsed.records[0]
-        XCTAssertEqual(answer.name, "cAr.davidlam.ONLINE", "compression pointer to the question")
+        XCTAssertEqual(answer.name, "cAr.eXaMpLe.COM", "compression pointer to the question")
         XCTAssertEqual(answer.type, DNSType.a)
         XCTAssertEqual(answer.ttl, 60)
         XCTAssertEqual(Array(bytes[answer.rdata]), [203, 0, 113, 77])

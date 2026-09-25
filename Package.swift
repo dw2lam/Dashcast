@@ -53,6 +53,8 @@ let package = Package(
         .testTarget(name: "DashcastStreamTests", dependencies: ["DashcastStream"]),
         .testTarget(name: "DashcastServerTests", dependencies: ["DashcastServer"]),
         .testTarget(name: "DashcastNetworkTests", dependencies: ["DashcastNetwork"]),
+        // The app's pure pieces: permission-panel placement, connection copy, certificate files.
+        .testTarget(name: "DashcastAppTests", dependencies: ["Dashcast"]),
         // DashcastServer only for the opt-in real-server + real-client Chrome run (ServerInteropTests).
         .testTarget(name: "DashcastRTCTests", dependencies: ["DashcastRTC", "CDataChannel", "DashcastServer"]),
     ],

@@ -1,12 +1,16 @@
 # Dashcast wire protocol (v1)
 
 One WebSocket per car. Two automatic modes:
-- **HTTPS mode** (a valid certificate exists): `https://car.davidlam.online` → `wss://…/ws` on 203.0.113.77:443.
-  Secure context → WebCodecs. `http://` on :80 redirects here (except connectivity-check hosts).
-- **HTTP mode** (no certificate): `http://203.0.113.77` (or `http://car.davidlam.online` via the Mac's local DNS) →
+- **HTTP mode** (the default: no own domain, or no certificate for it yet): `http://203.0.113.77` →
   `ws://…/ws` on :80. Not a secure context → no WebCodecs → media goes over **WebRTC**; the WebSocket stays for control/input.
+  Other hostnames that reach :80 are redirected to `http://203.0.113.77/`.
+- **HTTPS mode** (optional: the user's own domain, e.g. `car.yourdomain.com`, has a valid certificate):
+  `https://car.yourdomain.com` → `wss://…/ws` on 203.0.113.77:443. Secure context → WebCodecs. `http://` on :80
+  redirects here (except connectivity-check hosts). The certificate comes from Let's Encrypt (DNS-01, Cloudflare
+  domains) or is imported by the user (any other DNS provider); its hostname is the one the server accepts.
 - Dev: `ws://localhost:8080/ws` (localhost is a secure context).
-The Mac answers DNS itself (local responder on 203.0.113.77:53530; pf on bridge100 redirects the car's port-53 traffic to it), so neither mode needs internet.
+The Mac answers DNS itself (local responder on 203.0.113.77:53530, for the own domain if one is set and the
+Tesla/Apple connectivity checks; pf on bridge100 redirects the car's port-53 traffic to it), so neither mode needs internet.
 The page itself is served at `/` from the same origin. `GET /healthz` → `ok`.
 
 All times are **server clock microseconds** (`DashClock.nowMicros()`, host-time based)

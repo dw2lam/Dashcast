@@ -1,14 +1,14 @@
 import DashcastContracts
 import SwiftUI
 
-/// First-run setup: three short pages with live status, progress dots and Back/Continue.
+/// First-run setup: four short pages (one optional) with live status, progress dots and Back/Continue.
 struct SetupAssistant: View {
     @Environment(AppModel.self) private var model
     @Environment(AppController.self) private var controller
     @State private var step: Int
     @State private var forward = true
 
-    static let pageCount = 3
+    static let pageCount = 4
 
     init(step: Int = 0) {
         _step = State(initialValue: step)
@@ -64,6 +64,7 @@ struct SetupAssistant: View {
         switch step {
         case 0: PermissionsPage()
         case 1: ConnectPage()
+        case 2: SecureModePage()
         default: TeslaPage()
         }
     }
@@ -233,6 +234,35 @@ private struct ConnectPage: View {
                 GuideLink(title: "See other ways to connect")
             }
         }
+    }
+}
+
+/// Optional: the user's own domain for Secure mode. Skipping it leaves Compatibility mode, which needs nothing.
+private struct SecureModePage: View {
+    @Environment(AppModel.self) private var model
+    @State private var showingDomain = false
+
+    var body: some View {
+        let domain = model.state.network.domain
+        let secure = model.connectionMode.isSecure
+        SetupPage(symbol: "lock.shield.fill", title: "Faster Video (Optional)",
+                  subtitle: "Dashcast already works with no setup. A domain you own adds HTTPS, for the lowest latency.") {
+            VStack(spacing: 14) {
+                RowGroup {
+                    SetupRow(symbol: "globe", title: "Your own domain",
+                             detail: domain.map { secure ? "Secure mode is on at \($0.hostname)." : "\($0.hostname) needs a certificate." }
+                                ?? "Cloudflare domains set up automatically; others take a certificate import.",
+                             done: secure, doneLabel: "On",
+                             actionTitle: domain == nil ? "Set Up…" : "Finish…") { showingDomain = true }
+                }
+                Text("You can skip this and set it up any time in Settings → Network.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .sheet(isPresented: $showingDomain) { OwnDomainSheet() }
     }
 }
 

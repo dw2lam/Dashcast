@@ -3,7 +3,7 @@ import XCTest
 
 final class RouterSetupTests: XCTestCase {
     func testScriptContents() throws {
-        let script = RouterSetup.script(macLANAddress: "192.168.8.123")
+        let script = RouterSetup.script(macLANAddress: "192.168.8.123", hostname: "car.example.com")
         let lines = script.components(separatedBy: "\n")
         XCTAssertEqual(lines.first, "#!/bin/sh")
         for expected in [
@@ -16,8 +16,8 @@ final class RouterSetupTests: XCTestCase {
             "uci set network.dashcast_car.gateway=\"$MAC_IP\"",
             "uci commit network",
             "/etc/init.d/network reload",
-            "uci add_list dhcp.@dnsmasq[0].rebind_domain='davidlam.online'",
-            "uci add_list dhcp.@dnsmasq[0].address='/car.davidlam.online/\(svc)'",
+            "uci add_list dhcp.@dnsmasq[0].rebind_domain='car.example.com'",
+            "uci add_list dhcp.@dnsmasq[0].address='/car.example.com/\(svc)'",
             "uci commit dhcp",
             "/etc/init.d/dnsmasq restart",
         ] {
@@ -35,15 +35,35 @@ final class RouterSetupTests: XCTestCase {
         XCTAssertTrue(script.contains("rebind_protection='0'"), "documents the disable-it-entirely alternative")
         // Old Dashcast address entries are removed before the current one is added.
         let cleanup = try XCTUnwrap(lines.firstIndex(of: "for entry in $(uci -q get dhcp.@dnsmasq[0].address); do"))
-        let addAddress = try XCTUnwrap(lines.firstIndex(of: "uci add_list dhcp.@dnsmasq[0].address='/car.davidlam.online/\(svc)'"))
+        let addAddress = try XCTUnwrap(lines.firstIndex(of: "uci add_list dhcp.@dnsmasq[0].address='/car.example.com/\(svc)'"))
         XCTAssertLessThan(cleanup, addAddress)
         XCTAssertLessThan(addAddress, try XCTUnwrap(lines.firstIndex(of: "uci commit dhcp")))
+        XCTAssertTrue(script.contains("reach https://car.example.com through the router"))
         XCTAssertNil(try shellSyntaxError(script))
+    }
+
+    /// No own domain: only the route. The router's DNS is left alone and no name is mentioned.
+    func testScriptWithoutDomainOnlyAddsTheRoute() throws {
+        let script = RouterSetup.script(macLANAddress: "192.168.8.123", hostname: nil)
+        let lines = script.components(separatedBy: "\n")
+        XCTAssertTrue(lines.contains("uci set network.dashcast_car.target='\(svc)'"))
+        XCTAssertTrue(lines.contains("/etc/init.d/network reload"))
+        XCTAssertTrue(script.contains("reach http://\(svc) through the router"), script)
+        for absent in ["dhcp.@dnsmasq", "uci commit dhcp", "dnsmasq restart", "https://"] {
+            XCTAssertFalse(script.contains(absent), absent)
+        }
+        XCTAssertFalse(script.contains("\n\n\n"), "no empty DNS section left behind")
+        XCTAssertNil(try shellSyntaxError(script))
+
+        // An invalid stored name is treated like no domain rather than pasted into shell commands.
+        let hostile = RouterSetup.script(macLANAddress: "192.168.8.123", hostname: "x'; reboot; '")
+        XCTAssertFalse(hostile.contains("reboot"))
+        XCTAssertFalse(hostile.contains("dhcp.@dnsmasq"))
     }
 
     func testInvalidAddressProducesFailingScript() throws {
         for bad in ["", "192.168.8", "1.2.3.4; reboot", "$(reboot)"] {
-            let script = RouterSetup.script(macLANAddress: bad)
+            let script = RouterSetup.script(macLANAddress: bad, hostname: "car.example.com")
             XCTAssertTrue(script.contains("exit 1"), bad)
             XCTAssertFalse(script.contains("uci "), bad)
             XCTAssertFalse(script.contains("$("), bad)

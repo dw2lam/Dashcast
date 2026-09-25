@@ -4,7 +4,7 @@ import Foundation
 import Network
 import Security
 
-/// What `ensureDNSRecord()` did to the car hostname's A record.
+/// What `ensureDNSRecord()` did to the own domain's A record.
 public enum DNSRecordChange: String, Sendable {
     case created, updated, unchanged
 }
@@ -70,17 +70,17 @@ struct NetworkEnvironment {
     }
 }
 
-/// Topology detection, the service-address (lo0 alias) helper, Cloudflare DNS, the Let's Encrypt
-/// certificate, and travel-router setup.
+/// Topology detection, the service-address (lo0 alias) helper, the user's own domain (Cloudflare
+/// DNS + Let's Encrypt, or an imported certificate), and travel-router setup.
 @MainActor
 public final class NetworkManager: NetworkManaging {
-    public nonisolated static let defaultContactEmail = "inbox@davidlam.online"
     public nonisolated static let internetSharingSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Sharing-Settings.extension")!
     public nonisolated static let helperPlistPath = LoopbackHelper.plistPath
     /// SideDisplay (a competing Tesla display app) also drives Internet Sharing.
     public nonisolated static let sideDisplayNote = "Quit SideDisplay before using Dashcast; both reconfigure Internet Sharing."
     nonisolated static let contactEmailKey = "dashcast.acmeContactEmail"
-    nonisolated static let zone = "davidlam.online"
+    nonisolated static let domainHostnameKey = "dashcast.domain.hostname"
+    nonisolated static let domainProviderKey = "dashcast.domain.provider"
     nonisolated static let dnsCacheLifetime: TimeInterval = 300
     nonisolated static let dnsErrorCacheLifetime: TimeInterval = 30
     nonisolated static let renewalWindow: TimeInterval = 30 * 86_400
@@ -98,13 +98,17 @@ public final class NetworkManager: NetworkManaging {
     /// What public DNS said last time: the A record(s), "NXDOMAIN", or "error: …".
     public private(set) var lastDNSLookup: String?
 
-    /// Names the local DNS responder answers with the service address.
-    public nonisolated static let localDNSNames = [
-        DashcastDefaults.hostname,
+    /// Connectivity checks the local DNS responder answers with the service address.
+    public nonisolated static let connectivityCheckNames = [
         "connman.vn.tesla.services",
         "connman.vn.cloud.tesla.cn",
         "captive.apple.com",
     ]
+
+    /// Everything the local DNS responder answers itself: the own domain, if any, and the checks.
+    public var localDNSNames: [String] {
+        (ownDomain.map { [$0.hostname] } ?? []) + Self.connectivityCheckNames
+    }
     /// The responder's port; the helper's pf rule maps the car's port-53 traffic onto it.
     public nonisolated static var localDNSPort: UInt16 { LoopbackHelper.dnsPort }
     /// Current network-helper version; older installs report `helperInstalled == false`.
@@ -120,20 +124,27 @@ public final class NetworkManager: NetworkManaging {
     private var dnsStarting = false
     private var dnsRetryTask: Task<Void, Never>?
 
-    /// ACME account contact. Persisted in UserDefaults.
-    public var acmeContactEmail: String {
+    /// Optional ACME account contact. Persisted in UserDefaults; nil registers without one.
+    public var acmeContactEmail: String? {
         get {
             let stored = env.defaults.string(forKey: Self.contactEmailKey)?.trimmingCharacters(in: .whitespaces)
-            return (stored?.isEmpty == false ? stored : nil) ?? Self.defaultContactEmail
+            return stored?.isEmpty == false ? stored : nil
         }
         set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed == Self.defaultContactEmail {
+            let trimmed = newValue?.trimmingCharacters(in: .whitespaces) ?? ""
+            if trimmed.isEmpty {
                 env.defaults.removeObject(forKey: Self.contactEmailKey)
             } else {
                 env.defaults.set(trimmed, forKey: Self.contactEmailKey)
             }
         }
+    }
+
+    /// The user's own domain (persisted in UserDefaults). nil = Compatibility mode only.
+    public var ownDomain: OwnDomain? {
+        guard let hostname = env.defaults.string(forKey: Self.domainHostnameKey), !hostname.isEmpty else { return nil }
+        let provider = env.defaults.string(forKey: Self.domainProviderKey).flatMap(OwnDomain.Provider.init(rawValue:))
+        return OwnDomain(hostname: hostname, provider: provider ?? .cloudflare)
     }
 
     public convenience init() {
@@ -148,7 +159,10 @@ public final class NetworkManager: NetworkManaging {
         }
     }
 
-    private var paths: CertificatePaths { CertificatePaths(appSupport: env.appSupportDir) }
+    /// The own domain's certificate files (nil without a domain).
+    private var paths: CertificatePaths? {
+        ownDomain.map { CertificatePaths(appSupport: env.appSupportDir, domain: $0.hostname) }
+    }
 
     private func networkDidChange() {
         if dnsCache?.ok == false { dnsCache = nil }
@@ -169,6 +183,7 @@ public final class NetworkManager: NetworkManaging {
         status.aliasActive = topology.aliasActive
         let helperVersion = installedHelperVersion()
         status.helperInstalled = (helperVersion ?? 0) >= LoopbackHelper.version
+        status.domain = ownDomain
         status.hasCloudflareToken = hasCloudflareToken()
         status.internetReachable = await internetReachable()
         status.dnsRecordOK = await dnsRecordOK(networkAvailable: status.internetReachable)
@@ -209,14 +224,15 @@ public final class NetworkManager: NetworkManaging {
         return await pathWatcher?.isSatisfied() ?? false
     }
 
-    /// Public DNS (DoH to cloudflare-dns.com) resolves the car hostname to the service address.
-    /// Cached for 5 minutes (30 s after an error).
+    /// Public DNS (DoH to cloudflare-dns.com) resolves the own domain to the service address.
+    /// Cached for 5 minutes (30 s after an error). Always false without a domain.
     func dnsRecordOK(networkAvailable: Bool) async -> Bool {
+        guard let hostname = ownDomain?.hostname else { return false }
         let now = env.now()
         if let cache = dnsCache, now.timeIntervalSince(cache.checkedAt) < cache.lifetime { return cache.ok }
         guard networkAvailable else { return dnsCache?.ok ?? false }
         do {
-            let answer = try await DoHClient(session: env.session).queryA(DashcastDefaults.hostname)
+            let answer = try await DoHClient(session: env.session).queryA(hostname)
             let ok = answer.addresses.contains(DashcastDefaults.serviceAddress)
             lastDNSLookup = answer.addresses.isEmpty
                 ? (answer.status == 3 ? "NXDOMAIN" : "no A record (rcode \(answer.status))")
@@ -295,28 +311,34 @@ public final class NetworkManager: NetworkManaging {
             todo.append("install the network helper")
         }
 
-        // Optional: HTTPS mode. Without it the car uses plain HTTP + WebRTC.
+        // Optional: HTTPS mode on the user's own domain. Without it the car uses plain HTTP + WebRTC.
         var https: [String] = []
-        let httpsReady = status.certificateExpiry.map { $0 > now } ?? false
-        if let expiry = status.certificateExpiry {
-            let days = Int(expiry.timeIntervalSince(now) / 86_400)
-            if expiry <= now {
-                https.append("renew the expired certificate")
-            } else if expiry.timeIntervalSince(now) < renewalWindow {
-                https.append("renew the certificate (expires in \(days) day\(days == 1 ? "" : "s"))")
-            }
-        } else {
-            https.append("get a certificate")
+        let secureHostname = status.domain.flatMap { domain in
+            status.certificateExpiry.map { $0 > now } == true ? domain.hostname : nil
         }
-        if !status.hasCloudflareToken, !httpsReady || !https.isEmpty { https.insert("add a Cloudflare API token", at: 0) }
-        if status.internetReachable, !status.dnsRecordOK { https.append("publish the DNS record for \(DashcastDefaults.hostname)") }
+        if let domain = status.domain {
+            let verb = domain.provider == .cloudflare ? "renew" : "replace"
+            if let expiry = status.certificateExpiry {
+                let days = Int(expiry.timeIntervalSince(now) / 86_400)
+                if expiry <= now {
+                    https.append("\(verb) the expired certificate")
+                } else if expiry.timeIntervalSince(now) < renewalWindow {
+                    https.append("\(verb) the certificate (expires in \(days) day\(days == 1 ? "" : "s"))")
+                }
+            } else {
+                https.append(domain.provider == .cloudflare ? "get a certificate" : "import a certificate for \(domain.hostname)")
+            }
+            if domain.provider == .cloudflare, !status.hasCloudflareToken, secureHostname == nil || !https.isEmpty {
+                https.insert("add a Cloudflare API token", at: 0)
+            }
+            if status.internetReachable, !status.dnsRecordOK { https.append("publish the DNS record for \(domain.hostname)") }
+        }
 
         if todo.isEmpty {
             switch status.topology {
             case .macHotspot, .router:
-                parts.append(httpsReady
-                             ? "Ready: open https://\(DashcastDefaults.hostname) in the car."
-                             : "Ready (HTTP mode): open http://\(DashcastDefaults.hostname) or http://\(address) in the car.")
+                parts.append(secureHostname.map { "Ready: open https://\($0) in the car." }
+                             ?? "Ready (HTTP mode): open http://\(address) in the car.")
             case .phoneHotspot, .offline:
                 parts.append("The helper and alias are ready.")
             }
@@ -324,7 +346,7 @@ public final class NetworkManager: NetworkManaging {
             parts.append("To do: " + todo.joined(separator: "; ") + ".")
         }
         if !https.isEmpty {
-            let label = httpsReady ? "HTTPS:" : "For HTTPS (optional; until then the car uses HTTP + WebRTC):"
+            let label = secureHostname != nil ? "HTTPS:" : "For HTTPS (optional; until then the car uses HTTP + WebRTC):"
             parts.append("\(label) " + https.joined(separator: "; ") + ".")
         }
         return parts.joined(separator: " ")
@@ -335,7 +357,7 @@ public final class NetworkManager: NetworkManaging {
         let address = DashcastDefaults.serviceAddress
         switch topology {
         case .macHotspot:
-            return "Mac hotspot (A): the car joins the Wi-Fi network your Mac shares and reaches \(address) through the Mac directly. Keep the Mac's uplink (iPhone USB or Ethernet) connected so the car also has internet, then open https://\(DashcastDefaults.hostname) in the car. \(sideDisplayNote)"
+            return "Mac hotspot (A): the car joins the Wi-Fi network your Mac shares and reaches \(address) through the Mac directly. Keep the Mac's uplink (iPhone USB or Ethernet) connected so the car also has internet, then open http://\(address) in the car (or your own domain, once it has a certificate). \(sideDisplayNote)"
         case .router:
             return "Travel router (B): the Mac and the car share a router. The router needs a static route \(address)/32 via the Mac's LAN address, so use Router Setup to apply it over SSH, and reserve the Mac's DHCP lease in the GL.iNet admin page so the address stays put."
         case .phoneHotspot:
@@ -452,7 +474,7 @@ public final class NetworkManager: NetworkManaging {
         let server = LocalDNSServer(LocalDNSServer.Configuration(
             bindHost: env.localDNSHost,
             port: env.localDNSPort,
-            localNames: Set(Self.localDNSNames.map { $0.lowercased() }),
+            localNames: Set(localDNSNames.map { $0.lowercased() }),
             answerAddress: DashcastDefaults.serviceAddress,
             upstreams: env.dnsUpstreams))
         server.onUnexpectedStop = { [weak self] error in
@@ -512,6 +534,37 @@ public final class NetworkManager: NetworkManaging {
         return error.localizedDescription
     }
 
+    // MARK: - Own domain
+
+    /// Validates and stores the own domain; nil removes it (Compatibility mode only). The local DNS
+    /// responder, router script and certificate paths follow at once.
+    public func setOwnDomain(_ domain: OwnDomain?) throws {
+        if let domain {
+            let hostname: String
+            switch OwnDomain.normalize(domain.hostname) {
+            case .success(let name): hostname = name
+            case .failure(let error): throw NetworkError.invalidHostname(error.reason)
+            }
+            env.defaults.set(hostname, forKey: Self.domainHostnameKey)
+            env.defaults.set(domain.provider.rawValue, forKey: Self.domainProviderKey)
+        } else {
+            env.defaults.removeObject(forKey: Self.domainHostnameKey)
+            env.defaults.removeObject(forKey: Self.domainProviderKey)
+        }
+        dnsCache = nil
+        expiryCache = nil
+        lastDNSLookup = nil
+        dnsServer?.setLocalNames(Set(localDNSNames.map { $0.lowercased() }))
+    }
+
+    private func requireDomain(provider: OwnDomain.Provider? = nil) throws -> (domain: OwnDomain, paths: CertificatePaths) {
+        guard let domain = ownDomain, let paths else { throw NetworkError.noOwnDomain }
+        if let provider, domain.provider != provider {
+            throw NetworkError.invalidArgument("Automatic certificates work with Cloudflare only for now. Import a certificate for \(domain.hostname) instead.")
+        }
+        return (domain, paths)
+    }
+
     // MARK: - Cloudflare
 
     public func setCloudflareToken(_ token: String) throws {
@@ -534,17 +587,18 @@ public final class NetworkManager: NetworkManaging {
         return token
     }
 
-    /// Creates or corrects `car.davidlam.online A <serviceAddress>` (DNS only, TTL 300).
+    /// Creates or corrects `<own domain> A <serviceAddress>` (DNS only, TTL 300) in whichever of the
+    /// token's zones holds it.
     @discardableResult
     public func ensureDNSRecord() async throws -> DNSRecordChange {
-        try await ensureDNSRecord(token: cloudflareToken())
+        let domain = try requireDomain(provider: .cloudflare).domain
+        return try await ensureDNSRecord(hostname: domain.hostname, token: cloudflareToken())
     }
 
     @discardableResult
-    private func ensureDNSRecord(token: String) async throws -> DNSRecordChange {
+    private func ensureDNSRecord(hostname: String, token: String) async throws -> DNSRecordChange {
         let client = CloudflareClient(token: token, session: env.session)
-        let change = try await client.ensureARecord(zone: Self.zone, name: DashcastDefaults.hostname,
-                                                    address: DashcastDefaults.serviceAddress)
+        let change = try await client.ensureARecord(name: hostname, address: DashcastDefaults.serviceAddress)
         dnsCache = nil
         return change
     }
@@ -562,19 +616,19 @@ public final class NetworkManager: NetworkManaging {
     }
 
     private func runProvisioning() async throws {
+        let (domain, paths) = try requireDomain(provider: .cloudflare)
         let token = try cloudflareToken()
-        try await ensureDNSRecord(token: token)
+        try await ensureDNSRecord(hostname: domain.hostname, token: token)
 
         guard let lego = Lego.locate(bundleResourceURL: env.bundleResourceURL, isExecutable: env.isExecutable) else {
             throw NetworkError.legoNotFound
         }
-        let paths = self.paths
         try FileManager.default.createDirectory(at: paths.legoDir, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
         let version = try await ProcessRunner.run(lego.path, ["--version"], timeout: 15)
         let major = Lego.majorVersion(from: version.stdout + version.stderr) ?? 5
         let renew = env.fileExists(paths.legoCertificate.path)
-        let arguments = Lego.arguments(major: major, email: acmeContactEmail, domain: DashcastDefaults.hostname,
+        let arguments = Lego.arguments(major: major, email: acmeContactEmail, domain: domain.hostname,
                                        path: paths.legoDir.path, renew: renew)
         let result = try await ProcessRunner.run(
             lego.path, arguments,
@@ -586,15 +640,14 @@ public final class NetworkManager: NetworkManaging {
         guard env.fileExists(paths.legoCertificate.path), env.fileExists(paths.legoKey.path) else {
             throw NetworkError.legoFailed("lego exited cleanly but \(paths.legoCertificate.path) is missing.\n\(result.tail())")
         }
-        try await packagePKCS12()
+        try await packagePKCS12(paths)
     }
 
     /// lego PEM → PKCS#12 in the app-support directory, protected by a keychain-held passphrase.
-    func packagePKCS12() async throws {
-        let paths = self.paths
+    func packagePKCS12(_ paths: CertificatePaths) async throws {
         _ = try await PKCS12.build(certificate: paths.legoCertificate, key: paths.legoKey,
                                    output: paths.pkcs12, passphrase: try p12Passphrase(),
-                                   openssl: env.openssl)
+                                   friendlyName: paths.domain, openssl: env.openssl)
         expiryCache = nil
     }
 
@@ -607,34 +660,81 @@ public final class NetworkManager: NetworkManaging {
         return fresh
     }
 
+    /// A certificate for the own domain from another provider: a .p12 (kept as is, with its
+    /// passphrase) or PEM certificate + key (packaged like lego's). It must name the hostname and
+    /// still be valid; nothing replaces the current certificate until it checks out.
+    public func importCertificate(_ certificate: CertificateImport) async throws {
+        let (domain, paths) = try requireDomain()
+        let fm = FileManager.default
+        try fm.createDirectory(at: env.appSupportDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let staging = env.appSupportDir.appendingPathComponent(".import-\(UUID().uuidString).p12")
+        defer { try? fm.removeItem(at: staging) }
+
+        let passphrase: String
+        switch certificate {
+        case .pkcs12(let data, let given):
+            _ = try PKCS12.importIdentity(data, passphrase: given)
+            try data.write(to: staging)
+            passphrase = given
+        case .pem(let certificatePEM, let keyPEM):
+            let work = fm.temporaryDirectory.appendingPathComponent("dashcast-import-\(UUID().uuidString)", isDirectory: true)
+            try fm.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? fm.removeItem(at: work) }
+            let certificateURL = work.appendingPathComponent("certificate.pem")
+            let keyURL = work.appendingPathComponent("key.pem")
+            try certificatePEM.write(to: certificateURL)
+            try keyPEM.write(to: keyURL)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyURL.path)
+            passphrase = try p12Passphrase()
+            _ = try await PKCS12.build(certificate: certificateURL, key: keyURL, output: staging, passphrase: passphrase,
+                                       friendlyName: domain.hostname, openssl: env.openssl)
+        }
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: staging.path)
+
+        let imported = try PKCS12.importIdentity(Data(contentsOf: staging), passphrase: passphrase)
+        let names = CertificateNames.dnsNames(of: imported.certificate)
+        guard CertificateNames.covers(names, hostname: domain.hostname) else {
+            throw NetworkError.certificateNameMismatch(hostname: domain.hostname, names: names)
+        }
+        if let notAfter = imported.notAfter, notAfter <= env.now() {
+            throw NetworkError.invalidArgument("That certificate expired on \(notAfter.formatted(date: .abbreviated, time: .omitted)).")
+        }
+        try env.secrets.write(passphrase, account: SecretAccount.p12Passphrase)
+        guard rename(staging.path, paths.pkcs12.path) == 0 else {
+            throw NetworkError.opensslFailed("couldn't move the certificate into place: \(String(cString: strerror(errno)))")
+        }
+        expiryCache = nil
+    }
+
     /// Renews when the stored certificate expires within 30 days (or has expired), and repackages
     /// the .p12 from lego's PEM if it's missing/unreadable. Never performs a first issuance, which is
-    /// `provisionCertificate()`'s job. Returns true when anything was renewed or rebuilt.
+    /// `provisionCertificate()`'s job, and never touches an imported (manual) certificate. Returns
+    /// true when anything was renewed or rebuilt.
     @discardableResult
     public func renewIfNeeded() async throws -> Bool {
+        guard let domain = ownDomain, domain.provider == .cloudflare, let paths else { return false }
         let now = env.now()
         let expiry = certificateExpiry()
         if let expiry, !PKCS12.needsRenewal(expiry: expiry, now: now, window: Self.renewalWindow) {
             return false
         }
-        let paths = self.paths
         let hasLegoCertificate = env.fileExists(paths.legoCertificate.path)
         guard hasLegoCertificate || expiry != nil else { return false }
 
         if expiry == nil, hasLegoCertificate,
            let pemExpiry = PEM.leafExpiry(at: paths.legoCertificate),
            !PKCS12.needsRenewal(expiry: pemExpiry, now: now, window: Self.renewalWindow) {
-            try await packagePKCS12()
+            try await packagePKCS12(paths)
             return true
         }
         try await provisionCertificate()
         return true
     }
 
-    /// Expiry of the stored .p12's certificate (cached per file version).
+    /// Expiry of the own domain's .p12 certificate (cached per file version).
     public func certificateExpiry() -> Date? {
-        let url = paths.pkcs12
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+        guard let url = paths?.pkcs12,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let modified = attributes[.modificationDate] as? Date else {
             expiryCache = nil
             return nil
@@ -651,17 +751,17 @@ public final class NetworkManager: NetworkManaging {
     }
 
     public func tlsMaterial() -> TLSMaterial? {
-        let url = paths.pkcs12
-        guard let expiry = certificateExpiry(), expiry > env.now(),
-              let passphrase = try? env.secrets.read(SecretAccount.p12Passphrase), !passphrase.isEmpty
+        guard let domain = ownDomain, let url = paths?.pkcs12,
+              let expiry = certificateExpiry(), expiry > env.now(),
+              let passphrase = try? env.secrets.read(SecretAccount.p12Passphrase)
         else { return nil }
-        return TLSMaterial(pkcs12URL: url, passphrase: passphrase)
+        return TLSMaterial(pkcs12URL: url, passphrase: passphrase, hostname: domain.hostname)
     }
 
     // MARK: - Router (topology B)
 
     public func routerSetupScript(macLANAddress: String) -> String {
-        RouterSetup.script(macLANAddress: macLANAddress)
+        RouterSetup.script(macLANAddress: macLANAddress, hostname: ownDomain?.hostname)
     }
 
     /// Runs `routerSetupScript` on the router over SSH (password auth via a temporary askpass
@@ -690,7 +790,7 @@ public final class NetworkManager: NetworkManaging {
                                                        baseEnvironment: ProcessInfo.processInfo.environment)
         let result = try await ProcessRunner.run(invocation.executable, invocation.arguments,
                                                  environment: invocation.environment,
-                                                 stdin: Data(RouterSetup.script(macLANAddress: mac).utf8),
+                                                 stdin: Data(RouterSetup.script(macLANAddress: mac, hostname: ownDomain?.hostname).utf8),
                                                  timeout: 90)
         if result.timedOut { throw NetworkError.timedOut("SSH to \(host)") }
         guard result.status == 0 else { throw NetworkError.sshFailed(result.tail()) }

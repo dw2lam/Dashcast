@@ -475,13 +475,16 @@ enum ShotMode {
         let expiry = state.network.certificateExpiry
             .map { " · certificate valid until \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
         let address = DashcastDefaults.serviceAddress
+        let https = state.network.domain.map {
+            LogLine("Listening on https://\($0.hostname) (\(address):443)\(expiry)", date: now.addingTimeInterval(-95))
+        }
         state.log = [
             LogLine("Listening on http://localhost:\(DashcastDefaults.devPort)", date: now.addingTimeInterval(-96)),
             LogLine("Listening on http://\(address):80", date: now.addingTimeInterval(-96)),
-            LogLine("Listening on https://\(DashcastDefaults.hostname) (\(address):443)\(expiry)", date: now.addingTimeInterval(-95)),
+            https,
             LogLine("Car connected · MCU2 · 1280×720 H.264 30 fps (1080p decode 14.2 ms)", date: now.addingTimeInterval(-38)),
             LogLine("Capturing display 4", date: now.addingTimeInterval(-38)),
-        ]
+        ].compactMap { $0 }
     }
 
     // MARK: - Helpers

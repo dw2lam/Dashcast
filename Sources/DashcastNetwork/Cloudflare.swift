@@ -1,6 +1,6 @@
 import Foundation
 
-/// Minimal Cloudflare v4 API client: find the zone, then create/update the car's A record.
+/// Minimal Cloudflare v4 API client: find the hostname's zone, then create/update its A record.
 struct CloudflareClient {
     var token: String
     var session: URLSession
@@ -15,8 +15,7 @@ struct CloudflareClient {
         var ttl: Int?
     }
 
-
-    private struct Zone: Decodable { var id: String; var name: String }
+    struct Zone: Decodable, Equatable { var id: String; var name: String }
     private struct Message: Decodable { var code: Int?; var message: String }
     private struct Envelope<T: Decodable>: Decodable {
         var success: Bool
@@ -87,19 +86,29 @@ struct CloudflareClient {
             let messages = (envelope.errors ?? []).map { m in m.code.map { "\(m.message) (\($0))" } ?? m.message }
             var text = messages.isEmpty ? "HTTP \(status)" : messages.joined(separator: "; ")
             if status == 401 || status == 403 || (envelope.errors ?? []).contains(where: { [9109, 10000].contains($0.code ?? 0) }) {
-                text += ". Check the token has Zone → DNS → Edit and Zone → Zone → Read on davidlam.online."
+                text += ". Check the token has Zone → DNS → Edit and Zone → Zone → Read on your domain."
             }
             throw NetworkError.cloudflare(text)
         }
         return result
     }
 
-    func zoneID(named zone: String) async throws -> String {
-        let zones = try await send(zoneLookupRequest(zone: zone), as: [Zone].self)
-        guard let match = zones.first(where: { $0.name == zone }) ?? zones.first else {
-            throw NetworkError.zoneNotFound(zone)
+    /// Zones that could hold `hostname`, most specific first, down to the registrable-looking
+    /// two-label suffix: "car.home.example.com" → home.example.com, example.com (plus the name itself).
+    static func zoneCandidates(for hostname: String) -> [String] {
+        let labels = hostname.lowercased().split(separator: ".")
+        guard labels.count >= 2 else { return [] }
+        return (0...(labels.count - 2)).map { labels[$0...].joined(separator: ".") }
+    }
+
+    /// The token's zone for `hostname`: asks for each suffix in turn (exact-name lookups, so a token
+    /// scoped to one zone never needs to list the account).
+    func zone(for hostname: String) async throws -> Zone {
+        for candidate in Self.zoneCandidates(for: hostname) {
+            let zones = try await send(zoneLookupRequest(zone: candidate), as: [Zone].self)
+            if let match = zones.first(where: { $0.name.lowercased() == candidate }) { return match }
         }
-        return match.id
+        throw NetworkError.zoneNotFound(hostname)
     }
 
     func aRecords(zoneID: String, name: String) async throws -> [DNSRecord] {
@@ -107,11 +116,12 @@ struct CloudflareClient {
             .filter { $0.type == "A" && $0.name.lowercased() == name.lowercased() }
     }
 
-    /// Makes `name` a single DNS-only A record → `address`, TTL 300.
-    /// Extra A records for the same name are removed (the car would otherwise pick one at random).
+    /// Makes `name` a single DNS-only A record → `address`, TTL 300, in whichever of the token's
+    /// zones holds it. Extra A records for the same name are removed (the car would otherwise pick
+    /// one at random).
     @discardableResult
-    func ensureARecord(zone: String, name: String, address: String) async throws -> DNSRecordChange {
-        let zoneID = try await zoneID(named: zone)
+    func ensureARecord(name: String, address: String) async throws -> DNSRecordChange {
+        let zoneID = try await zone(for: name).id
         let records = try await aRecords(zoneID: zoneID, name: name)
         guard let first = records.first else {
             _ = try await send(createRequest(zoneID: zoneID, name: name, address: address), as: DNSRecord.self)
@@ -131,7 +141,7 @@ struct CloudflareClient {
     }
 }
 
-/// DNS-over-HTTPS (JSON API) — what the public internet says the car hostname resolves to.
+/// DNS-over-HTTPS (JSON API) — what the public internet says the own domain resolves to.
 struct DoHClient {
     var session: URLSession
     var endpoint = URL(string: "https://cloudflare-dns.com/dns-query")!

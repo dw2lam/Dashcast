@@ -367,7 +367,7 @@ private struct StepRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             StepMarker(number: step.id, done: step.done == true)
             VStack(alignment: .leading, spacing: 6) {
-                (Text(Self.styled(step.text)) + (step.optional ? Text("  Optional").font(.caption.weight(.semibold)).foregroundStyle(.secondary) : Text("")))
+                (Text(AttributedString(inlineMarkdown: step.text)) + (step.optional ? Text("  Optional").font(.caption.weight(.semibold)).foregroundStyle(.secondary) : Text("")))
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
                 if let action = step.action, step.done != true || action == .copyAddress {
@@ -376,17 +376,6 @@ private struct StepRow: View {
             }
             Spacer(minLength: 0)
         }
-    }
-
-    /// Inline markdown (bold) without auto-links, so addresses read the same in both modes.
-    static func styled(_ markdown: String) -> AttributedString {
-        var text = (try? AttributedString(markdown: markdown,
-                                          options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(markdown)
-        for run in text.runs where run.link != nil {
-            text[run.range].link = nil
-        }
-        return text
     }
 
     @ViewBuilder
@@ -435,27 +424,37 @@ private struct StepMarker: View {
 
 // MARK: - Shared sections
 
-/// Secure vs Compatibility mode, with the one in use marked.
+/// Secure vs Compatibility mode, with the one in use marked, and the way into Secure mode.
 private struct ModesCard: View {
     @Environment(AppModel.self) private var model
+    @State private var showingDomain = false
 
     var body: some View {
         let mode = model.connectionMode
+        let domain = model.state.network.domain
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(symbol: "lock.shield", title: "Secure or Compatibility Mode")
-            ModeLine(symbol: "lock.fill", title: "Secure", address: DashcastDefaults.hostname,
-                     detail: "The fastest video. Needs a free certificate, set up once in Settings → Network.",
-                     inUse: mode == .secure)
+            ModeLine(symbol: "lock.fill", title: "Secure", address: ConnectionMode.secureAddress(domain),
+                     detail: "The fastest video. Needs a domain you own and a free certificate, set up once.",
+                     inUse: mode.isSecure)
             ModeLine(symbol: "bolt.horizontal.fill", title: "Compatibility", address: "http://\(DashcastDefaults.serviceAddress)",
-                     detail: "Works without a certificate. Video uses WebRTC, with a little more delay.",
-                     inUse: mode == .compatibility)
-            Text("The certificate is optional, and Dashcast picks the mode for you. Either way, everything stays between your Mac and your Tesla.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                     detail: "Works with no setup. Video uses WebRTC, with a little more delay.",
+                     inUse: !mode.isSecure)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Secure mode is optional, and Dashcast picks the mode for you. Either way, everything stays between your Mac and your Tesla.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 12)
+                Button(domain == nil ? "Use Your Own Domain…" : "Domain Settings…") { showingDomain = true }
+                    .secondaryButtonStyle()
+                    .controlSize(.small)
+                    .fixedSize()
+            }
         }
         .padding(16)
         .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .sheet(isPresented: $showingDomain) { OwnDomainSheet() }
     }
 }
 

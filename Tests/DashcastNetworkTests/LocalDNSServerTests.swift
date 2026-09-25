@@ -92,10 +92,12 @@ final class FakeUpstream: @unchecked Sendable {
 final class LocalDNSServerTests: XCTestCase {
     private var server: LocalDNSServer!
     private var port: UInt16 = 0
+    /// The user's own domain plus the connectivity checks, as NetworkManager configures it.
+    private let localNames = ["car.example.com"] + NetworkManager.connectivityCheckNames
 
     private func startServer(upstreams: @escaping @Sendable () -> [NWEndpoint], timeout: TimeInterval = 1.5) async throws {
         server = LocalDNSServer(.init(bindHost: "127.0.0.1", port: 0,
-                                      localNames: Set(NetworkManager.localDNSNames),
+                                      localNames: Set(localNames),
                                       answerAddress: DashcastDefaults.serviceAddress,
                                       upstreamTimeout: timeout,
                                       upstreams: upstreams))
@@ -131,25 +133,25 @@ final class LocalDNSServerTests: XCTestCase {
 
     func testDigLocalNamesUDPandTCP() async throws {
         try await startServer(upstreams: { [] })
-        for name in NetworkManager.localDNSNames {
+        for name in localNames {
             let out = try await dig([name, "A"])
             XCTAssertTrue(out.contains("status: NOERROR"), out)
             XCTAssertTrue(out.contains("flags: qr aa rd ra;"), out)
             XCTAssertEqual(answerLines(out), ["\(name). 60 IN A \(svc)"], out)
             XCTAssertTrue(out.contains("; EDNS: version: 0"), "dig sends EDNS by default; we answer with OPT: \(out)")
         }
-        let tcp = try await dig(["+tcp", "car.davidlam.online"])
-        XCTAssertEqual(answerLines(tcp), ["car.davidlam.online. 60 IN A \(svc)"], tcp)
+        let tcp = try await dig(["+tcp", "car.example.com"])
+        XCTAssertEqual(answerLines(tcp), ["car.example.com. 60 IN A \(svc)"], tcp)
 
-        let short = try await dig(["+short", "car.davidlam.online"])
+        let short = try await dig(["+short", "car.example.com"])
         XCTAssertEqual(short.trimmingCharacters(in: .whitespacesAndNewlines), svc)
-        print("[dns] dig @127.0.0.1 -p \(port) +short car.davidlam.online → \(short.trimmingCharacters(in: .whitespacesAndNewlines))")
+        print("[dns] dig @127.0.0.1 -p \(port) +short car.example.com → \(short.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 
     func testDigAAAAAndHTTPSAreEmptyNoError() async throws {
         try await startServer(upstreams: { [] })
         for type in ["AAAA", "HTTPS", "TXT"] {
-            let out = try await dig(["car.davidlam.online", type])
+            let out = try await dig(["car.example.com", type])
             XCTAssertTrue(out.contains("status: NOERROR"), out)
             XCTAssertTrue(out.contains("ANSWER: 0,"), out)
         }
@@ -159,12 +161,12 @@ final class LocalDNSServerTests: XCTestCase {
 
     func testDigPreservesCaseAndEchoesDO() async throws {
         try await startServer(upstreams: { [] })
-        let out = try await dig(["+dnssec", "cAr.DaViDlAm.OnLiNe"])
-        XCTAssertEqual(answerLines(out), ["cAr.DaViDlAm.OnLiNe. 60 IN A \(svc)"], out)
+        let out = try await dig(["+dnssec", "cAr.ExAmPlE.CoM"])
+        XCTAssertEqual(answerLines(out), ["cAr.ExAmPlE.CoM. 60 IN A \(svc)"], out)
         XCTAssertTrue(out.contains("; EDNS: version: 0, flags: do;"), out)
-        let noEDNS = try await dig(["+noedns", "car.davidlam.online"])
+        let noEDNS = try await dig(["+noedns", "car.example.com"])
         XCTAssertFalse(noEDNS.contains("OPT PSEUDOSECTION"), noEDNS)
-        XCTAssertEqual(answerLines(noEDNS), ["car.davidlam.online. 60 IN A \(svc)"], noEDNS)
+        XCTAssertEqual(answerLines(noEDNS), ["car.example.com. 60 IN A \(svc)"], noEDNS)
     }
 
     /// Forwarding through the Mac's real resolvers (needs internet).
@@ -266,7 +268,7 @@ final class LocalDNSServerTests: XCTestCase {
         try await startServer(upstreams: { [] })
         let formErr = try await ask(Data([0x12, 0x34, 0x01, 0x00, 0x00, 0x01]))
         XCTAssertEqual([UInt8](formErr.prefix(4)), [0x12, 0x34, 0x81, 0x81])
-        let query = try DNSMessage.parse(DNSMessage.query(id: 3, name: "car.davidlam.online", type: DNSType.a))
+        let query = try DNSMessage.parse(DNSMessage.query(id: 3, name: "car.example.com", type: DNSType.a))
         let response = DNSMessage.response(to: query, rcode: 0)
         let ignored = await server.handle(response)
         XCTAssertNil(ignored, "never answer a response (reflection loops)")

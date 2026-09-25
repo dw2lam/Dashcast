@@ -22,7 +22,7 @@ final class LocalDNSServer: @unchecked Sendable {
         var bindHost: String
         /// 0 = pick a free port (tests).
         var port: UInt16
-        /// Lowercased names answered locally.
+        /// Lowercased names answered locally (see `setLocalNames`).
         var localNames: Set<String>
         var answerAddress: String
         var ttl: UInt32 = 60
@@ -53,6 +53,7 @@ final class LocalDNSServer: @unchecked Sendable {
     private var sweepTimer: DispatchSourceTimer?
     private var _stats = Stats()
     private var _port: UInt16?
+    private var localNames: Set<String>
 
     private final class Flow {
         let connection: NWConnection
@@ -64,6 +65,7 @@ final class LocalDNSServer: @unchecked Sendable {
 
     init(_ configuration: Configuration) {
         self.configuration = configuration
+        localNames = configuration.localNames
         answerBytes = IPv4.parse(configuration.answerAddress).map {
             [UInt8($0 >> 24), UInt8($0 >> 16 & 0xFF), UInt8($0 >> 8 & 0xFF), UInt8($0 & 0xFF)]
         }
@@ -72,6 +74,11 @@ final class LocalDNSServer: @unchecked Sendable {
     var port: UInt16? { queue.sync { _port } }
     var isRunning: Bool { queue.sync { _port != nil } }
     var stats: Stats { queue.sync { _stats } }
+
+    /// Replaces the names answered locally (the own domain changed). Lowercased.
+    func setLocalNames(_ names: Set<String>) {
+        queue.sync { localNames = names }
+    }
 
     // MARK: Lifecycle
 
@@ -272,7 +279,7 @@ final class LocalDNSServer: @unchecked Sendable {
     private func localAnswer(for query: DNSMessage) -> Data? {
         guard query.opcode == 0, query.questions.count == 1, let question = query.questions.first,
               question.qclass == 1 || question.qclass == DNSType.any,
-              configuration.localNames.contains(question.key) else { return nil }
+              localNames.contains(question.key) else { return nil }
         if question.type == DNSType.a || question.type == DNSType.any, let answerBytes {
             return DNSMessage.response(to: query, rcode: DNSRCode.noError,
                                        answers: [.init(type: DNSType.a, ttl: configuration.ttl, rdata: answerBytes)])

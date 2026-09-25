@@ -9,6 +9,8 @@ import Foundation
 /// - `DASHCAST_MOCK_CYCLE=1` — loop idle → waiting → streaming → error on its own.
 /// - `DASHCAST_MOCK_TOPOLOGY=macHotspot|router|phoneHotspot|offline`
 /// - `DASHCAST_MOCK_FRESH=1` — first-run: no permissions, helper, token or certificate.
+/// - `DASHCAST_MOCK_CERT=0|1` — own domain with a certificate (Secure mode), or none.
+/// - `DASHCAST_MOCK_DOMAIN=cloudflare|manual` — an own domain (car.example.com) that still needs setup.
 @MainActor
 final class PreviewService: DashcastServicing {
     let state = ServiceState()
@@ -37,6 +39,12 @@ final class PreviewService: DashcastServicing {
         var certificate: Bool?
         /// Another interface (e.g. SideDisplay) owns the service address range.
         var conflict = false
+        /// An own domain without a certificate yet (with `certificate`, the domain is Cloudflare's).
+        var domain: OwnDomain.Provider?
+        /// With `domain: .cloudflare`: the API token is already saved.
+        var token = false
+
+        static let exampleHostname = "car.example.com"
 
         static var fromEnvironment: Scenario {
             let env = ProcessInfo.processInfo.environment
@@ -46,7 +54,8 @@ final class PreviewService: DashcastServicing {
                 fresh: env["DASHCAST_MOCK_FRESH"] == "1",
                 cycle: env["DASHCAST_MOCK_CYCLE"] == "1",
                 certificate: env["DASHCAST_MOCK_CERT"].map { $0 == "1" },
-                conflict: env["DASHCAST_MOCK_CONFLICT"] == "1"
+                conflict: env["DASHCAST_MOCK_CONFLICT"] == "1",
+                domain: OwnDomain.Provider(rawValue: env["DASHCAST_MOCK_DOMAIN"] ?? "")
             )
         }
     }
@@ -55,8 +64,11 @@ final class PreviewService: DashcastServicing {
         self.settings = settings
         screenRecording = !scenario.fresh
         accessibility = !scenario.fresh
+        let certificate = scenario.domain == nil && (scenario.certificate ?? !scenario.fresh)
+        let provider: OwnDomain.Provider? = certificate ? .cloudflare : scenario.domain
         mockNetwork = MockNetworkManager(topology: scenario.topology, provisioned: !scenario.fresh,
-                                         certificate: scenario.certificate ?? !scenario.fresh,
+                                         domain: provider.map { OwnDomain(hostname: Scenario.exampleHostname, provider: $0) },
+                                         token: certificate || scenario.token, certificate: certificate,
                                          conflict: scenario.conflict)
 
         state.displays = [
@@ -226,7 +238,7 @@ final class MockNetworkManager: NetworkManaging {
     private(set) var status: NetworkStatus
     private var token: String?
 
-    init(topology: Topology, provisioned: Bool, certificate: Bool, conflict: Bool = false) {
+    init(topology: Topology, provisioned: Bool, domain: OwnDomain?, token: Bool, certificate: Bool, conflict: Bool = false) {
         var status = NetworkStatus()
         status.topology = topology
         switch topology {
@@ -248,12 +260,13 @@ final class MockNetworkManager: NetworkManaging {
         status.internetReachable = topology != .offline
         status.helperInstalled = provisioned
         status.aliasActive = provisioned
-        status.hasCloudflareToken = certificate
+        status.domain = domain
+        status.hasCloudflareToken = token
         status.dnsRecordOK = certificate
         status.certificateExpiry = certificate ? Calendar.current.date(byAdding: .day, value: 71, to: Date()) : nil
         status.serviceAddressConflict = conflict ? "bridge100 203.0.113.1/24" : nil
         self.status = status
-        token = certificate ? "mock-token" : nil
+        self.token = token ? "mock-token" : nil
     }
 
     func currentStatus() async -> NetworkStatus { status }
@@ -270,6 +283,21 @@ final class MockNetworkManager: NetworkManaging {
         status.aliasActive = false
     }
 
+    func setOwnDomain(_ domain: OwnDomain?) throws {
+        var normalized = domain
+        if let domain {
+            switch OwnDomain.normalize(domain.hostname) {
+            case .success(let hostname): normalized?.hostname = hostname
+            case .failure(let error): throw error
+            }
+        }
+        if normalized?.hostname != status.domain?.hostname {
+            status.certificateExpiry = nil
+            status.dnsRecordOK = false
+        }
+        status.domain = normalized
+    }
+
     func setCloudflareToken(_ token: String) throws {
         self.token = token
         status.hasCloudflareToken = true
@@ -279,25 +307,37 @@ final class MockNetworkManager: NetworkManaging {
 
     func provisionCertificate() async throws {
         try await Task.sleep(for: .seconds(2))
+        guard status.domain?.provider == .cloudflare else { throw MockError("Add a Cloudflare domain first.") }
         guard token != nil else { throw MockError("Add a Cloudflare API token first.") }
         guard status.internetReachable else { throw MockError("Certificates need an internet connection.") }
         status.dnsRecordOK = true
         status.certificateExpiry = Calendar.current.date(byAdding: .day, value: 90, to: Date())
     }
 
+    func importCertificate(_ certificate: CertificateImport) async throws {
+        try await Task.sleep(for: .seconds(1))
+        guard status.domain != nil else { throw MockError("Add your own domain first.") }
+        status.certificateExpiry = Calendar.current.date(byAdding: .day, value: 365, to: Date())
+    }
+
     func tlsMaterial() -> TLSMaterial? { nil }
 
     func routerSetupScript(macLANAddress: String) -> String {
-        """
-        # Dashcast — GL.iNet / OpenWrt setup (run over SSH as root)
-        # Answer car.davidlam.online with the service address on this LAN.
-        uci add_list dhcp.@dnsmasq[0].address='/\(DashcastDefaults.hostname)/\(DashcastDefaults.serviceAddress)'
-        uci add_list dhcp.@dnsmasq[0].rebind_domain='\(DashcastDefaults.hostname)'
+        let address = DashcastDefaults.serviceAddress
+        let dns = status.domain.map { domain in
+            """
+            # Answer \(domain.hostname) with the service address on this LAN.
+            uci add_list dhcp.@dnsmasq[0].address='/\(domain.hostname)/\(address)'
+            uci add_list dhcp.@dnsmasq[0].rebind_domain='\(domain.hostname)'
 
-        # Route the service address to this Mac.
+            """
+        } ?? ""
+        return """
+        # Dashcast — GL.iNet / OpenWrt setup (run over SSH as root)
+        \(dns)# Route the service address to this Mac.
         uci add network route
         uci set network.@route[-1].interface='lan'
-        uci set network.@route[-1].target='\(DashcastDefaults.serviceAddress)/32'
+        uci set network.@route[-1].target='\(address)/32'
         uci set network.@route[-1].gateway='\(macLANAddress)'
 
         uci commit dhcp && uci commit network

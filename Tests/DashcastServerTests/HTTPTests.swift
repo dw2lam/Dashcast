@@ -92,7 +92,7 @@ final class HTTPParserTests: XCTestCase {
 
     func testHostHeaderParsing() {
         XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "LocalHost:8080"), "localhost")
-        XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "car.davidlam.online"), "car.davidlam.online")
+        XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "car.example.com"), "car.example.com")
         XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "[::1]:8080"), "::1")
         XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "127.0.0.1"), "127.0.0.1")
         XCTAssertNil(HTTPServer.hostName(fromHostHeader: "evil.com:80x"))
@@ -121,8 +121,8 @@ final class HTTPRoutingTests: XCTestCase {
         try Data("console.log(1)".utf8).write(to: clientDir.appendingPathComponent("assets/app.js"))
         try Data("secret".utf8).write(to: clientDir.appendingPathComponent(".env"))
         server = HTTPServer(queue: DispatchQueue(label: "test"), pages: ClientPageProvider(directory: clientDir),
-                            publicHostname: DashcastDefaults.hostname,
-                            allowedHosts: ["localhost", "127.0.0.1", "::1", DashcastDefaults.hostname, DashcastDefaults.serviceAddress])
+                            publicHostname: "car.example.com",
+                            allowedHosts: ["localhost", "127.0.0.1", "::1", DashcastDefaults.serviceAddress])
         server.webSocketDelegate = delegate
     }
 
@@ -187,23 +187,25 @@ final class HTTPRoutingTests: XCTestCase {
         for host in ["example.com", "neverssl.com:80", DashcastDefaults.serviceAddress] {
             let (r, close) = try XCTUnwrap(response(server.route(request("/some/path?q", host: host), role: .plain, isTLS: false)))
             XCTAssertEqual(r.status, 301, host)
-            XCTAssertEqual(r.headers["Location"], "https://car.davidlam.online/")
+            XCTAssertEqual(r.headers["Location"], "https://car.example.com/")
             XCTAssertTrue(close)
         }
         let (noHost, _) = try XCTUnwrap(response(server.route(request("/x", host: nil), role: .plain, isTLS: false)))
-        XCTAssertEqual(noHost.headers["Location"], "https://car.davidlam.online/")
+        XCTAssertEqual(noHost.headers["Location"], "https://car.example.com/")
     }
 
     func testPlainListenerKeepsPathForOwnHostname() throws {
         server.plainServesApp = false
-        let (r, _) = try XCTUnwrap(response(server.route(request("/index.html?v=2", host: "car.davidlam.online"), role: .plain, isTLS: false)))
+        let (r, _) = try XCTUnwrap(response(server.route(request("/index.html?v=2", host: "car.example.com"), role: .plain, isTLS: false)))
         XCTAssertEqual(r.status, 301)
-        XCTAssertEqual(r.headers["Location"], "https://car.davidlam.online/index.html?v=2")
+        XCTAssertEqual(r.headers["Location"], "https://car.example.com/index.html?v=2")
     }
 
     func testHTTPModePlainListenerServesAppAndWebSocket() throws {
+        // HTTP mode, as the service sets it up: no certificate, so no public hostname.
         server.plainServesApp = true
-        for host in [DashcastDefaults.serviceAddress, "car.davidlam.online", "\(DashcastDefaults.serviceAddress):80"] {
+        server.publicHostname = nil
+        for host in [DashcastDefaults.serviceAddress, "\(DashcastDefaults.serviceAddress):80"] {
             let (page, _) = try XCTUnwrap(response(server.route(request("/", host: host), role: .plain, isTLS: false)))
             XCTAssertEqual(page.status, 200, host)
             XCTAssertEqual(page.headers["Content-Type"], "text/html; charset=utf-8")
@@ -219,10 +221,30 @@ final class HTTPRoutingTests: XCTestCase {
         let (probe, _) = try XCTUnwrap(response(server.route(request("/", host: "connman.vn.tesla.services"), role: .plain, isTLS: false)))
         XCTAssertEqual(probe.headers["X-ConnMan-Status"], "online")
         // Stray names go to the car page over http (never served under a foreign Host).
-        let (stray, close) = try XCTUnwrap(response(server.route(request("/x", host: "example.com"), role: .plain, isTLS: false)))
-        XCTAssertEqual(stray.status, 301)
-        XCTAssertEqual(stray.headers["Location"], "http://car.davidlam.online/")
-        XCTAssertTrue(close)
+        for host in ["example.com", "car.example.com"] {
+            let (stray, close) = try XCTUnwrap(response(server.route(request("/x", host: host), role: .plain, isTLS: false)))
+            XCTAssertEqual(stray.status, 301, host)
+            XCTAssertEqual(stray.headers["Location"], "http://\(DashcastDefaults.serviceAddress)/", host)
+            XCTAssertTrue(close)
+        }
+    }
+
+    /// The certificate's hostname is accepted (Host and Origin) only while HTTPS mode has one.
+    func testAllowedHostsFollowTheCertificateHostname() throws {
+        let ws = "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: https://car.example.com\r\n"
+        XCTAssertTrue(server.allowedHosts.contains("car.example.com"))
+        XCTAssertEqual(response(server.route(request("/", host: "car.example.com"), role: .app, isTLS: true))?.0.status, 200)
+        guard case .upgrade = server.route(request("/ws", host: "car.example.com", extra: ws), role: .app, isTLS: true) else {
+            return XCTFail("the certificate's own origin must be accepted")
+        }
+
+        server.publicHostname = nil
+        XCTAssertFalse(server.allowedHosts.contains("car.example.com"))
+        XCTAssertEqual(response(server.route(request("/", host: "car.example.com"), role: .app, isTLS: true))?.0.status, 403)
+        XCTAssertEqual(response(server.route(request("/ws", host: "localhost", extra: ws), role: .app, isTLS: false))?.0.status, 403)
+
+        server.publicHostname = "Car.Other.Example"
+        XCTAssertTrue(server.allowedHosts.contains("car.other.example"), "hostnames compare lowercased")
     }
 
     // MARK: App routes
@@ -235,7 +257,7 @@ final class HTTPRoutingTests: XCTestCase {
             XCTAssertEqual(String(data: r.body, encoding: .utf8), "<!doctype html><title>client</title>")
             XCTAssertTrue(wire(r).contains("Cache-Control: no-store\r\n"))
         }
-        let (health, _) = try XCTUnwrap(response(server.route(request("/healthz", host: "car.davidlam.online"), role: .app, isTLS: true)))
+        let (health, _) = try XCTUnwrap(response(server.route(request("/healthz", host: "car.example.com"), role: .app, isTLS: true)))
         XCTAssertEqual(health.status, 200)
         XCTAssertEqual(String(data: health.body, encoding: .utf8), "ok")
         let (missing, _) = try XCTUnwrap(response(server.route(request("/nope", host: "127.0.0.1:8080"), role: .app, isTLS: false)))
@@ -273,12 +295,12 @@ final class HTTPRoutingTests: XCTestCase {
         func upgrade(_ origin: String?) -> HTTPAction {
             server.route(request("/ws", host: "localhost:8080", extra: ws + (origin.map { "Origin: \($0)\r\n" } ?? "")), role: .app, isTLS: false)
         }
-        for origin in [nil, "http://localhost:8080", "http://localhost:5173", "https://car.davidlam.online", "http://127.0.0.1:8080"] {
+        for origin in [nil, "http://localhost:8080", "http://localhost:5173", "https://car.example.com", "http://127.0.0.1:8080"] {
             guard case .upgrade(let r) = upgrade(origin) else { return XCTFail("origin \(origin ?? "nil") rejected") }
             XCTAssertEqual(r.status, 101)
             XCTAssertEqual(r.headers["Sec-WebSocket-Accept"], "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")
         }
-        for origin in ["https://evil.com", "null", "http://car.davidlam.online.evil.com"] {
+        for origin in ["https://evil.com", "null", "http://car.example.com.evil.com"] {
             XCTAssertEqual(response(upgrade(origin))?.0.status, 403, origin)
         }
         // /ws without Upgrade → 426; wrong version → 426 with the supported version.

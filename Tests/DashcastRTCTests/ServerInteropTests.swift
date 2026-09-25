@@ -131,9 +131,11 @@ final class StubNetwork: NetworkManaging {
     func currentStatus() async -> NetworkStatus { NetworkStatus() }
     func installLoopbackHelper() async throws {}
     func uninstallLoopbackHelper() async throws {}
+    func setOwnDomain(_ domain: OwnDomain?) throws {}
     func setCloudflareToken(_ token: String) throws {}
     func hasCloudflareToken() -> Bool { false }
     func provisionCertificate() async throws {}
+    func importCertificate(_ certificate: CertificateImport) async throws {}
     func tlsMaterial() -> TLSMaterial? { nil }
     func routerSetupScript(macLANAddress: String) -> String { "" }
 }

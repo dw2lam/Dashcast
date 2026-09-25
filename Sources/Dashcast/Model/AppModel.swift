@@ -26,9 +26,12 @@ final class AppModel {
     var networkError: String?
 
     @ObservationIgnored private var applyTask: Task<Void, Never>?
+    /// The drag-to-authorize panel beside System Settings (created on the first Grant…).
+    @ObservationIgnored private var permissionGuide: PermissionGuide?
 
     enum NetworkActivity: Equatable {
-        case refreshing, installingHelper, removingHelper, savingToken, provisioning, renewing, applyingRouter
+        case refreshing, installingHelper, removingHelper, savingDomain, savingToken, provisioning,
+             importingCertificate, renewing, applyingRouter
     }
 
     convenience init() {
@@ -119,8 +122,31 @@ final class AppModel {
     // MARK: - Permissions
 
     func refreshPermissions() { service.refreshPermissions() }
-    func requestScreenRecording() { service.requestScreenRecording() }
-    func requestAccessibility() { service.requestAccessibility() }
+    func requestScreenRecording() { requestPermission(.screenRecording) }
+    func requestAccessibility() { requestPermission(.accessibility) }
+
+    /// Opens the exact privacy pane with the drag panel beside it. The mock (and a build that isn't
+    /// an app bundle, so has nothing to drag) goes through the service instead.
+    private func requestPermission(_ pane: PermissionPane) {
+        guard backend == .real, PermissionGuide.isAvailable else {
+            switch pane {
+            case .screenRecording: service.requestScreenRecording()
+            case .accessibility: service.requestAccessibility()
+            }
+            return
+        }
+        let guide = permissionGuide ?? PermissionGuide { [weak self] pane in self?.isGranted(pane) ?? false }
+        permissionGuide = guide
+        guide.present(pane)
+    }
+
+    private func isGranted(_ pane: PermissionPane) -> Bool {
+        service.refreshPermissions()
+        switch pane {
+        case .screenRecording: return state.screenRecordingGranted
+        case .accessibility: return state.accessibilityGranted
+        }
+    }
 
     // MARK: - Network
 
@@ -135,6 +161,14 @@ final class AppModel {
     func uninstallHelper() { perform(.removingHelper) { try await self.service.network.uninstallLoopbackHelper() } }
     func provisionCertificate() { perform(.provisioning) { try await self.service.network.provisionCertificate() } }
     func renewCertificate() { perform(.renewing) { try await self.networkActions.renewIfNeeded() } }
+
+    func setOwnDomain(_ domain: OwnDomain?) {
+        perform(.savingDomain) { try self.service.network.setOwnDomain(domain) }
+    }
+
+    func importCertificate(_ certificate: CertificateImport) {
+        perform(.importingCertificate) { try await self.service.network.importCertificate(certificate) }
+    }
 
     func saveCloudflareToken(_ token: String) {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -181,7 +215,7 @@ final class AppModel {
 
     // MARK: - Connection
 
-    /// Secure (certificate present) or compatibility mode; decides the address the car opens.
+    /// Secure (own domain with a certificate) or compatibility mode; decides the address the car opens.
     var connectionMode: ConnectionMode { ConnectionMode(network: state.network) }
 
     var readiness: [ReadinessItem] { ReadinessItem.current(self) }
@@ -200,11 +234,14 @@ final class AppModel {
 
     func copyCarURL() { Pasteboard.copy(connectionMode.url) }
 
-    /// Forgets every preference (the live policy and settings follow via KVO/didSet).
+    /// Forgets every preference (the live policy and settings follow via KVO/didSet). The own domain
+    /// is kept, like its certificate and the helper.
     func resetAllSettings() {
+        let ownDomain = state.network.domain
         if let domain = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: domain)
         }
+        try? service.network.setOwnDomain(ownDomain)
         settings = SettingsStore.load()
     }
 

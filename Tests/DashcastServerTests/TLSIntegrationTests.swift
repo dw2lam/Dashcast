@@ -11,8 +11,10 @@ struct TestPKI {
     let p12: URL
     let rootDER: Data
     let passphrase = "dashcast-test"
+    /// The own domain the leaf is issued for.
+    static let hostname = "car.example.com"
 
-    static func make() throws -> TestPKI {
+    static func make(hostname: String = TestPKI.hostname) throws -> TestPKI {
         let openssl = "/usr/bin/openssl"
         guard FileManager.default.isExecutableFile(atPath: openssl) else { throw XCTSkip("no \(openssl)") }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dashcast-pki-\(UUID().uuidString)")
@@ -23,7 +25,7 @@ struct TestPKI {
         basicConstraints=CA:FALSE
         keyUsage=critical,digitalSignature,keyEncipherment
         extendedKeyUsage=serverAuth
-        subjectAltName=DNS:localhost,IP:127.0.0.1,DNS:\(DashcastDefaults.hostname)
+        subjectAltName=DNS:localhost,IP:127.0.0.1,DNS:\(hostname)
         """.write(toFile: path("leaf.ext"), atomically: true, encoding: .utf8)
 
         func run(_ args: [String]) throws {
@@ -59,7 +61,7 @@ struct TestPKI {
                        rootDER: try Data(contentsOf: dir.appendingPathComponent("root.der")))
     }
 
-    var material: TLSMaterial { TLSMaterial(pkcs12URL: p12, passphrase: passphrase) }
+    var material: TLSMaterial { TLSMaterial(pkcs12URL: p12, passphrase: passphrase, hostname: Self.hostname) }
 }
 
 /// Trusts only the test root, so verification succeeds only if the server sends the intermediate.
@@ -116,7 +118,7 @@ final class TLSIntegrationTests: XCTestCase {
         XCTAssertEqual(identity.commonName, "localhost")
         let expiry = try XCTUnwrap(identity.expiry)
         XCTAssertGreaterThan(expiry, Date().addingTimeInterval(2 * 86_400))
-        XCTAssertThrowsError(try TLSIdentity.load(TLSMaterial(pkcs12URL: pki.p12, passphrase: "wrong")))
+        XCTAssertThrowsError(try TLSIdentity.load(TLSMaterial(pkcs12URL: pki.p12, passphrase: "wrong", hostname: TestPKI.hostname)))
     }
 
     func testHTTPSAndWSSWithFullChain() async throws {
@@ -134,7 +136,7 @@ final class TLSIntegrationTests: XCTestCase {
         self.service = service
         await service.start()
         let port = try XCTUnwrap(service.tlsPort, service.state.log.map(\.message).joined(separator: "\n"))
-        XCTAssertTrue(service.state.log.contains { $0.message.contains("Listening on https://\(DashcastDefaults.hostname) (127.0.0.1:\(port))") })
+        XCTAssertTrue(service.state.log.contains { $0.message.contains("Listening on https://\(TestPKI.hostname) (127.0.0.1:\(port))") })
 
         let delegate = PinnedRootDelegate(rootDER: pki.rootDER)
         let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)

@@ -40,6 +40,17 @@ struct StatusLabel: View {
     }
 }
 
+extension AttributedString {
+    /// Inline markdown (bold) without auto-links, so addresses read the same in both modes.
+    init(inlineMarkdown markdown: String) {
+        self = (try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(markdown)
+        for run in runs where run.link != nil {
+            self[run.range].link = nil
+        }
+    }
+}
+
 /// Button that swaps its title for a small spinner while `busy`.
 struct ActionButton: View {
     let title: String
