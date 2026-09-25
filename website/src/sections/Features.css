@@ -1,18 +1,19 @@
-/* tesla.com home's card carousel (measured at 1800px: 1024×580 cards, 8px radius, 24px apart; copy 40px in from
-   the bottom-left: 48/56 title, 20/28 subtitle, a 160×40 blue + white pair 24px below; a 40×40 arrow in 75% white
-   over the media; 12px dots, 8px apart, 24px under the cards, inactive at 50%). */
-.fcards {
+/* tesla.com home's FSD split card (measured: 1504×508 at 1600px, #f4f4f4, 8px radius; copy column 40% with 48px
+   padding: 40/48 title, 17/24 grey subtitle, a stat row 32px lower with 40px between 34/44 values and 17/24 labels,
+   then a dark #171a20 + white button pair; the video fills the right 60% at full height), as a row of cards with
+   the next one peeking and Tesla's dots (12px, 8px apart, 24px under, inactive at 50%). */
+.split-section {
   padding: var(--s-6) 0;
   background: var(--c-white);
 }
 
-.fcards__wrap {
+.srow {
   --track-pad: max(var(--gutter), calc((100% - var(--content-max)) / 2));
-  --card-w: min(1024px, calc(100vw - var(--gutter) * 2 - 96px));
-  position: relative;
+  /* The content column, less enough that the next card always shows. */
+  --card-w: min(var(--content-max), calc(100vw - var(--gutter) * 2 - 64px));
 }
 
-.fcards__track {
+.srow__track {
   grid-auto-columns: var(--card-w);
   grid-column-gap: var(--s-3);
   column-gap: var(--s-3);
@@ -20,123 +21,105 @@
   scroll-padding: 0 var(--track-pad);
 }
 
-.fcard {
+.split {
   position: relative;
-  height: calc(var(--card-w) * 0.5664);
-  min-height: 440px;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  min-height: 508px;
   border-radius: var(--radius-media);
+  background: var(--c-grey-70);
   overflow: hidden;
-  background: var(--c-ink);
 }
 
-.fcard__media {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+.split__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--s-6);
 }
 
-/* A soft shade under the copy, so white type holds on any media. */
-.fcard__scrim {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 70%;
-  pointer-events: none;
-  background:
-    linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.28) 45%, rgba(0, 0, 0, 0)),
-    linear-gradient(to right, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0) 60%);
-}
-
-.fcard__copy {
-  position: absolute;
-  left: var(--s-5);
-  right: var(--s-5);
-  bottom: var(--s-5);
-}
-
-.fcard__title {
+.split__title {
   font-family: var(--font-display);
-  font-size: var(--type-section);
-  line-height: var(--type-section-lh);
+  font-size: var(--fs-80);
+  line-height: var(--lh-80);
   font-weight: var(--fw-display);
   letter-spacing: var(--ls-display);
-  color: var(--c-white);
+  color: var(--c-ink);
 }
 
-.fcard__sub {
-  max-width: 28em;
+.split__sub {
+  margin-top: var(--s-1);
+  font-size: var(--fs-40);
+  line-height: var(--lh-40);
+  color: var(--c-text-low);
+}
+
+.split__stats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, max-content);
+  justify-content: start;
+  grid-column-gap: var(--s-5);
+  column-gap: var(--s-5);
+  margin-top: var(--s-4);
+}
+
+.split__stats li {
+  display: grid;
+  align-content: start;
+}
+
+.split__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-75);
+  line-height: var(--lh-75);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
+  color: var(--c-ink);
+  white-space: nowrap;
+}
+
+.split__unit {
+  margin-left: var(--s-half);
   font-size: var(--fs-50);
   line-height: var(--lh-50);
-  color: var(--c-white);
 }
 
-.fcard__ctas {
+.split__label {
+  font-size: var(--fs-40);
+  line-height: var(--lh-40);
+  color: var(--c-text-low);
+}
+
+.split__ctas {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: max-content;
+  justify-content: start;
   grid-column-gap: var(--s-1);
   column-gap: var(--s-1);
-  margin-top: var(--s-3);
+  margin-top: var(--s-4);
 }
 
-.fcard .btn {
+.split .btn {
   min-width: 160px;
 }
 
-/* Arrows sit over media only: the previous one over the active card's left edge (its copy is at the bottom),
-   the next one over the peeking card. Hover screens of 900px and up, hidden at either end. */
-.fcards__arrow {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  margin-top: -20px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.75);
-  color: var(--c-ink);
-  transition:
-    opacity var(--dur-ui),
-    background-color var(--dur-ui);
+/* The media fill the right 60%, full height, clipped by the card's radius. */
+.split__media {
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
 }
 
-.fcards__arrow:hover {
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.fcards__arrow:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.fcards__arrow--prev {
-  left: calc(var(--track-pad) + var(--s-2));
-}
-
-.fcards__arrow--next {
-  right: var(--gutter);
-}
-
-@media (max-width: 899px), (hover: none) {
-  .fcards__arrow {
-    display: none;
-  }
-}
-
-.fcards__dots {
+.srow__dots {
   display: flex;
   justify-content: center;
   margin-top: var(--s-3);
 }
 
 /* 12px, 8px apart; the tap area reaches 24×40 without changing the dot. */
-.fcards__dot {
+.srow__dot {
   position: relative;
   width: 12px;
   height: 12px;
@@ -146,7 +129,7 @@
   opacity: 0.5;
 }
 
-.fcards__dot::after {
+.srow__dot::after {
   content: '';
   position: absolute;
   top: -14px;
@@ -155,52 +138,125 @@
   right: -6px;
 }
 
-.fcards__dot[aria-current='true'] {
+.srow__dot[aria-current='true'] {
   opacity: 1;
 }
 
-.fcards__dot:focus-visible {
+.srow__dot:focus-visible {
   outline: 2px solid var(--c-blue);
   outline-offset: 3px;
 }
 
 @media (max-width: 1199px) {
-  .fcard__sub {
-    font-size: var(--fs-40);
-    line-height: var(--lh-40);
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 440px;
+  }
+
+  .split__copy {
+    padding: var(--s-5);
+  }
+
+  .split__title {
+    font-size: var(--fs-75);
+    line-height: var(--lh-75);
+  }
+
+  .split__stats {
+    grid-column-gap: var(--s-4);
+    column-gap: var(--s-4);
+  }
+
+  .split__value {
+    font-size: var(--fs-70);
+    line-height: var(--lh-70);
+  }
+
+  .split__ctas {
+    grid-auto-columns: minmax(0, max-content);
+  }
+
+  .split .btn {
+    min-width: 0;
+  }
+}
+
+/* Tablets and phones: the card stacks, media on top at 16:9, copy below. */
+@media (max-width: 899px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    min-height: 0;
+  }
+
+  .split__copy {
+    justify-content: flex-start;
+  }
+
+  .split__media {
+    order: -1;
+    min-height: 0;
+  }
+
+  /* 16:9 box without aspect-ratio (Chromium 79) */
+  .split__media::before {
+    content: '';
+    display: block;
+    padding-top: 56.25%;
   }
 }
 
 @media (max-width: 599px) {
-  .fcards {
+  .split-section {
     padding: var(--s-3) 0;
   }
 
-  .fcards__wrap {
+  .srow {
     --card-w: calc(100vw - var(--gutter) - 48px);
   }
 
-  .fcards__track {
+  .srow__track {
     grid-column-gap: var(--s-1);
     column-gap: var(--s-1);
   }
 
-  .fcard {
-    height: 480px;
-    min-height: 0;
+  .split__copy {
+    padding: var(--s-3) var(--s-3) var(--s-4);
   }
 
-  .fcard__copy {
-    left: var(--s-3);
-    right: var(--s-3);
-    bottom: var(--s-3);
+  .split__title {
+    font-size: var(--fs-70);
+    line-height: var(--lh-70);
   }
 
-  .fcard__ctas {
+  .split__stats {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    grid-auto-columns: auto;
+    grid-column-gap: var(--s-2);
+    column-gap: var(--s-2);
+    grid-row-gap: var(--s-2);
+    row-gap: var(--s-2);
+    margin-top: var(--s-3);
+  }
+
+  .split__value {
+    font-size: var(--fs-60);
+    line-height: var(--lh-60);
+  }
+
+  .split__unit {
+    font-size: var(--fs-40);
+    line-height: var(--lh-40);
+  }
+
+  .split__label {
+    font-size: var(--fs-30);
+    line-height: var(--lh-30);
+  }
+
+  .split__ctas {
     grid-auto-columns: minmax(0, 1fr);
-  }
-
-  .fcard .btn {
-    min-width: 0;
+    margin-top: var(--s-3);
   }
 }

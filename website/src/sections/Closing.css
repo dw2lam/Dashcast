@@ -1,102 +1,93 @@
-/* The close: tesla.com home's grey tile pair (measured at 1800px: #f4f4f4 tiles, 8px radius, 24px apart; copy
-   padded 32/24/32/48 with a 34/44 title, a 20/28 grey subtitle and white 40px buttons 16px lower; the image in
-   the tile's right column, full height), then the footer on white. */
+/* The finale (tesla.com's model-page ending, /modely measured at 1800×876: a full-viewport photo on black, the
+   64/64 title ~100px down it, the CTA 24px under): exactly one screen under the nav, so the Download link shows
+   all of it; the footer sits on the same photo behind a hairline. */
 .closing {
-  background: var(--c-white);
-}
-
-.closing__download {
-  padding: var(--section-pad) 0 var(--head-gap);
-}
-
-.closing__tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-column-gap: var(--s-3);
-  column-gap: var(--s-3);
-}
-
-.ctile {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 440px;
-  border-radius: var(--radius-media);
-  background: var(--c-grey-70);
+  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100svh - var(--nav-h));
   overflow: hidden;
+  background: var(--c-black);
+  color: var(--c-white);
 }
 
-.ctile__copy {
-  padding: var(--s-4) var(--s-4) 0 var(--s-6);
+.closing__scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.36) 38%, rgba(0, 0, 0, 0) 58%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
 }
 
-.ctile__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-75);
-  line-height: var(--lh-75);
-  font-weight: var(--fw-display);
-  letter-spacing: var(--ls-display);
-  color: var(--c-ink);
+.closing__download {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--photo-title-top) var(--gutter) var(--s-8);
+  text-align: center;
 }
 
-.ctile__sub {
-  max-width: 26em;
-  font-size: var(--fs-50);
-  line-height: var(--lh-50);
-  color: var(--c-text-low);
+.closing__icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--s-2);
 }
 
-.ctile__ctas {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: max-content;
-  grid-column-gap: var(--s-1);
-  column-gap: var(--s-1);
-  margin-top: var(--s-2);
+.closing__sub {
+  margin-top: var(--s-half);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.ctile .btn {
-  min-width: 180px;
+.closing__ctas {
+  margin-top: var(--s-3);
 }
 
-.ctile__meta {
+.closing__meta {
   margin-top: var(--s-2);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
-  color: var(--c-text-low);
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
-/* The image takes whatever height the copy leaves: the icon floats at the bottom right, the photo bleeds off
-   the tile's bottom and sides. */
-.ctile__media {
-  position: relative;
-  flex: 1 0 180px;
+/* Donate: a quiet third action, a text link with Tesla's underline, not a third button. */
+.closing__donate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--s-1);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  font-weight: var(--fw-medium);
+  color: var(--c-white);
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+  text-underline-offset: 3px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  transition: text-decoration-color var(--dur-ui);
 }
 
-.ctile__media--icon {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: var(--s-3) var(--s-6) var(--s-5);
+.closing__donate:hover {
+  text-decoration-color: var(--c-white);
 }
 
-.ctile__media--icon img {
-  display: block;
-  width: 160px;
-  height: auto;
-}
-
-.ctile__media--photo {
-  margin-top: var(--s-4);
-}
-
-/* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern), on white ---- */
+/* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern), on the photo ---- */
 .foot {
+  position: relative;
+  z-index: 1;
   width: calc(100% - var(--gutter) * 2);
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--s-2) 0 calc(var(--s-4) + env(safe-area-inset-bottom, 0px));
-  border-top: var(--hairline);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .foot__row {
@@ -111,7 +102,7 @@
   align-items: center;
   min-height: 40px;
   min-width: 0;
-  color: var(--c-ink);
+  color: var(--c-white);
 }
 
 .foot__icon {
@@ -133,7 +124,7 @@
   margin-left: var(--s-2);
   font-size: var(--fs-30);
   line-height: var(--lh-30);
-  color: var(--c-text-low);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .foot__links {
@@ -151,98 +142,56 @@
   font-size: var(--fs-30);
   line-height: var(--lh-30);
   font-weight: var(--fw-medium);
-  color: var(--c-text);
+  color: rgba(255, 255, 255, 0.74);
   transition:
     color var(--dur-ui),
     background-color var(--dur-ui);
 }
 
 .foot__links a:hover {
-  color: var(--c-ink);
-  background-color: var(--c-hover);
+  color: var(--c-white);
+  background-color: var(--c-hover-dark);
 }
 
 .foot__legal {
   margin-top: var(--s-half);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
-  color: var(--c-text-low);
-}
-
-@media (max-width: 1199px) {
-  .ctile__copy {
-    padding: var(--s-4) var(--s-4) 0;
-  }
-
-  .ctile__ctas {
-    grid-auto-columns: minmax(0, 1fr);
-  }
-
-  .ctile .btn {
-    min-width: 0;
-    padding: var(--s-half) var(--s-2);
-  }
-
-  .ctile__media--icon {
-    padding: var(--s-3) var(--s-4) var(--s-4);
-  }
-
-  .ctile__media--icon img {
-    width: 128px;
-  }
+  color: rgba(255, 255, 255, 0.5);
 }
 
 @media (max-width: 599px) {
-  .closing__tiles {
-    grid-template-columns: minmax(0, 1fr);
-    grid-row-gap: var(--s-2);
-    row-gap: var(--s-2);
+  /* The copy reaches further down the photo on a phone; the top scrim follows it. */
+  .closing__scrim {
+    background:
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.74), rgba(0, 0, 0, 0.52) 52%, rgba(0, 0, 0, 0) 78%),
+      linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
   }
 
-  .ctile {
-    min-height: 0;
+  .closing__download {
+    padding: var(--s-5) var(--gutter) var(--s-4);
   }
 
-  .ctile__copy {
-    padding: var(--s-3) var(--s-3) 0;
+  .closing__icon {
+    width: 56px;
+    height: 56px;
+    margin-bottom: var(--s-2);
   }
 
-  .ctile__media {
-    flex-basis: 160px;
+  /* One line on any phone: the 48/56 hero size would break "Dashcast for Mac" in two. */
+  .closing .closing__title {
+    font-size: var(--fs-80);
+    line-height: var(--lh-80);
+    white-space: nowrap;
   }
 
-  .ctile__title {
-    font-size: var(--fs-70);
-    line-height: var(--lh-70);
+  .closing__ctas {
+    width: 100%;
+    margin-top: var(--s-2);
   }
 
-  .ctile__sub {
-    font-size: var(--fs-40);
-    line-height: var(--lh-40);
-  }
-
-  .ctile__ctas {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    grid-row-gap: var(--s-1);
-    row-gap: var(--s-1);
-  }
-
-  .ctile .btn {
-    min-width: 0;
-  }
-
-  .ctile__media--icon {
-    flex: 0 0 auto;
-    padding: var(--s-3);
-  }
-
-  .ctile__media--icon img {
-    width: 96px;
-  }
-
-  .ctile__media--photo {
-    margin-top: var(--s-3);
+  .closing__meta {
+    margin-top: var(--s-1);
   }
 
   .foot__brand {

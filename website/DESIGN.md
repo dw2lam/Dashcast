@@ -131,7 +131,7 @@ Every section is one of these. Numbers are Tesla's at 1800px unless noted; the r
 | # | Section | Template | Surface | Notes |
 |---|---|---|---|---|
 | 1 | Hero | Hero | full-bleed | **kept** (David likes it); its load stagger and scroll-out fade stay as they were |
-| 2 | Highlights `#features` | Card carousel | white | Extend (photo) · Sound (`SoundVisual`) · MCU (`McuVisual`); blue "Try the demo" + white "Learn more"; arrows over media, Tesla dots |
+| 2 | Highlights `#features` | Split card (FSD), as a row | white | round 9: #f4f4f4 cards across the content column (1200 max, 508 tall), copy 40% (40/48 title, 17/24 grey subtitle, 34/44 stats 40px apart over 17/24 labels, a dark "Try the demo" + white secondary), media filling the right 60%; the next card peeks; Tesla dots, no arrows (the peek shows copy, not media) |
 | 3 | Demo `#demo` | Media + content row | white | `DemoStage` in the #f4f4f4 block; Display and Car computer as Segmented; 60 fps · 48 kHz stats |
 | 4 | The Mac app `#app` | Media + content row | white | the pair's second half: same block, same 16:10 stage; chapter tabs + Light/Dark; chapters advance every 7s until one is picked; 1 window · 3 steps |
 | 5 | Touch is the mouse | Info-card grid | white | left heading; five #f4f4f4 tiles with the wallpaper-blue screens |
@@ -141,7 +141,7 @@ Every section is one of these. Numbers are Tesla's at 1800px unless noted; the r
 | 9 | Under the hood | Specs table | black | **kept** |
 | 10 | Compare | /compare | white | kept: it already follows /compare |
 | 11 | FAQ | Support accordion | white | kept (coordinator's spec) |
-| 12 | Download `#download` | Grey tile pair | white | "Dashcast for Mac" (Download / GitHub, the app icon) · "Support Dashcast" (Donate, the Supercharger photo bleeding off the bottom), then the footer on white |
+| 12 | Download `#download` | Model-page finale (/modely "Model Y · Design Yours") | full-bleed | round 9: exactly one screen under the nav on the Supercharger-at-night photo (phone crop on portrait screens); the icon, a 64/64 title (40/48 on one line on phones), one line, blue Download + white GitHub, a quiet meta line and a Donate text link; the footer on the same photo behind a hairline |
 
 The demo and the Mac app are a matched pair: back to back, the same #f4f4f4 block (`--mrow-h`: the 16:10 stage plus padding, capped at 600px), the same row under it; the second one drops its top padding so the two read as one set.
 
@@ -160,7 +160,7 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
   - No text selection while dragging, and the click that ends a drag is swallowed.
 - **Touch:** native, with CSS `scroll-snap-type: x mandatory` on coarse pointers, so the browser's flick velocity picks the card.
 - **Keyboard:** the focusable track handles ←/→ (one card), Home and End.
-- **Buttons and ARIA:** 40×40 arrows (`.fcards__arrow`, white at 75%) carry `aria-controls`, sit over media only and hide at the ends; hover screens of 900px and up. The dots (`.fcards__dot`) are Tesla's 12px, 8px apart, with a 24×40 tap area from `::after` (neighbouring areas overlap by 4px). Each wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of N". Links and buttons inside cards are never turned into drags.
+- **Buttons and ARIA:** no arrows (the peeking card shows its copy, and Tesla keeps arrows over media). The dots (`.srow__dot`) are Tesla's 12px, 8px apart, `#171a20` at 50% when inactive, with a 24×40 tap area from `::after` (neighbouring areas overlap by 4px). Each wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of N". Links and buttons inside cards are never turned into drags.
 
 ## In-page navigation (`lib/navigate.ts`)
 - **Interception:** every same-page `#anchor` click goes through `goTo(id)`: nav links, the Menu sheet (after it closes), the hero CTAs and in-copy links.
@@ -172,8 +172,8 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
 - **Nav pill:** it holds on the destination for the whole jump rather than sweeping past other links.
 
 ## Closing and footer
-- **Download** (the grey tile pair): "Dashcast for Mac" with the release .dmg (or GitHub as the fallback) and GitHub as white buttons, the version and size, and the app icon at the tile's bottom right; "Support Dashcast" with Donate and the Supercharger photo bleeding off the bottom.
-- **Footer:** OpenHue/NotchTune pattern on white behind a hairline. One row: icon, wordmark and tagline on the left; GitHub · Donate · David Lam on the right. Beneath it, one legal line.
+- **Download** (the finale): full-viewport photo, the app icon, "Dashcast for Mac", one line, blue "Download for Mac" (the release .dmg via `useLatestRelease`, GitHub while it loads) and white "View on GitHub", then "macOS 15 or later · Apple silicon · v0.0.1 · 24.4 MB" and "Donate to support Dashcast" as an underlined text link. The section is `100svh − nav`, so the Download link always shows all of it, footer included.
+- **Footer:** OpenHue/NotchTune pattern on the same photo behind a 18% white hairline. One row: icon, wordmark and tagline on the left; GitHub · Donate · David Lam on the right. Beneath it, one legal line.
 
 ## Layout
 - **Breakpoints (TDS):**
@@ -194,7 +194,7 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
 - **Exceptions, on purpose:**
   - The card carousel keeps Tesla's home-page module rhythm: 48px (24 on phones), with no visible heading.
   - The demo and the Mac app use the media + content row: media first, the row 40px under it (32 on phones), stats on the right; `#app` has no top padding so the pair reads as one set.
-  - The download tiles end 48px above the footer.
+  - The finale is exactly one screen under the nav, like Tesla's model-page endings.
 - **Photo sections:** the title sits `--photo-title-top` below the photo's top edge: 64px, or 48 on phones ("Explore Model Y"). The hero's content starts 48px under the header.
 - **Chromium 79 floor:** people may open the site in the car, where the MCU2 browser is Chromium 79.
   - Use grid `gap` for gapped layouts, never flex `gap`.
@@ -211,10 +211,10 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
 - **No scroll reveals, no parallax, nothing scrubbed.** `revealWithin` is a no-op kept for old callers; `data-reveal` attributes are gone from the site lead's sections.
 - **Load:** the header fades in over 1s (Tesla's `tds--fade-in`). The hero keeps its own load stagger and scroll-out fade (kept section).
 - **Media only:** the demo loop, `SoundVisual`/`McuVisual`, the gesture tiles (only while on screen), the Mac app's chapters (7s each, windows glide .9s with Tesla's curves, captures crossfade), the office steps (4.8s each; each step animates only what it adds). Anything that advances by itself stops as soon as someone picks a tab or step, and only runs while its section is on screen.
-- **Carousels:** native scroll; arrows and dots glide with `--ease-mktg`; the dot state switches instantly, like Tesla's.
+- **Carousels:** native scroll; dots glide the track with `--ease-mktg`; the dot state switches instantly, like Tesla's.
 - **Reduced motion:** no loops or autoplay, instant state changes, CSS durations collapse to 0.01s, the header doesn't fade.
 
 ## Reserved global class names (site lead)
 The site's CSS is global. The other agents should prefix their classes; the demo agent's `.seg` already collided once.
 
-`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.fcard*`, `.fcards*`, `.mrow*`, `.ui-seg*`, `.ctile*`, `.app-row*`, `.demo-row*`, `.sc*`, `.snap-track`, `.touch*`, `.tile*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
+`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.srow*`, `.mrow*`, `.ui-seg*`, `.ctile*`, `.app-row*`, `.demo-row*`, `.sc*`, `.snap-track`, `.touch*`, `.tile*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
