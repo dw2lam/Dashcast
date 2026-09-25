@@ -45,6 +45,8 @@ enum IPv4 {
 
     /// iPhone Personal Hotspot hands out 172.20.10.0/28 (Wi-Fi and USB alike).
     static func isIPhoneHotspot(_ string: String) -> Bool { contains(string, network: "172.20.10.0", prefix: 24) }
+    /// Android's long-standing hotspot gateway (newer versions randomise the subnet, hence the DHCP check too).
+    static func isAndroidHotspotGateway(_ string: String?) -> Bool { string == "192.168.43.1" }
 
     /// An address a LAN peer could plausibly reach.
     static func isUsable(_ string: String) -> Bool {
@@ -80,11 +82,14 @@ struct InterfaceSnapshot: Equatable, Sendable {
     /// Hardware kinds by BSD name (SCNetworkInterfaceCopyAll).
     var kinds: [String: InterfaceKind]
     var displayNames: [String: String]
+    /// The primary interface's DHCP lease carries Android's "ANDROID_METERED" vendor option (43),
+    /// which Android sets when it shares mobile data as a hotspot.
+    var androidMetered: Bool
 
     init(addresses: [InterfaceAddress], primaryInterface: String? = nil, gateway: String? = nil,
-         kinds: [String: InterfaceKind] = [:], displayNames: [String: String] = [:]) {
+         kinds: [String: InterfaceKind] = [:], displayNames: [String: String] = [:], androidMetered: Bool = false) {
         self.addresses = addresses; self.primaryInterface = primaryInterface; self.gateway = gateway
-        self.kinds = kinds; self.displayNames = displayNames
+        self.kinds = kinds; self.displayNames = displayNames; self.androidMetered = androidMetered
     }
 }
 
@@ -168,6 +173,17 @@ enum TopologyClassifier {
                                   detail: "\(how) (\(lan.name), \(lan.address)): the car can't reach the Mac this way.")
         }
 
+        // Joined an Android phone's hotspot: it looks like any LAN, but the phone is the gateway and
+        // can't be given a route to the Mac, so it is the phone-hotspot case, not B.
+        if lan.name == snapshot.primaryInterface,
+           snapshot.androidMetered || IPv4.isAndroidHotspotGateway(gateway) {
+            let how = kind(of: lan, in: snapshot) == .wifi ? "Android hotspot over Wi-Fi" : "Android tethering"
+            return TopologyResult(topology: .phoneHotspot, interfaceName: lan.name, macLANAddress: lan.address,
+                                  uplinkInterface: lan.name, uplinkDescription: nil, gateway: gateway,
+                                  aliasActive: aliasActive,
+                                  detail: "\(how) (\(lan.name), \(lan.address)): the car can't reach the Mac this way.")
+        }
+
         // B — travel router / any other LAN.
         var detail = "Router/LAN via \(describe(lan, in: snapshot))"
         if let gateway { detail += ", gateway \(gateway)" }
@@ -232,7 +248,20 @@ enum InterfaceScanner {
         var snapshot = InterfaceSnapshot(addresses: ipv4Addresses())
         (snapshot.primaryInterface, snapshot.gateway) = primaryInterfaceAndGateway()
         (snapshot.kinds, snapshot.displayNames) = hardwareKinds()
+        snapshot.androidMetered = primaryLeaseIsAndroidMetered()
         return snapshot
+    }
+
+    /// DHCP option 43 on the primary service's lease. Android's tethering DHCP server sends the
+    /// ASCII string "ANDROID_METERED" there when the hotspot shares mobile data.
+    static func primaryLeaseIsAndroidMetered() -> Bool {
+        guard let store = SCDynamicStoreCreate(nil, "online.davidlam.dashcast" as CFString, nil, nil),
+              let global = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
+              let service = global["PrimaryService"] as? String,
+              let dhcp = SCDynamicStoreCopyValue(store, "State:/Network/Service/\(service)/DHCP" as CFString) as? [String: Any],
+              let data = dhcp["Option_43"] as? Data
+        else { return false }
+        return data.range(of: Data("ANDROID_METERED".utf8)) != nil
     }
 
     static func ipv4Addresses() -> [InterfaceAddress] {

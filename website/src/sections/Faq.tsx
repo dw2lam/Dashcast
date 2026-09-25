@@ -18,8 +18,8 @@ const FAQS: { q: string; a: string }[] = [
     a: `The Tesla browser blocks private addresses (192.168.x, 10.x, 172.16–31.x). Dashcast serves from ${CAR_ADDRESS} instead.`,
   },
   {
-    q: 'Can my iPhone’s hotspot connect both?',
-    a: 'No. Since iOS 18, devices on a hotspot can’t reach each other. Use Mac as Hotspot (recommended) or a travel router.',
+    q: 'Can my phone’s hotspot connect both, iPhone or Android?',
+    a: 'No, on either. The car sends everything to the phone, which can’t pass it on to your Mac, and the Tesla browser blocks the private addresses phones hand out. Use Mac as Hotspot (recommended) or a travel router. Your phone can still supply the internet: an iPhone over USB, an Android phone over Bluetooth tethering, or either one feeding the travel router.',
   },
   { q: 'Does sound play through the car?', a: 'Yes. The first tap turns it on, and Cinema mode keeps lips in sync.' },
   {

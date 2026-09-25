@@ -159,7 +159,7 @@ extension Topology {
         switch self {
         case .macHotspot: "Your Tesla joins this Mac’s Wi‑Fi. Nothing else needed."
         case .router: "This Mac and your Tesla share a travel router."
-        case .phoneHotspot: "This Mac is on an iPhone hotspot, which can’t reach the car."
+        case .phoneHotspot: "This Mac is on a phone’s hotspot, which can’t reach the car."
         case .offline: "Turn on Internet Sharing so your Tesla can join this Mac."
         }
     }
@@ -264,7 +264,7 @@ struct ReadinessItem: Identifiable, Equatable {
                                actionTitle: "Turn On…", action: .openInternetSharing))
         case .phoneHotspot:
             items.append(.init(id: "phone", symbol: "iphone.radiowaves.left.and.right", tint: .orange,
-                               title: "An iPhone hotspot can’t reach your Tesla",
+                               title: "A phone hotspot can’t reach your Tesla",
                                actionTitle: "Turn On…", action: .openInternetSharing))
         case .macHotspot, .router:
             break

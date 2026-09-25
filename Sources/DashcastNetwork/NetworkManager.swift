@@ -339,7 +339,7 @@ public final class NetworkManager: NetworkManaging {
         case .router:
             return "Travel router (B): the Mac and the car share a router. The router needs a static route \(address)/32 via the Mac's LAN address, so use Router Setup to apply it over SSH, and reserve the Mac's DHCP lease in the GL.iNet admin page so the address stays put."
         case .phoneHotspot:
-            return "A phone hotspot can't work: iOS isolates hotspot clients from each other, and the car's gateway would be the phone, which has no route to \(address). Use A: plug the iPhone into the Mac by USB, turn on Internet Sharing (share iPhone USB over Wi-Fi) and join the car to the Mac's network. Or use B: a travel router with a static route to the Mac. \(sideDisplayNote)"
+            return "A phone hotspot can't work, iPhone or Android: the car's gateway would be the phone, which has no route to \(address), and the addresses a phone hands out are private, which the Tesla browser blocks (iOS also isolates hotspot clients from each other). Use A: give the Mac the phone's internet over USB (iPhone) or Bluetooth (Android), turn on Internet Sharing over Wi-Fi and join the car to the Mac's network. Or use B: a travel router with a static route to the Mac, fed by the phone. \(sideDisplayNote)"
         case .offline:
             return "No network. Either turn on Internet Sharing so the Mac becomes the car's hotspot (A), or join the Mac and the car to the same travel router (B). \(sideDisplayNote)"
         }

@@ -22,7 +22,7 @@ enum ConnectionMethod: String, CaseIterable, Identifiable {
         switch self {
         case .macHotspot: "Mac as Hotspot"
         case .travelRouter: "Travel Router"
-        case .phoneHotspot: "iPhone Hotspot for Both"
+        case .phoneHotspot: "Phone Hotspot for Both"
         }
     }
 
@@ -46,7 +46,7 @@ enum ConnectionMethod: String, CaseIterable, Identifiable {
         switch self {
         case .macHotspot: "No extra hardware and the lowest latency: just one Wi‑Fi hop."
         case .travelRouter: "The most reliable. Best for long sessions, or when the Mac stays on other Wi‑Fi."
-        case .phoneHotspot: "Both on your iPhone’s hotspot. This can’t work."
+        case .phoneHotspot: "Both on an iPhone or Android hotspot. This can’t work."
         }
     }
 
@@ -300,9 +300,10 @@ private struct MethodSteps: View {
             StepList(steps: routerSteps, showRouterSetup: showRouterSetup)
         case .phoneHotspot:
             VStack(alignment: .leading, spacing: 8) {
-                Text("An iPhone keeps the devices on its hotspot from talking to each other, and the Tesla browser blocks private network addresses. So the car can never reach your Mac this way.")
+                Text("On any phone’s hotspot, iPhone or Android, the car sends everything to the phone, which can’t pass it on to your Mac, and the Tesla browser blocks the private addresses a phone hands out. iPhones also keep hotspot devices from talking to each other.")
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Use **Mac as Hotspot** or a **Travel Router** instead.")
+                Text("Use **Mac as Hotspot** or a **Travel Router** instead. Your phone can still supply the internet: an iPhone over USB, an Android phone over Bluetooth tethering, or either one feeding the travel router.")
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.callout)
         }
@@ -314,7 +315,7 @@ private struct MethodSteps: View {
         let network = model.state.network
         let connected = model.state.car != nil
         return [
-            Step(id: 1, text: "Plug your iPhone into the Mac with a USB cable and turn on **Personal Hotspot**. This only gives the Mac internet; Dashcast itself works offline.",
+            Step(id: 1, text: "Plug your iPhone into the Mac with a USB cable and turn on **Personal Hotspot**, or share an Android phone’s internet over Bluetooth tethering. This only gives the Mac internet; Dashcast itself works offline.",
                  optional: true),
             Step(id: 2, text: "Open **System Settings → General → Sharing** and click ⓘ next to **Internet Sharing**. Share from **iPhone USB** to **Wi‑Fi**. In **Wi‑Fi Options**, set a name (like “Dashcast”), a 5 GHz channel (36 or 149) and a password, then turn Internet Sharing on.",
                  done: network.topology == .macHotspot, action: .openSharing),

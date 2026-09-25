@@ -103,6 +103,34 @@ final class TopologyTests: XCTestCase {
         XCTAssertTrue(result.detail.hasPrefix("iPhone hotspot over Wi-Fi"), result.detail)
     }
 
+    // Joined an Android hotspot: the lease carries ANDROID_METERED (newer Android randomises the subnet).
+    func testAndroidHotspotByDHCPVendorOption() {
+        let snapshot = InterfaceSnapshot(
+            addresses: [lo, InterfaceAddress(name: "en0", address: "192.168.212.57", netmask: "255.255.255.0")],
+            primaryInterface: "en0", gateway: "192.168.212.200", kinds: ["en0": .wifi], androidMetered: true)
+        let result = TopologyClassifier.classify(snapshot)
+        XCTAssertEqual(result.topology, .phoneHotspot)
+        XCTAssertEqual(result.macLANAddress, "192.168.212.57")
+        XCTAssertTrue(result.detail.hasPrefix("Android hotspot over Wi-Fi"), result.detail)
+    }
+
+    // Older Android hotspots always use 192.168.43.1 as the gateway.
+    func testAndroidHotspotByClassicGateway() {
+        let snapshot = InterfaceSnapshot(
+            addresses: [lo, InterfaceAddress(name: "en0", address: "192.168.43.20", netmask: "255.255.255.0")],
+            primaryInterface: "en0", gateway: "192.168.43.1", kinds: ["en0": .wifi])
+        XCTAssertEqual(TopologyClassifier.classify(snapshot).topology, .phoneHotspot)
+    }
+
+    // A GL.iNet travel router is still B, and Android metering on a non-primary port doesn't count.
+    func testTravelRouterIsNotMistakenForAndroid() {
+        let router = InterfaceSnapshot(
+            addresses: [lo, InterfaceAddress(name: "en0", address: "192.168.8.123")],
+            primaryInterface: "en0", gateway: "192.168.8.1", kinds: ["en0": .wifi])
+        XCTAssertEqual(TopologyClassifier.classify(router).topology, .router)
+        XCTAssertFalse(IPv4.isAndroidHotspotGateway("192.168.8.1"))
+    }
+
     // B — travel router: private LAN address on the primary interface. VPNs are ignored.
     func testRouterIgnoresVPNInterfaces() {
         let snapshot = InterfaceSnapshot(
@@ -178,6 +206,7 @@ final class TopologyTests: XCTestCase {
         }
         let phone = NetworkManager.explain(.phoneHotspot)
         XCTAssertTrue(phone.contains("isolates"), phone)
+        XCTAssertTrue(phone.contains("Android"), phone)
         XCTAssertTrue(phone.contains("Internet Sharing"), phone)
         XCTAssertTrue(NetworkManager.explain(.router).contains("\(svc)/32"))
     }

@@ -55,9 +55,9 @@ Dashcast is a native macOS app that turns a Tesla's touchscreen into a wireless 
 
 | Method | | |
 |---|---|---|
-| **Mac as Hotspot** | Recommended | Internet Sharing makes the Mac's own Wi-Fi and the car joins it. One hop, lowest latency. Plug your iPhone into the Mac over USB if you want internet too. |
+| **Mac as Hotspot** | Recommended | Internet Sharing makes the Mac's own Wi-Fi and the car joins it. One hop, lowest latency. Plug your iPhone into the Mac over USB (or share an Android phone's internet over Bluetooth) if you want internet too. |
 | **Travel Router** | Most reliable | For example a GL.iNet router. Dashcast generates the router setup. |
-| **iPhone Hotspot for both** | Not supported | Since iOS 18, hotspot clients can't reach each other. |
+| **Phone hotspot for both** (iPhone or Android) | Not supported | The car sends everything to the phone, which can't pass it on to the Mac, and phone hotspots hand out private addresses the Tesla browser blocks. The phone can still supply internet: an iPhone over USB, an Android phone over Bluetooth tethering, or either one feeding a travel router. |
 
 **In the car:**
 1. Join the Mac's Wi-Fi.
