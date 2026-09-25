@@ -10,7 +10,7 @@
 }
 
 .tech__address {
-  margin-top: var(--s-10);
+  margin-top: var(--head-gap);
   text-align: center;
 }
 
@@ -175,10 +175,6 @@
 }
 
 @media (max-width: 599px) {
-  .tech__address {
-    margin-top: var(--s-8);
-  }
-
   .tech__ip {
     font-size: 15vw;
   }

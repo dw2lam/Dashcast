@@ -1,0 +1,244 @@
+/* Card media visuals (Features): the car's screen straight on, in a dim cabin. Fill the parent. */
+.dm-vis {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0c0c0c;
+  contain: layout paint;
+  isolation: isolate;
+}
+
+/* The cabin behind the screen, far out of focus: the same car as the hero, dimmed. */
+.dm-vis::before {
+  content: '';
+  position: absolute;
+  top: -12%;
+  left: -12%;
+  width: 124%;
+  height: 124%;
+  background: url(/demo/cabin-1600.webp) 50% 42% / cover no-repeat;
+  filter: blur(16px) brightness(0.42) saturate(0.85);
+}
+
+.dm-vis::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(120% 90% at 50% 45%, rgba(12, 12, 12, 0) 40%, rgba(12, 12, 12, 0.7) 100%);
+  pointer-events: none;
+}
+
+.dm-vis > * {
+  z-index: 1;
+}
+
+/* Light the lit panel throws on the dash around it. */
+.dm-vis-glow {
+  position: absolute;
+  left: var(--sx, 0);
+  top: var(--sy, 0);
+  width: var(--sw, 0);
+  height: var(--sh, 0);
+  border-radius: 12px;
+  box-shadow: 0 0 60px 18px rgba(130, 110, 255, 0.18), 0 0 160px 60px rgba(90, 120, 255, 0.08);
+}
+
+/* ---- the straight-on slab: bezel, live panel, glass ---- */
+.dm-slab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1200px;
+  transform-origin: 0 0;
+}
+
+.dm-slab > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.dm-slab-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 40px;
+  background: #050506;
+  box-shadow: 0 0 0 30px #050506, 0 0 0 32px rgba(255, 255, 255, 0.09), 0 60px 110px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* A soft sheen across the glass, brightest top-left, like the cabin light on the real screen. */
+.dm-slab-sheen {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 34%, rgba(255, 255, 255, 0) 52%);
+  pointer-events: none;
+}
+
+/* ---- Sound: the client's overlay style (Web/src/styles.css .panel) ---- */
+.dm-sv-hud {
+  position: absolute;
+  left: calc(var(--sx, 0px) + var(--sw, 0px) * 0.045);
+  top: calc(var(--sy, 0px) + var(--sh, 0px));
+  width: 232px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(18, 20, 24, 0.86);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 16px 40px rgba(0, 0, 0, 0.5);
+  color: #f2f3f5;
+  font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  -webkit-font-smoothing: antialiased;
+  transform: translateY(-58%) scale(0.82);
+  transform-origin: 0 50%;
+  box-sizing: border-box;
+}
+
+.dm-sv-hud-small {
+  top: auto;
+  bottom: 6px;
+  left: 6px;
+  transform: scale(0.6);
+  transform-origin: 0 100%;
+}
+
+.dm-sv-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  color: #8b919c;
+  font: 500 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dm-sv-bars {
+  display: flex;
+  align-items: center;
+  height: 16px;
+  margin-right: 9px;
+}
+
+.dm-sv-bars i {
+  width: 3px;
+  height: 16px;
+  margin-right: 2px;
+  border-radius: 1.5px;
+  background: #3ddc84;
+  transform: scaleY(0.4);
+}
+
+.dm-sv-hud dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-column-gap: 14px;
+  margin: 0;
+}
+
+.dm-sv-hud dt {
+  color: #8b919c;
+}
+
+.dm-sv-hud dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dm-sv-hud .dm-sv-good {
+  color: #3ddc84;
+}
+
+.dm-sv-seg {
+  display: flex;
+  margin-top: 10px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dm-sv-seg span {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 7px;
+  color: #8b919c;
+  text-align: center;
+  font: 500 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.dm-sv-seg .dm-on {
+  background: #f2f3f5;
+  color: #0b0c0f;
+}
+
+/* ---- MCU: two close-up strips of the same screen ---- */
+.dm-mcu-strip {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #050506;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 24px 50px rgba(0, 0, 0, 0.45);
+}
+
+.dm-mcu-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1200px;
+  transform-origin: 0 0;
+}
+
+/* MCU2's frame is 1242×736 against the panel's 1920 px: upscaled, a touch soft. */
+.dm-mcu-2 .dm-mac {
+  filter: blur(0.42px);
+}
+
+/* The glass: the same sheen as the slab. */
+.dm-mcu-strip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 45%);
+  pointer-events: none;
+}
+
+.dm-mcu-label {
+  position: absolute;
+  right: 12px;
+  top: calc(var(--bz, 10px) + (var(--band, 30px) - var(--bz, 10px)) / 2);
+  z-index: 1;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(18, 20, 24, 0.86);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #d9dce1;
+  font: 12px/1.2 var(--font-text, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif);
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.dm-mcu-label b {
+  color: #fff;
+  font-weight: 600;
+}
+
+.dm-mcu-small .dm-mcu-label {
+  top: auto;
+  right: auto;
+  left: 6px;
+  bottom: 6px;
+  padding: 3px 8px;
+  font-size: 10px;
+  transform: none;
+}

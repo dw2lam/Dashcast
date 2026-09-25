@@ -12,6 +12,7 @@ type Method = {
   title: string;
   body: string;
   steps?: string[];
+  alt?: string;
 };
 
 const METHODS: Method[] = [
@@ -39,11 +40,12 @@ const METHODS: Method[] = [
   },
   {
     id: 'phone',
-    tab: 'iPhone Hotspot',
+    tab: 'Phone Hotspot',
     kicker: 'Not supported',
     kickerTone: 'negative',
-    title: 'iPhone Hotspot for both',
-    body: 'Since iOS 18, devices on an iPhone hotspot can’t reach each other, so the car never finds the Mac.',
+    title: 'Phone hotspot for both',
+    body: 'iPhone or Android: the car sends everything to the phone, which can’t pass it on to your Mac, and the Tesla browser blocks the private addresses phones hand out.',
+    alt: 'Your phone can still supply the internet: an iPhone over USB, an Android phone over Bluetooth tethering, or either one feeding a travel router.',
   },
 ];
 
@@ -147,11 +149,7 @@ export function Connect() {
                 ))}
               </ol>
             )}
-            {!method.steps && (
-              <p className="t-body connect__alt">
-                Use the iPhone for the Mac&rsquo;s internet over USB, and let the Mac be the hotspot.
-              </p>
-            )}
+            {method.alt && <p className="t-body connect__alt">{method.alt}</p>}
           </div>
         </div>
 

@@ -48,10 +48,10 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
 
 | Role | Desktop | Below 1200 | Phone (below 600) | Class |
 |---|---|---|---|---|
-| Hero title | 64/64 | 56/64 | 40/48 | `.t-hero` |
-| Section title | 48/56 | 40/48 | 28/36 | `.t-section` |
+| Hero title | 64/64 | 56/64 | 48/56 | `.t-hero` |
+| Section title | 48/56 | 40/48 | 40/48 (tesla.com keeps 40/48 at 390px) | `.t-section` |
 | Block title | 28/36 | 28/36 | 28/36 | `.t-title` |
-| Subtitle | 20/28 regular | 20/28 regular | 17/24 regular | `.t-sub` |
+| Subtitle | 20/28 regular | 20/28 regular | 20/28 regular | `.t-sub` |
 | Big stat | 64/64 + unit 28/36 + label 20/28 | 56/64 + unit 28/36 + label 20/28 | 34/44 + unit 20/28 + label 14/20 | `.stat` |
 | Body, labels, buttons, nav | 14/20 Text | 14/20 Text | 14/20 Text | `.t-body`, `.t-label` |
 | Footer | 12/20 Text 500 | 12/20 Text 500 | 12/20 Text 500 | — |
@@ -106,10 +106,12 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
   - A #f4f4f4 card with an 8px radius and 48px page margins.
   - Copy on the left (40/48 title, 20/28 grey subtitle, 34/44 stat values with 14/20 labels, a dark button); photo flush right.
   - Below 900px the photo stacks on top.
-- **Card carousel** (`sections/Touch`, `.cards*`, `.card*`, gestures only): "Meet Model Y".
-  - A centred 48/56 header over 430×500 cards (8px radius) on a native `overflow-x: auto` track with scroll-snap. The track is padded to the 1200 content column, so the next card peeks in.
-  - 40×40 prev/next controls on #f4f4f4 sit at the section edges, only on hover-capable screens of 900px and up. Each is hidden at its end.
-  - Cards are dark with animated gesture art (`Gestures.tsx`, `.g-*`). Animation runs only while the section is on screen and never under reduced motion.
+- **Gesture grid** (`sections/Touch`, `.touch*`, `.tile*`; round 7): /modely's "Everything You Want", a small feature set shown whole. Nothing scrolls sideways.
+  - A centred header, then 5 equal dark tiles (8px radius, 16px gaps) in one row at 1200 and up.
+  - From 600 to 1199 the tiles sit 3 + 2 on a six-column grid, and the bottom two share the full width.
+  - Below 600 there are two columns with 8px gaps, and Keyboard, the widest drawing, spans both.
+  - Each tile's art box has a fixed height per breakpoint (168 / 200 / 160 / 124), so every tile in every row is the same height.
+  - The animated gesture art (`Gestures.tsx`, `.g-*`) runs only while the section is on screen (`.is-live`) and never under reduced motion.
 - **Compare** (`sections/Compare`, `.cmp*`): Tesla's /compare pattern.
   - A label column plus "Dashcast" and "Others" columns; 20/28 values with 14/20 notes; a blue check or grey dash.
   - Hairline rows so the six rows scan quickly.
@@ -126,7 +128,7 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
 | 1 | Hero | full-bleed (the demo's cabin composite) | |
 | 2 | Highlights row | white | grey split cards Extend or mirror · Sound through the car · Built for MCU2 and MCU3, ~88% wide with the next peeking, arrows and dots |
 | 3 | Demo | black | |
-| 4 | Touch is the mouse | white feature-card carousel | Tap · Drag · Two fingers · Hold · Keyboard |
+| 4 | Touch is the mouse | white, static gesture grid | Tap · Drag · Two fingers · Hold · Keyboard |
 | 5 | Your office, anywhere | graphite | our own animated line drawing plus three steps |
 | 6 | The Mac app showcase | white | |
 | 7 | Band: "Nothing to install in the car." | full-bleed | MCU interior photo |
@@ -138,7 +140,7 @@ These follow tesla.com today: full-bleed media sections are broken up by white s
 
 There are never more than two white sections in a row. Sound and MCU live in the section-2 highlights row as split cards, next to Extend.
 
-## Carousel input (`hooks/useCarousel.ts`, shared by the highlights row and the gesture carousel)
+## Carousel input (`hooks/useCarousel.ts`, the highlights row)
 The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css). The JS never blocks vertical page scroll or the browser's own gestures.
 - **Trackpad and shift+wheel:** native.
   - Shift+wheel is converted to horizontal scroll only when the OS hasn't already done that.
@@ -149,7 +151,7 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
   - No text selection while dragging, and the click that ends a drag is swallowed.
 - **Touch:** native, with CSS `scroll-snap-type: x mandatory` on coarse pointers, so the browser's flick velocity picks the card.
 - **Keyboard:** the focusable track handles ←/→ (one card), Home and End.
-- **Buttons and ARIA:** prev/next buttons carry `aria-controls` and are disabled at the ends. The highlights row also has 40px dot buttons (`aria-current`). Each wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of N". Links and buttons inside cards are never turned into drags.
+- **Buttons and ARIA:** 40×40 prev/next buttons (`.srow__nav`) carry `aria-controls` and are disabled at the ends. The dots are 12px, like Tesla's, on 24×40 buttons (`aria-current`), which puts 12px between them. Each wrapper has `role="region"` with `aria-roledescription="carousel"`, and each card is a "slide" labelled "n of N". Links and buttons inside cards are never turned into drags.
 
 ## In-page navigation (`lib/navigate.ts`)
 - **Interception:** every same-page `#anchor` click goes through `goTo(id)`: nav links, the Menu sheet (after it closes), the hero CTAs and in-copy links.
@@ -171,13 +173,20 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
   - tablet landscape: 900–1199
   - desktop: 1200–1799
   - large: 1800 and up
-- **Gutter:**
-  - 32px at 1200 and up
-  - 20px from 600 to 1199
-  - 16px below 600
-- **Content width:** max 1200px.
-- **Section padding:** 104px desktop, 80px tablet, 64px phone. That's Tesla's specs table value.
-- **Full-bleed sections:** `100vh` with a `100svh` override and a 600px minimum. The title block starts 96px from the top (80 on tablets, 72 on phones); the hero adds the 56px nav on top of that.
+- **Gutter (`--gutter`, round 7):** Tesla's `--tds-content_container--gutter`.
+  - 48px at 1200 and up
+  - 36px from 600 to 1199
+  - 24px below 600
+- **Content width:** max 1200px. Tesla's text column at 1600 is 1250, one grid column in from its 48px gutters.
+- **Section rhythm (round 7, one rule for every white or dark section):**
+  - `--section-pad` is 104px at 900 and up and 72px below. That's Tesla's specs section on desktop and its model-page sections under 900. Adjacent sections get 208px or 144px of air.
+  - Title → subtitle is 4px (`.section-head .t-sub`).
+  - `--head-gap`, the space from the heading block to the content, is 48px at every width. That's "Meet Model Y" at 1600, 820 and 390.
+- **Exceptions, on purpose:**
+  - The highlights row keeps Tesla's home-page module rhythm: 48px (24 on phones), with no heading.
+  - The Mac app pins 48px below the nav (32 on phones), like Tesla's hero title under the header. Its subtitle → stage gap is 24px (16 on phones), so the stage reads as part of the heading. David asked for "closer".
+  - The demo section's spacing is owned by the demo agent.
+- **Photo sections:** the title sits `--photo-title-top` below the photo's top edge: 64px, or 48 on phones ("Explore Model Y"). The hero's content starts 48px under the header.
 - **Chromium 79 floor:** people may open the site in the car, where the MCU2 browser is Chromium 79.
   - Use grid `gap` for gapped layouts, never flex `gap`.
   - Don't use `inset`, `:is()` or `aspect-ratio`.
@@ -199,4 +208,4 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
 ## Reserved global class names (site lead)
 The site's CSS is global. The other agents should prefix their classes; the demo agent's `.seg` already collided once.
 
-`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.srow*`, `.snap-track`, `.cards*`, `.card*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`
+`.nav*`, `.menu*`, `.wordmark*`, `.mark`, `.hero*`, `.split*`, `.srow*`, `.snap-track`, `.touch*`, `.tile*`, `.g`, `.g-*`, `.o-*`, `.office*`, `.band*`, `.closing*`, `.foot*`, `.cmp*`, `.compare*`, `.faq*`, `.btn*`, `.btn-row`, `.stats`, `.stat*`, `.photo`, `.feature*`, `.highlights`, `.section`, `.section-head`, `.wrap`, `.connect*`, `.tabs*`, `.topo*`, `.kicker*`, `.steps*`, `.incar*`, `.tech*`, `.spec*`, `.mode*`, `.tiers*`, `.download*`, `.footer*`, `.t-*`, `.on-dark`, `.sr-only`

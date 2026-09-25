@@ -20,7 +20,7 @@
 .band__title {
   position: relative;
   z-index: 1;
-  padding: var(--s-10) var(--gutter) 0;
+  padding: var(--photo-title-top) var(--gutter) 0;
   text-align: center;
 }
 
@@ -28,9 +28,5 @@
   .band {
     height: 64vh;
     min-height: 400px;
-  }
-
-  .band__title {
-    padding-top: var(--s-8);
   }
 }

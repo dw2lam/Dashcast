@@ -102,26 +102,6 @@
   min-height: 320px;
 }
 
-/* dark stage for the animated art (sound, MCU) */
-.split__panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--s-5);
-  background: radial-gradient(120% 90% at 50% 20%, #2b3240 0%, #1b1e25 55%, #15171c 100%);
-}
-
-.split__panel svg {
-  width: 100%;
-  max-width: 560px;
-  height: auto;
-}
-
 /* Arrows sit beside the dots, never over a card: the peeking card shows copy, not a photo. */
 .srow__controls {
   display: flex;
@@ -130,18 +110,34 @@
   margin-top: var(--s-2);
 }
 
-.srow .cards__nav {
-  position: static;
+/* tesla.com carousel controls: 40×40 arrows (4px radius), 12px dots. */
+.srow__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   margin: 0 var(--s-1);
-  background: transparent;
+  border-radius: var(--radius);
+  color: var(--c-text);
+  transition:
+    opacity var(--dur-ui),
+    background-color var(--dur-ui);
 }
 
-.srow .cards__nav:hover {
+.srow__nav:hover {
   background: var(--c-grey-70);
 }
 
-.srow .cards__nav:disabled {
+.srow__nav:disabled {
   opacity: 0.3;
+  pointer-events: none;
+}
+
+@media (max-width: 899px), (hover: none) {
+  .srow__nav {
+    display: none;
+  }
 }
 
 .srow__dots {
@@ -149,19 +145,20 @@
   justify-content: center;
 }
 
+/* 24px-wide hit areas give a 12px gap between the dots and still meet the 24px target minimum. */
 .srow__dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
+  width: 24px;
   height: 40px;
   border-radius: var(--radius);
 }
 
 .srow__dot::before {
   content: '';
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--c-grey-50);
   transition: background-color var(--dur-ui);
@@ -273,9 +270,5 @@
 
   .split__ctas .btn {
     width: 100%;
-  }
-
-  .split__panel {
-    padding: var(--s-2);
   }
 }

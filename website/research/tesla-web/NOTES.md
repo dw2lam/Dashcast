@@ -241,3 +241,48 @@ White page, 48px side margins everywhere below the hero.
 - Column header: 28/36 model name, 17/28 grey trim name, 40px CTA.
 - Each property is a block: a 20/28 medium heading spanning the row, then values per column at 24/28 medium ink with a 14/20 grey note. "-" marks "not applicable".
 - 104px between blocks and no hairlines.
+
+## Round 7: spacing audit (re-measured 2026-09-24/25, Claude-in-Chrome, JS only)
+Measured at 1600×879 on /, /modely and /model3. For 1024, 820 and 390 I loaded the same-origin pages in iframes of that width inside the tab and read their layout, so no window resize and no screenshots.
+
+### Section padding
+Model pages set it per section with CSS variables on `.tcl-section-padding`:
+`--tcl-section-padding-{desktop|tablet|mobile}-block-{start|end}`.
+- **Desktop (≥900):** 152px top and bottom on story sections ("Always Connected", "Engineered for Your Safety"…).
+- **Tablet and mobile (<900):** 72px.
+- **"Meet Model Y" (first after the hero):** 72/160 on desktop, 72/104 on tablet, 80/104 on mobile.
+- **Specs:** 104px.
+- **Home page:** a stack of modules 48px apart on desktop (split card, card rows), 24–40px on tablet, 24px on phone.
+
+### Heading block
+- **"Meet Model Y":**
+  - ≥1200: title 48/56 500, then a 28/36 subhead flush below it, then a 20/28 #5c5e62 line 4px lower; the card row starts **48px** under that.
+  - 1024 and 820: title 40/48 with content 48px below.
+  - 390: title 40/48 with content 48px below.
+- **"Everything You Want":** left-aligned 48/56 title with a 20/28 grey paragraph 4px under it; the info-card grid starts 64px lower (40px on a phone).
+  - Cards are 400 wide, with padding 32 top and 48 bottom, a 24px column gap and a 12px row gap.
+- **Phones keep 40/48 section titles and 20/28 subtitles.** Model heroes are 48/56 on phones (56/64 on desktop).
+
+### Gutters and width
+- **`--tds-content_container--gutter`:** 24px below 600, 36px from 600, 48px from 1200.
+- **Text column at 1600:** x=175, width 1249. That's a 12-column grid on the 1504px row, inset one column.
+- **Home cards on a phone:** 12px from the edge, with copy 24px inside the card.
+
+### Photo sections
+- **"Explore Model Y":** a centred title 64px below the photo's top edge (48 at 390).
+- **Home hero:** title 48px under the 56px header.
+- **Home photo cards:** copy sits bottom-left, 40px in.
+
+### Controls
+- **Carousel dots:** 12px; 4px apart on /modely, 8px on the home page; 24px under the cards.
+- **Arrows:** 40×40, radius 4.
+- **Home buttons at 1024:** 164×40 with an 8px gap.
+- **Header:** always 56px.
+
+### What we took
+- `--section-pad` 104 (≥900) / 72 (<900). We use the specs value, not the 152 story padding: 11 sections at 304px of air each would read as empty, and David has asked for tighter.
+- `--head-gap` 48 everywhere.
+- Gutters 48/36/24.
+- Phone titles 40/48 with 20/28 subtitles; phone hero 48/56.
+- Photo titles 64/48.
+- Dots 12px.

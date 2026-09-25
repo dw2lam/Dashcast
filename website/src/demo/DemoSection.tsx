@@ -84,10 +84,14 @@ export function DemoSection() {
     const stage = handle.stage;
     stage.onLayout(() => {
       const q = stage.quad();
-      if (q) setAnchor([(q[2][0] + q[3][0]) / 2, Math.max(q[2][1], q[3][1])]);
+      const el = host.current;
+      if (!q || !el) return;
+      // Under the screen when there's room, else floating just inside its bottom edge.
+      const y = Math.max(q[2][1], q[3][1]);
+      setAnchor([(q[2][0] + q[3][0]) / 2, el.clientHeight - y >= 60 ? y : y - 62]);
     });
     stage.layout();
-  }, [handle]);
+  }, [handle, host]);
 
   useEffect(() => {
     if (!handle) return;

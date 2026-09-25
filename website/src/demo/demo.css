@@ -154,21 +154,22 @@
   z-index: 2147483000;
 }
 
-/* ---- #demo section ---- */
+/* ---- #demo section: one viewport below the sticky nav ---- */
 .dm-demo {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 100vh;
-  min-height: 100svh;
-  padding: var(--section-pad, 96px) 0 var(--s-6, 48px);
+  min-height: calc(100vh - var(--nav-h, 56px));
+  min-height: calc(100svh - var(--nav-h, 56px));
+  padding: var(--s-4, 32px) 0 var(--s-2, 16px);
   background: var(--c-dark-bg, #000);
   color: var(--c-dark-ink, #fff);
   box-sizing: border-box;
 }
 
 .dm-demo-head {
+  flex: none;
   padding: 0 var(--gutter, 24px);
   text-align: center;
 }
@@ -177,47 +178,50 @@
   margin: 0;
   font-family: var(--font-display, system-ui, sans-serif);
   font-weight: var(--fw-display, 500);
-  font-size: var(--type-section, 48px);
-  line-height: var(--type-section-lh, 56px);
+  font-size: var(--fs-80, 40px);
+  line-height: var(--lh-80, 48px);
   letter-spacing: var(--ls-display, 0);
 }
 
 .dm-demo-head p {
-  margin: var(--s-1, 8px) 0 0;
+  margin: var(--s-half, 4px) 0 0;
   font-family: var(--font-text, system-ui, sans-serif);
-  font-size: var(--type-sub, 20px);
-  line-height: var(--type-sub-lh, 28px);
+  font-size: var(--fs-40, 17px);
+  line-height: var(--lh-40, 24px);
   color: var(--c-dark-text, #eee);
 }
 
+/* The stage takes whatever height is left; the photo is framed from that height. */
 .dm-demo-stage {
   position: relative;
+  flex: 1 1 0;
   width: 100%;
-  height: min(56.25vw, 78vh);
-  margin-top: var(--s-5, 40px);
+  min-height: 240px;
+  margin-top: var(--s-2, 16px);
 }
 
 .dm-demo-controls {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-items: flex-end;
+  align-items: center;
   max-width: 1200px;
-  margin-top: var(--s-4, 32px);
+  margin-top: var(--s-2, 16px);
   padding: 0 var(--gutter, 24px);
 }
 
 .dm-seg {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  margin: 0 var(--s-1, 8px) var(--s-2, 16px);
+  margin: 0 var(--s-1, 8px);
 }
 
 .dm-seg-label {
-  margin-bottom: var(--s-1, 8px);
+  margin-right: var(--s-1, 8px);
   font: var(--fs-20, 12px) / var(--lh-20, 20px) var(--font-text, system-ui, sans-serif);
   color: var(--c-dark-low, #8e8e8e);
+  white-space: nowrap;
 }
 
 .dm-seg-track {
@@ -244,21 +248,21 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 84px;
-  height: var(--btn-h, 40px);
+  min-width: 76px;
+  height: 36px;
   padding: 0 var(--s-2, 16px);
   border: 0;
   border-radius: var(--radius, 4px);
   background: none;
   color: var(--c-dark-text, #eee);
-  font: var(--fw-medium, 500) var(--btn-fs, 14px) / 1.15 var(--font-text, system-ui, sans-serif);
+  font: var(--fw-medium, 500) var(--btn-fs, 14px) / 1.1 var(--font-text, system-ui, sans-serif);
   cursor: pointer;
   transition: color var(--dur-ui, 0.33s) ease;
 }
 
 .dm-seg button small {
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: 1px;
+  font-size: 10px;
   font-weight: var(--fw-regular, 400);
   opacity: 0.72;
 }
@@ -275,9 +279,8 @@
 
 .dm-demo-actions {
   display: flex;
-  margin: 0 var(--s-1, 8px) var(--s-2, 16px);
-  height: calc(var(--btn-h, 40px) + 8px);
   align-items: center;
+  margin: 0 var(--s-half, 4px);
 }
 
 .dm-demo-link {
@@ -300,6 +303,7 @@
 }
 
 .dm-demo-note {
+  flex: none;
   max-width: 640px;
   margin: var(--s-1, 8px) 0 0;
   padding: 0 var(--gutter, 24px);
@@ -308,19 +312,60 @@
   color: var(--c-dark-low, #8e8e8e);
 }
 
-@media (max-width: 899px) {
-  .dm-demo-stage {
-    height: min(75vw, 78vh);
+/* Short windows (the car's own 784 px, 720p laptops): a tighter heading block. */
+@media (max-height: 820px) {
+  .dm-demo {
+    padding-top: var(--s-3, 24px);
+  }
+
+  .dm-demo-head h2 {
+    font-size: var(--fs-75, 34px);
+    line-height: var(--lh-75, 44px);
+  }
+
+  .dm-demo-head p {
+    font-size: var(--fs-30, 14px);
+    line-height: var(--lh-30, 20px);
   }
 }
 
 @media (max-width: 599px) {
+  .dm-demo {
+    padding-top: var(--s-3, 24px);
+  }
+
+  .dm-demo-head h2 {
+    font-size: var(--fs-70, 28px);
+    line-height: var(--lh-70, 36px);
+  }
+
+  .dm-demo-head p {
+    font-size: var(--fs-30, 14px);
+    line-height: var(--lh-30, 20px);
+  }
+
   .dm-demo-stage {
-    height: min(125vw, 72vh);
+    min-height: 260px;
+  }
+
+  /* Labels stay for screen readers (the group's aria-label); the tracks pair up two per row. */
+  .dm-seg-label {
+    display: none;
+  }
+
+  .dm-seg {
+    margin: var(--s-half, 4px);
   }
 
   .dm-seg button {
     min-width: 0;
     padding: 0 var(--s-2, 16px);
+  }
+}
+
+@media (max-width: 389px) {
+  .dm-demo-head h2 {
+    font-size: var(--fs-60, 24px);
+    line-height: var(--lh-60, 28px);
   }
 }

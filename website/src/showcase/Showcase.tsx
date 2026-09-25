@@ -79,14 +79,22 @@ export function Showcase() {
 
   const spec = LAYOUTS[layout];
 
-  // Fit the stage into whatever the pinned viewport leaves between the header and the controls.
+  // Fit the stage into whatever the pinned viewport leaves beside the header and the controls. The box is only
+  // as tall as the stage, so the controls follow it directly and any spare height collects below them.
   useLayoutEffect(() => {
     const box = boxRef.current;
-    if (!box) return;
+    const pin = pinRef.current;
+    if (!box || !pin) return;
+    const px = (v: string) => parseFloat(v) || 0;
     const fit = () => {
       const w = box.clientWidth;
-      const h = box.clientHeight;
-      if (!w || !h) return;
+      const pinStyle = getComputedStyle(pin);
+      let h = pin.clientHeight - px(pinStyle.paddingTop) - px(pinStyle.paddingBottom);
+      for (const el of Array.from(pin.children) as HTMLElement[]) {
+        const s = getComputedStyle(el);
+        h -= px(s.marginTop) + px(s.marginBottom) + (el === box ? 0 : el.offsetHeight);
+      }
+      if (!w || h <= 0) return;
       const name: LayoutName = w / h >= 1.05 ? 'wide' : 'tall';
       const l = LAYOUTS[name];
       setLayout(name);
@@ -94,7 +102,8 @@ export function Showcase() {
     };
     fit();
     const ro = new ResizeObserver(fit);
-    ro.observe(box);
+    ro.observe(pin);
+    for (const el of Array.from(pin.children)) ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
@@ -203,7 +212,8 @@ export function Showcase() {
     const pinLength = () => `+=${Math.round(window.innerHeight * CHAPTER_VH * N)}`;
     const ctx = gsap.context(() => {
       const rise = { trigger: root, start: 'top 92%', end: 'top 8%', scrub: 0.6 };
-      gsap.fromTo(stage, { clipPath: 'inset(7% 9% 7% 9% round 16px)' },
+      // The top edge stays put under the subtitle; the stage opens from the sides and the bottom.
+      gsap.fromTo(stage, { clipPath: 'inset(0% 7% 9% 7% round 16px)' },
         { clipPath: 'inset(0% 0% 0% 0% round 8px)', ease: 'none', scrollTrigger: rise });
       gsap.fromTo('.sc__walls', { scale: 1.14 }, { scale: 1, ease: 'none', scrollTrigger: rise });
       gsap.fromTo('.sc__bar', { yPercent: -100, autoAlpha: 0 },

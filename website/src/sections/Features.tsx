@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Photo } from '../ui/Photo';
-import { GestureArt } from './Gestures';
+import { SoundVisual, McuVisual } from '../demo';
 import { ChevronIcon as Chevron } from '../ui/icons';
 import { useCarousel } from '../hooks/useCarousel';
 import { revealWithin } from '../lib/motion';
@@ -36,11 +36,7 @@ const FEATURES: Feature[] = [
       { value: '60 ms', label: 'Interactive' },
       { value: 'Auto', label: 'Switches for you' },
     ],
-    media: (
-      <div className="split__panel">
-        <GestureArt kind="sound" />
-      </div>
-    ),
+    media: <SoundVisual />,
   },
   {
     id: 'mcu',
@@ -51,11 +47,7 @@ const FEATURES: Feature[] = [
       { value: '60 fps', label: 'MCU3 · AMD Ryzen' },
     ],
     cta: { label: 'See every tier', href: '#tech' },
-    media: (
-      <div className="split__panel">
-        <GestureArt kind="mcu" />
-      </div>
-    ),
+    media: <McuVisual />,
   },
 ];
 
@@ -111,7 +103,7 @@ export function Features() {
           ))}
         </ul>
         <div className="srow__controls">
-          <button className="cards__nav cards__nav--prev" type="button" aria-label="Previous highlight" aria-controls="feature-cards" onClick={() => step(-1)} disabled={edge.start}>
+          <button className="srow__nav" type="button" aria-label="Previous highlight" aria-controls="feature-cards" onClick={() => step(-1)} disabled={edge.start}>
             <Chevron dir="left" />
           </button>
           <div className="srow__dots" role="group" aria-label="Choose a highlight">
@@ -127,7 +119,7 @@ export function Features() {
               />
             ))}
           </div>
-          <button className="cards__nav cards__nav--next" type="button" aria-label="Next highlight" aria-controls="feature-cards" onClick={() => step(1)} disabled={edge.end}>
+          <button className="srow__nav" type="button" aria-label="Next highlight" aria-controls="feature-cards" onClick={() => step(1)} disabled={edge.end}>
             <Chevron dir="right" />
           </button>
         </div>

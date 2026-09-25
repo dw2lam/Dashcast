@@ -98,8 +98,10 @@
   --s-12: 96px;
   --s-13: 104px;
 
-  --gutter: 32px;              /* site header inline padding ≥1200px */
-  --section-pad: 104px;        /* specs section block padding */
+  --gutter: 48px;              /* --tds-content_container--gutter: 48 ≥1200, 36 from 600, 24 below */
+  --section-pad: 104px;        /* block padding of every white/dark section: 104 ≥900 (specs section), 72 below (model pages) */
+  --head-gap: 48px;            /* heading block → content ("Meet Model Y" subtitle → card row, every breakpoint) */
+  --photo-title-top: 64px;     /* photo section: title below the photo's top edge ("Explore Model Y"); 48 on phones */
   --content-max: 1200px;
 
   /* ---------- shape ---------- */
@@ -144,8 +146,7 @@
 
 @media (max-width: 1199px) {
   :root {
-    --gutter: 20px;
-    --section-pad: 80px;
+    --gutter: 36px;
     --type-hero: var(--fs-100);
     --type-hero-lh: var(--lh-100);
     --type-section: var(--fs-80);
@@ -155,16 +156,19 @@
   }
 }
 
+@media (max-width: 899px) {
+  :root {
+    --section-pad: 72px;
+  }
+}
+
+/* Phones keep the tablet's 40/48 section titles and 20/28 subtitles, as tesla.com does at 390px. */
 @media (max-width: 599px) {
   :root {
-    --gutter: 16px;
-    --section-pad: 64px;
-    --type-hero: var(--fs-80);
-    --type-hero-lh: var(--lh-80);
-    --type-section: var(--fs-70);
-    --type-section-lh: var(--lh-70);
-    --type-sub: var(--fs-40);
-    --type-sub-lh: var(--lh-40);
+    --gutter: 24px;
+    --photo-title-top: 48px;
+    --type-hero: var(--fs-90);
+    --type-hero-lh: var(--lh-90);
     --type-stat: var(--fs-75);
     --type-stat-lh: var(--lh-75);
     --type-stat-unit: var(--fs-50);

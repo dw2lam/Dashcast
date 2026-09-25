@@ -1,146 +1,129 @@
-/* tesla.com feature-card carousel: centred header, 430×500 cards (8px radius), native snap scrolling,
-   40px prev/next controls at the section edges. */
-.cards-section {
+/* tesla.com's small feature set (/modely "Everything You Want"): the whole set at once, no track. Five equal
+   tiles in a row on desktop, 3 + 2 on tablets, 2 + 2 + one wide Keyboard tile on phones. Every tile's art box
+   has the same fixed height per breakpoint, so the rows match whatever the column widths are. */
+.touch {
+  --tile-art-h: 168px;
   padding: var(--section-pad) 0;
   background: var(--c-white);
 }
 
-.cards-section__sub {
+.touch__sub {
   color: var(--c-text-low);
 }
 
-.cards {
-  --track-pad: max(var(--gutter), calc((100% - var(--content-max)) / 2));
-  position: relative;
-  margin-top: var(--s-5);
+.touch__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-gap: var(--s-2);
+  gap: var(--s-2);
+  margin-top: var(--head-gap);
 }
 
-.cards__track {
-  grid-auto-columns: 430px;
-  grid-column-gap: var(--s-2);
-  column-gap: var(--s-2);
-  padding: 0 var(--track-pad);
-  scroll-padding: 0 var(--track-pad);
-}
-
-.card {
-  position: relative;
-  height: 500px;
+.tile {
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-media);
   overflow: hidden;
-  background: radial-gradient(120% 70% at 50% 0%, #2b3240 0%, #1b1e25 55%, #15171c 100%);
+  background: radial-gradient(120% 80% at 50% 0%, #2b3240 0%, #1b1e25 55%, #15171c 100%);
 }
 
-.card__art {
-  position: absolute;
-  top: var(--s-6);
-  left: var(--s-2);
-  right: var(--s-2);
+/* The art carries its own margin around the car screen, so it runs edge to edge. */
+.tile__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--tile-art-h);
+  margin-top: var(--s-2);
 }
 
-.card__art svg {
-  width: 100%;
-  height: auto;
+.tile__art svg {
+  display: block;
+  width: calc(var(--tile-art-h) * 4 / 3);
+  max-width: 100%;
+  height: 100%;
 }
 
-.card__text {
-  position: absolute;
-  left: var(--s-3);
-  right: var(--s-3);
-  bottom: var(--s-3);
+.tile__text {
+  padding: var(--s-1) var(--s-3) var(--s-3);
 }
 
-.card__title {
+.tile__title {
   font-family: var(--font-display);
-  font-size: var(--fs-70);
-  line-height: var(--lh-70);
+  font-size: var(--fs-60);
+  line-height: var(--lh-60);
   font-weight: var(--fw-display);
   letter-spacing: var(--ls-display);
   color: var(--c-white);
 }
 
-.card__label {
+.tile__label {
+  margin-top: var(--s-half);
   font-size: var(--fs-30);
   line-height: var(--lh-30);
   color: rgba(255, 255, 255, 0.72);
 }
 
-.cards__nav {
-  position: absolute;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  margin-top: -20px;
-  border-radius: var(--radius);
-  background: rgba(244, 244, 244, 0.92);
-  color: var(--c-text);
-  transition:
-    opacity var(--dur-ui),
-    background-color var(--dur-ui);
-}
-
-.cards__nav:hover {
-  background: var(--c-grey-60);
-}
-
-.cards__nav:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.cards__nav--prev {
-  left: var(--s-6);
-}
-
-.cards__nav--next {
-  right: var(--s-6);
-}
-
+/* 3 + 2 on a six-column grid: the second row's two tiles share the full width, so nothing is left hanging. */
 @media (max-width: 1199px) {
-  .cards__track {
-    grid-auto-columns: 360px;
+  .touch {
+    --tile-art-h: 200px;
   }
 
-  .card {
-    height: 440px;
+  .touch__grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
-  .cards__nav--prev {
-    left: var(--s-2);
+  .tile {
+    grid-column: span 2;
   }
 
-  .cards__nav--next {
-    right: var(--s-2);
-  }
-}
-
-@media (max-width: 899px), (hover: none) {
-  .cards__nav {
-    display: none;
+  .tile--hold,
+  .tile--keys {
+    grid-column: span 3;
   }
 }
 
+@media (max-width: 899px) {
+  .touch {
+    --tile-art-h: 160px;
+  }
+}
+
+/* Phones: two columns, the Keyboard tile (the widest drawing) across both. */
 @media (max-width: 599px) {
-  .cards {
-    margin-top: var(--s-4);
+  .touch {
+    --tile-art-h: 124px;
   }
 
-  .cards__track {
-    grid-auto-columns: 78vw;
-    grid-column-gap: var(--s-1);
-    column-gap: var(--s-1);
+  .touch__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-gap: var(--s-1);
+    gap: var(--s-1);
   }
 
-  .card {
-    height: 380px;
+  .tile,
+  .tile--hold {
+    grid-column: auto;
   }
 
-  .card__art {
-    top: var(--s-4);
-    left: var(--s-1);
-    right: var(--s-1);
+  .tile--keys {
+    grid-column: span 2;
+  }
+
+  .tile__art {
+    margin-top: var(--s-1);
+  }
+
+  .tile__text {
+    padding: var(--s-half) var(--s-2) var(--s-2);
+  }
+
+  .tile__title {
+    font-size: var(--fs-50);
+    line-height: var(--lh-50);
+  }
+
+  .tile__label {
+    margin-top: 0;
   }
 }

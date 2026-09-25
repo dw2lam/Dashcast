@@ -10,7 +10,7 @@
 
 .office__art {
   max-width: 960px;
-  margin: var(--s-6) auto 0;
+  margin: var(--head-gap) auto 0;
 }
 
 .office__scene {
@@ -123,10 +123,6 @@
 }
 
 @media (max-width: 599px) {
-  .office__art {
-    margin-top: var(--s-4);
-  }
-
   .office__steps {
     margin-top: var(--s-4);
   }

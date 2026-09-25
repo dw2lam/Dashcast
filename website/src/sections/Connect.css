@@ -12,7 +12,7 @@
   grid-auto-columns: 1fr;
   width: max-content;
   max-width: 100%;
-  margin: var(--s-6) auto 0;
+  margin: var(--head-gap) auto 0;
   padding: var(--s-half);
   border-radius: var(--radius);
   background: var(--c-grey-70);
@@ -150,7 +150,8 @@
 
 .topo__layer,
 .topo__screen,
-.topo__node > g {
+.topo__node > g,
+.topo__label {
   transition: opacity var(--dur-short) var(--ease);
 }
 

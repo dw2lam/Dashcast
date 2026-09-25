@@ -6,7 +6,10 @@
      split between this outer padding and the pin's own top padding (which also clears the nav while pinned). */
   padding-top: calc(var(--section-pad) - var(--sc-pin-pad));
   background: var(--c-white);
+  /* nav → title while pinned: tesla.com's 48 (the home hero's title sits 48 below the header).
+     subtitle → stage is tighter than the page's --head-gap on purpose: the stage reads as part of the heading. */
   --sc-pin-pad: var(--s-6);
+  --sc-stage-gap: var(--s-3);
 }
 
 .sc__pin {
@@ -28,12 +31,11 @@
 
 .sc__box {
   position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: var(--s-4) var(--gutter) 0;
+  margin: var(--sc-stage-gap) var(--gutter) 0;
 }
 
 /* ---------- the stage: a screen with a wallpaper, windows placed in points via --u (px per pt) ---------- */
@@ -336,15 +338,12 @@
 @media (max-width: 599px) {
   .sc {
     --sc-pin-pad: var(--s-4);
+    --sc-stage-gap: var(--s-2);
   }
 
   .sc__pin {
     padding-top: var(--sc-pin-pad);
     padding-bottom: var(--s-3);
-  }
-
-  .sc__box {
-    margin-top: var(--s-3);
   }
 
   .sc__tabs {

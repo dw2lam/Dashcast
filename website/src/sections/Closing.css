@@ -29,7 +29,7 @@
   flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
-  padding: var(--s-12) var(--gutter) var(--s-8);
+  padding: var(--photo-title-top) var(--gutter) var(--s-8);
   text-align: center;
 }
 
@@ -53,6 +53,7 @@
   font-size: var(--fs-20);
   line-height: var(--lh-20);
   color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 /* ---- footer: one hairline row + a legal line (OpenHue / NotchTune pattern, in our Helvetica tokens) ---- */
@@ -137,8 +138,11 @@
 }
 
 @media (max-width: 599px) {
-  .closing__download {
-    padding-top: var(--s-9);
+  /* The download block reaches further down the photo on a phone; the top scrim follows it. */
+  .closing__scrim {
+    background:
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0) 76%),
+      linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 18%, rgba(0, 0, 0, 0) 38%);
   }
 
   .closing__icon {

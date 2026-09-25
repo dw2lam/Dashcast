@@ -15,13 +15,16 @@ const LOOP = 30;
 /** Time the visitor's first touch jumps to: desktop streaming, veil gone. */
 const LIVE = 7.9;
 
-export type Story = 'full' | 'loop';
+export type Story = 'full' | 'loop' | 'film';
 
 export interface ScreenOptions {
   display: DisplayMode;
   tier: TierId;
   stats: boolean;
-  /** 'full': the 30 s connect story. 'loop': the payoff only, a calm 10 s loop of the streaming desktop. */
+  /**
+   * 'full': the 30 s connect story. 'loop': the payoff only, a calm 10 s loop of the streaming desktop.
+   * 'film': a still desktop with the film large and playing, nothing else moving.
+   */
   story?: Story;
   onCue?: (cue: Cue) => void;
 }
@@ -108,6 +111,7 @@ export class DemoScreen {
       Object.assign(this.s, this.loopStart());
       this.render(true);
     }
+    if (opts.story === 'film') this.filmScene();
   }
 
   private initial(): State {
@@ -311,6 +315,21 @@ export class DemoScreen {
     tl.to(s, { full: 0, duration: 1.2, ease: 'none' }, 27.6);
     tl.set({}, {}, LOOP);
     this.tl = tl;
+  }
+
+  /** Theater, the film in a large window, Safari put away; plays on the display's own frame clock. */
+  private filmScene() {
+    this.story = 'film';
+    this.settle(true);
+    const L = this.desk.layout;
+    const w = Math.round(L.w * 0.8);
+    const h = Math.round((w * 9) / 16);
+    this.desk.sizePlayer(w, h);
+    this.desk.safari.style.visibility = 'hidden';
+    this.desk.setApp('QuickTime Player');
+    Object.assign(this.s, { px: Math.round((L.w - w) / 2), py: Math.round(L.menu + (L.h - L.menu - h) / 2), cursor: 0 });
+    this.manual = true;
+    this.render(true);
   }
 
   /** The loop's first (and last) frame: Safari home, page at the top, pointer on its toolbar. */
@@ -561,6 +580,10 @@ export class DemoScreen {
   /** Reduced motion: a static, meaningful frame; no timeline, no timers. */
   still() {
     this.pause();
+    if (this.story === 'film') {
+      this.render(true);
+      return;
+    }
     if (this.tl) this.tl.kill();
     this.tl = null;
     this.settle(false);
@@ -598,6 +621,7 @@ export class DemoScreen {
   }
 
   restart() {
+    if (this.story === 'film') return;
     this.story = this.opts.story || 'full';
     if (this.tl) this.tl.kill();
     this.tl = null;

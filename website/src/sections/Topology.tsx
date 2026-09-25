@@ -90,7 +90,8 @@ export function Topology({ mode }: { mode: Mode }) {
         <g style={{ opacity: on('phone') }}>
           <WifiArcs x={0} y={-42} />
         </g>
-        <text className="topo__label" y="58">iPhone</text>
+        <text className="topo__label" y="58" style={{ opacity: on('hotspot') }}>iPhone</text>
+        <text className="topo__label" y="58" style={{ opacity: on('phone') }}>Phone</text>
       </g>
 
       <g className="topo__node" style={node(L.router, L.show.router)}>
@@ -127,5 +128,5 @@ export function Topology({ mode }: { mode: Mode }) {
 const DESCRIPTIONS: Record<Mode, string> = {
   hotspot: 'iPhone connects to the Mac over USB; the Mac shares Wi-Fi and the Tesla joins it, one hop from Mac to car.',
   router: 'The Mac and the Tesla both join a travel router’s Wi-Fi; the stream passes through the router.',
-  phone: 'Mac and Tesla both on an iPhone hotspot: the phone keeps them apart, so the car cannot reach the Mac.',
+  phone: 'Mac and Tesla both on a phone hotspot, iPhone or Android: the phone does not pass traffic between them, so the car cannot reach the Mac.',
 };

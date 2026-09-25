@@ -19,8 +19,10 @@ function frame(kind: Framing, w: number, h: number) {
     const aspect = PHOTO.focus.w / PHOTO.focus.h;
     return { targetW: Math.min(w * frac, band * 0.8 * aspect), bias: { x: 0.5, y: (HERO_TOP + (h - HERO_BOTTOM)) / 2 / h } };
   }
+  // Section: as wide as the width allows, but always short enough to leave the whole screen (and a
+  // little dash below it) in view, so a short, wide stage frames by height.
   const frac = w < 600 ? 0.94 : w < 900 ? 0.76 : 0.6;
-  return { targetW: w * frac, bias: { x: 0.5, y: 0.5 } };
+  return { targetW: Math.min(w * frac, h * 0.78 * (PHOTO.focus.w / PHOTO.focus.h)), bias: { x: 0.5, y: 0.5 } };
 }
 
 interface StageOptions {

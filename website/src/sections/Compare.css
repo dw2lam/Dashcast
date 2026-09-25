@@ -13,7 +13,7 @@
 }
 
 .cmp {
-  margin-top: var(--s-6);
+  margin-top: var(--head-gap);
 }
 
 .cmp__head,
@@ -116,10 +116,6 @@
 }
 
 @media (max-width: 599px) {
-  .cmp {
-    margin-top: var(--s-4);
-  }
-
   .cmp__head,
   .cmp__row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

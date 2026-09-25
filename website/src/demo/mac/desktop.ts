@@ -54,6 +54,10 @@ export interface Desktop {
   layout: Layout;
   setMode(mode: DisplayMode): void;
   front(win: HTMLElement): void;
+  /** Resizes the film's window (its position stays with the caller's transform). */
+  sizePlayer(w: number, h: number): void;
+  /** The frontmost app's name in the menu bar. */
+  setApp(name: string): void;
   clock(d: Date): void;
 }
 
@@ -119,6 +123,7 @@ export function createDesktop(opts: { wallpaper: Record<DisplayMode, string>; cl
   const safari = q<HTMLDivElement>('.dm-mw-safari');
   const player = q<HTMLDivElement>('.dm-mw-player');
   const wall = q<HTMLDivElement>('.dm-mac-wall');
+  const appName = q<HTMLElement>('.dm-mb-l b');
   const filmCanvas = q<HTMLCanvasElement>('.dm-qt-film');
   filmCanvas.style.backgroundImage = `url(${opts.clip.poster})`;
   const film = filmCanvas.getContext('2d')!;
@@ -160,6 +165,13 @@ export function createDesktop(opts: { wallpaper: Record<DisplayMode, string>; cl
       root.style.setProperty('--menu', L.menu + 'px');
       place(safari, L.safari);
       place(player, L.player);
+    },
+    setApp(name) {
+      appName.textContent = name;
+    },
+    sizePlayer(w, h) {
+      player.style.width = w + 'px';
+      player.style.height = h + 'px';
     },
     front(win) {
       win.style.zIndex = String(++z);
