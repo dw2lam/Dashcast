@@ -37,6 +37,8 @@ function focusHeading(el: HTMLElement) {
 
 let tween: gsap.core.Tween | null = null;
 
+export const isNavigating = () => !!tween && tween.isActive();
+
 /**
  * Scroll so section `id` starts right under the sticky nav: one eased tween (GSAP ScrollTo, which works on
  * Chromium 79 too), a final correction against the live layout, then the hash and focus. Instant under

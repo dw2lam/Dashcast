@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Photo } from '../ui/Photo';
 import { useLatestRelease } from '../hooks/useLatestRelease';
+import { installEndSnap } from '../lib/endSnap';
 import { APP_VERSION, AUTHOR_URL, DONATE_URL, REPO_URL } from '../lib/links';
 import './Closing.css';
 
@@ -14,6 +16,7 @@ export function Closing() {
   const release = useLatestRelease();
   const ready = release.state === 'ready';
   const version = ready ? release.version : APP_VERSION;
+  useEffect(installEndSnap, []);
 
   return (
     <div className="closing on-dark">
