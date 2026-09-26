@@ -21,7 +21,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     enum Event {
         case hello(sessionID: UInt64, hello: ClientHello, context: HelloContext)
-        case disconnected(sessionID: UInt64, reason: String)
+        /// `carAddress` is where the socket came from, for asking whether the car is still around.
+        case disconnected(sessionID: UInt64, reason: String, ending: DisconnectClassifier.Ending, carAddress: String?)
         case tierChange(sessionID: UInt64, tier: Tier, reason: String)
         case stats(LiveStats)
         case log(String)
@@ -62,6 +63,7 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     private var latencySetting: LatencyMode = .auto
     private var inputEnabled = true
+    private var hostState: HostState = .active
 
     init(queue: DispatchQueue, engine: StreamEngineProtocol, rtcFactory: RTCPeerFactory?) {
         self.queue = queue
@@ -108,6 +110,17 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             self.inputEnabled = inputEnabled
             guard let s = session, s.latencyOverride == nil else { return }
             if let change = s.latency.setSetting(latencyMode, now: Self.now()), s.configured { sendMode(change, to: s) }
+        }
+    }
+
+    /// Tells the car whether the Mac is locked, asleep or back. A car that connects later hears it
+    /// right after its config. `delivered` runs on the hub's queue once the message is handed to
+    /// the network (or at once when there's no car to tell).
+    func setHostState(_ state: HostState, delivered: (() -> Void)? = nil) {
+        queue.async { [self] in
+            hostState = state
+            guard let s = session, s.configured else { delivered?(); return }
+            s.connection.sendText(ServerMessage.host(state), completion: delivered)
         }
     }
 
@@ -162,6 +175,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
                 audio: params.audioEnabled, inputEnabled: params.inputEnabled, serverTime: DashClock.nowMicros())))
             s.configured = true
             s.awaitingKeyframe = true
+            // A new stream clears the car's overlay; repeat a pause that's still true.
+            if hostState != .active { s.connection.sendText(ServerMessage.host(hostState)) }
             requestKeyframe(s, force: true)
             // The engine was (re)started at the tier's nominal bitrate.
             if bitrate != params.tier.bitrateKbps { engine.setBitrate(kbps: bitrate) }
@@ -195,7 +210,7 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         guard let factory = rtcFactory else {
             post(.log("WebRTC requested but no peer factory is available"))
             end(s, bye: "error", code: WebSocketCloseCode.internalError)
-            post(.disconnected(sessionID: s.id, reason: "no WebRTC"))
+            post(.disconnected(sessionID: s.id, reason: "no WebRTC", ending: .serverEnded, carAddress: s.connection.remoteAddress))
             return
         }
         let peer = factory.makePeer(options: RTCPeerOptions(bindAddress: params.rtcBindAddress, audio: params.audioEnabled))
@@ -210,7 +225,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         } catch {
             post(.log("WebRTC peer failed to start: \(error)"))
             end(s, bye: "error", code: WebSocketCloseCode.internalError)
-            post(.disconnected(sessionID: id, reason: "WebRTC failed to start"))
+            post(.disconnected(sessionID: id, reason: "WebRTC failed to start", ending: .serverEnded,
+                               carAddress: s.connection.remoteAddress))
         }
     }
 
@@ -227,7 +243,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         case .failed(let why):
             post(.log("WebRTC failed: \(why)"))
             end(s, bye: "rtc-failed", code: WebSocketCloseCode.internalError)
-            post(.disconnected(sessionID: sessionID, reason: "WebRTC failed"))
+            post(.disconnected(sessionID: sessionID, reason: "WebRTC failed", ending: .serverEnded,
+                               carAddress: s.connection.remoteAddress))
         case .keyframeRequested:
             requestKeyframe(s, force: false)
         case .bitrateEstimate(let kbps):
@@ -387,7 +404,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             } catch {
                 post(.log("WebRTC answer rejected: \(error)"))
                 end(s, bye: "rtc-failed", code: WebSocketCloseCode.internalError)
-                post(.disconnected(sessionID: s.id, reason: "WebRTC answer rejected"))
+                post(.disconnected(sessionID: s.id, reason: "WebRTC answer rejected", ending: .serverEnded,
+                                   carAddress: s.connection.remoteAddress))
             }
         case .hello, .ping, .unknown:
             break
@@ -416,7 +434,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         waiting[connection.id] = nil
         guard let s = session, s.connection === connection else { return }
         end(s, bye: nil, code: WebSocketCloseCode.normal)   // closes the peer
-        post(.disconnected(sessionID: s.id, reason: reason))
+        post(.disconnected(sessionID: s.id, reason: reason, ending: .socket(connection.ending ?? .failed),
+                           carAddress: connection.remoteAddress))
     }
 
     // MARK: Timer
@@ -435,7 +454,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         }
         if now - s.lastInboundAt > livenessTimeout {
             end(s, bye: nil, code: WebSocketCloseCode.goingAway)
-            post(.disconnected(sessionID: s.id, reason: "car stopped responding"))
+            post(.disconnected(sessionID: s.id, reason: "car stopped responding", ending: .timedOut,
+                               carAddress: s.connection.remoteAddress))
             return
         }
         if s.configured, let change = s.latency.evaluate(now: now) { sendMode(change, to: s) }

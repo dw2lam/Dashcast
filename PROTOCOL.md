@@ -46,6 +46,12 @@ Every message has `"t"`.
 - `{"t":"pong","id":7,"clientTime":12.5,"serverTime":123456}` — `clientTime` echoed as sent (ms, performance.now()).
 - `{"t":"mode","latencyMode":"cinema"}` — latency mode changed without a reconfigure.
 - `{"t":"bye","reason":"stopped"}`
+- `{"t":"host","state":"active"|"locked"|"displayAsleep"|"sleeping"}` — whether the Mac can show anything.
+  Sent when the screen locks/unlocks, the displays sleep/wake, and from the Mac's `willSleep`
+  (`sleeping`, before the network goes away); repeated right after a `config` while it isn't `active`.
+  The client shows a calm full-screen message ("Your Mac is locked. Unlock it to keep streaming.",
+  "Your Mac went to sleep. Wake it to reconnect.") and clears it on `active` or a new `config`. If the
+  socket dies after `sleeping`, the client keeps that message instead of a generic error while it retries.
 - `{"t":"rtcOffer","sdp":"v=0…"}` — webrtc transport only, after `config`. Complete SDP (no trickle): sendonly H.264
   (constrained baseline, packetization-mode=1) + Opus 48k stereo. Server candidates are on 203.0.113.77 only.
 
@@ -63,6 +69,12 @@ Every message has `"t"`.
 - `{"t":"keyframe"}` — decoder error or gap; server sends an IDR next.
 - `{"t":"setLatencyMode","latencyMode":"interactive"|"cinema"|"auto"}`
 - `{"t":"rtcAnswer","sdp":"v=0…"}` — after ICE gathering completes (no trickle).
+
+### Disconnects (server)
+How the car's socket ended decides what the Mac tells the user:
+- a close frame with 1000/1001 (page closed, navigated away) or a TCP FIN → "Browser closed on the car";
+- no close frame (reset, error) or no message for 10 s → "Car left the Wi-Fi" when the car's address no
+  longer resolves in the Mac's ARP table, otherwise "Connection lost".
 
 ### Transport selection (server)
 1. `caps.secure && caps.webcodecs && h264` → `ws` (binary frames below, tiers per bench).

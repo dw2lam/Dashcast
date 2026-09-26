@@ -73,6 +73,7 @@ enum DefaultsKey {
     static let menuBarOnly = "menuBarOnly"
     static let showMenuBarIcon = "showMenuBarIcon"
     static let onboardingComplete = "onboardingComplete"
+    static let notifyOnDisconnect = "notifyOnDisconnect"
 }
 
 extension UserDefaults {

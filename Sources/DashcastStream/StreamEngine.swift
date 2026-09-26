@@ -190,7 +190,11 @@ public final class StreamEngine: StreamEngineProtocol {
             capture.onVideoFrame = { [weak self] buffer, pts in self?.encoder?.encode(buffer, pts: pts) }
             capture.onAudio = { [weak self] sample in self?.audio?.process(sample) }
             capture.onStop = { [weak self] error in
-                self?.pipelineFailed(generation, "Screen capture stopped: \(error.localizedDescription)")
+                if Self.isPermissionError(error) {
+                    self?.pipelineFailed(generation, .permissionMissing("Screen Recording stopped working, so casting stopped. Check it in Settings → General."))
+                } else {
+                    self?.pipelineFailed(generation, "Screen capture stopped: \(error.localizedDescription)")
+                }
             }
             self.capture = capture
             try await capture.start(display: shareable, config: config)
@@ -240,12 +244,17 @@ public final class StreamEngine: StreamEngineProtocol {
     /// Asynchronous failure (stream died, display vanished): report and tear down, unless the
     /// pipeline it belongs to is already gone.
     private func pipelineFailed(_ generation: Int, _ message: String) {
+        pipelineFailed(generation, .error(message))
+    }
+
+    /// `event` is `.error` or `.permissionMissing`.
+    private func pipelineFailed(_ generation: Int, _ event: EngineEvent) {
         Task.detached { [weak self] in
             guard let self else { return }
             _ = try? await self.operations.run {
                 guard self.generation == generation, self.capture != nil || self.virtualDisplay != nil else { return }
-                Self.log.error("\(message, privacy: .public)")
-                self.emit(.error(message))
+                Self.log.error("\(String(describing: event), privacy: .public)")
+                self.emit(event)
                 await self.teardown()
                 self.emit(.stopped)
             }

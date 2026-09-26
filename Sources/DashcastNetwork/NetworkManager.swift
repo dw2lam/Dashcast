@@ -34,6 +34,10 @@ struct NetworkEnvironment {
     var localDNSHost: String
     var localDNSPort: UInt16
     var dnsUpstreams: @Sendable () -> [NWEndpoint]
+    var neighbours: () -> [ARPTable.Entry] = { ARPTable.entries() }
+    var nudgeNeighbour: (String) -> Void = { ARPTable.nudge($0) }
+    /// How long a nudged neighbour gets to answer before the ARP table is read.
+    var neighbourSettle: Duration = .milliseconds(1200)
 
     @MainActor
     static func live() -> NetworkEnvironment {
@@ -437,6 +441,25 @@ public final class NetworkManager: NetworkManaging {
     /// Nudges the helper (via its WatchPaths trigger) to re-evaluate the DNS redirect now.
     private func pokeHelper() {
         env.touchFile(env.helperLayout.triggerPath)
+    }
+
+    // MARK: - Car presence
+
+    /// After a car's socket drops: false when it no longer answers ARP on a link this Mac is on (it
+    /// left the Wi-Fi), nil when that can't be told (still resolved, or not on a local subnet).
+    public func isStillOnNetwork(_ address: String) async -> Bool? {
+        guard IPv4.isValid(address) else { return nil }
+        let local = env.snapshot().addresses.contains { interface in
+            interface.isUp && interface.name != "lo0" && interface.netmask.map {
+                IPv4.contains(address, subnetOf: interface.address, netmask: $0)
+            } == true
+        }
+        guard local else { return nil }
+        env.nudgeNeighbour(address)
+        try? await Task.sleep(for: env.neighbourSettle / 2)
+        env.nudgeNeighbour(address)
+        try? await Task.sleep(for: env.neighbourSettle / 2)
+        return ARPTable.presence(of: address, in: env.neighbours())
     }
 
     // MARK: - Local services (DNS responder)

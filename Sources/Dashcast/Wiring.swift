@@ -30,6 +30,8 @@ enum Wiring {
         let service: DashcastServicing
         let networkActions: NetworkActions
         let backend: Backend
+        /// Real TCC checks only with the real service; the mock never touches permissions.
+        let permissionProbe: PermissionProbing
     }
 
     static var mockRequested: Bool {
@@ -44,7 +46,8 @@ enum Wiring {
             let network = NetworkManager()
             let service = DashcastService(engine: StreamEngine(), network: network,
                                           rtc: makeRTCFactory(), settings: settings)
-            return Wired(service: service, networkActions: NetworkActions(real: network), backend: .real)
+            return Wired(service: service, networkActions: NetworkActions(real: network), backend: .real,
+                         permissionProbe: SystemPermissionProbe())
         }
         #endif
         // Screenshots show what the shipping app shows.
@@ -55,7 +58,8 @@ enum Wiring {
     static func mock(settings: ServiceSettings, scenario: PreviewService.Scenario = .fromEnvironment,
                      backend: Backend = .mock) -> Wired {
         let mock = PreviewService(settings: settings, scenario: scenario)
-        return Wired(service: mock, networkActions: .mock(mock.mockNetwork), backend: backend)
+        return Wired(service: mock, networkActions: .mock(mock.mockNetwork), backend: backend,
+                     permissionProbe: ServiceStatePermissionProbe(service: mock))
     }
 }
 

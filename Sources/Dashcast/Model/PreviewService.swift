@@ -11,6 +11,8 @@ import Foundation
 /// - `DASHCAST_MOCK_FRESH=1` — first-run: no permissions, helper, token or certificate.
 /// - `DASHCAST_MOCK_CERT=0|1` — own domain with a certificate (Secure mode), or none.
 /// - `DASHCAST_MOCK_DOMAIN=cloudflare|manual` — an own domain (car.example.com) that still needs setup.
+/// - `DASHCAST_MOCK_DISCONNECT=leftWiFi|browserClosed|connectionLost` — waiting after that disconnect.
+/// - `DASHCAST_MOCK_HOST=locked|displayAsleep|sleeping` — the Mac is in that state.
 @MainActor
 final class PreviewService: DashcastServicing {
     let state = ServiceState()
@@ -43,6 +45,9 @@ final class PreviewService: DashcastServicing {
         var domain: OwnDomain.Provider?
         /// With `domain: .cloudflare`: the API token is already saved.
         var token = false
+        /// The car just went away for this reason (waiting phase).
+        var disconnect: DisconnectReason?
+        var host: HostState = .active
 
         static let exampleHostname = "car.example.com"
 
@@ -55,7 +60,9 @@ final class PreviewService: DashcastServicing {
                 cycle: env["DASHCAST_MOCK_CYCLE"] == "1",
                 certificate: env["DASHCAST_MOCK_CERT"].map { $0 == "1" },
                 conflict: env["DASHCAST_MOCK_CONFLICT"] == "1",
-                domain: OwnDomain.Provider(rawValue: env["DASHCAST_MOCK_DOMAIN"] ?? "")
+                domain: OwnDomain.Provider(rawValue: env["DASHCAST_MOCK_DOMAIN"] ?? ""),
+                disconnect: DisconnectReason(rawValue: env["DASHCAST_MOCK_DISCONNECT"] ?? ""),
+                host: HostState(rawValue: env["DASHCAST_MOCK_HOST"] ?? "") ?? .active
             )
         }
     }
@@ -91,7 +98,18 @@ final class PreviewService: DashcastServicing {
         case .idle:
             break
         }
+        if let reason = scenario.disconnect {
+            state.phase = .waitingForCar
+            state.lastDisconnect = CarDisconnect(reason: reason, date: Self.sampleTime)
+            state.append("Car disconnected; keeping the stream for 5 s")
+        }
+        state.hostState = scenario.host
         if scenario.cycle { startCycling() }
+    }
+
+    /// 10:42 today: a stable time for screenshots.
+    static var sampleTime: Date {
+        Calendar.current.date(bySettingHour: 10, minute: 42, second: 0, of: Date()) ?? Date()
     }
 
     // MARK: - DashcastServicing
@@ -118,6 +136,7 @@ final class PreviewService: DashcastServicing {
         state.phase = .idle
         state.car = nil
         state.stats = LiveStats()
+        state.lastDisconnect = nil
         state.append("Stopped")
     }
 
@@ -150,6 +169,12 @@ final class PreviewService: DashcastServicing {
         }
     }
 
+    func setHostState(_ hostState: HostState) {
+        guard state.hostState != hostState else { return }
+        state.hostState = hostState
+        state.append("Mac is \(hostState.rawValue)")
+    }
+
     func requestAccessibility() {
         state.append("Requested Accessibility access")
         Task {
@@ -177,6 +202,7 @@ final class PreviewService: DashcastServicing {
             transport: state.network.certificateExpiry != nil ? .websocket : .webrtc
         )
         state.phase = .streaming
+        state.lastDisconnect = nil
         state.append("Car connected — MCU2, viewport 1280×720 @1x, \(Format.transport(state.car?.transport ?? .websocket))")
         state.append("Tier \(tier.id): \(tier.width)×\(tier.height) \(tier.codec.rawValue) \(tier.fps) fps, \(tier.bitrateKbps / 1000) Mbps")
         state.append(settings.displayMode == .extend ? "Virtual display “Dashcast” created (1280×720, HiDPI)" : "Mirroring Built-in Retina Display")

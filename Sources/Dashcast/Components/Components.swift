@@ -115,12 +115,14 @@ struct WindowAccessor: NSViewRepresentable {
     }
 }
 
-/// Re-reads permission state every second while the calling view is on screen.
+/// Re-reads permission state every second while the calling view is on screen (the list only;
+/// a functional check runs when it changes).
 enum PermissionPoller {
     @MainActor
     static func poll(_ model: AppModel, interval: Duration = .seconds(1)) async {
         while !Task.isCancelled {
             model.refreshPermissions()
+            await model.permissions.refreshAll(.listOnly)
             try? await Task.sleep(for: interval)
         }
     }

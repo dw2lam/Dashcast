@@ -37,7 +37,9 @@ final class PermissionGuide {
     /// Needs a real app bundle to drag (not `swift run`).
     static var isAvailable: Bool { Bundle.main.bundleURL.pathExtension == "app" }
 
-    private let isGranted: (PermissionPane) -> Bool
+    private let check: (PermissionPane) async -> PermissionHealth
+    private let relaunch: (PermissionPane) -> Void
+    private var checking = false
     private var pane: PermissionPane?
     private var panel: GuidePanel?
     private var timer: Timer?
@@ -51,8 +53,10 @@ final class PermissionGuide {
     /// Polls for the grant every this many ticks (0.5 s).
     static let grantCheckTicks = 10
 
-    init(isGranted: @escaping (PermissionPane) -> Bool) {
-        self.isGranted = isGranted
+    /// `check` measures the permission (list + functional check); the panel closes on `.working`.
+    init(check: @escaping (PermissionPane) async -> PermissionHealth, relaunch: @escaping (PermissionPane) -> Void) {
+        self.check = check
+        self.relaunch = relaunch
     }
 
     func present(_ pane: PermissionPane) {
@@ -66,7 +70,7 @@ final class PermissionGuide {
         let view = PermissionPanelView(
             pane: pane,
             onDragChange: { [weak self] dragging in self?.setDragging(dragging) },
-            relaunch: pane.mayNeedRelaunch ? { Relaunch.now() } : nil,
+            relaunch: pane.mayNeedRelaunch ? { [weak self] in self?.relaunch(pane) } : nil,
             close: { [weak self] in self?.dismiss() })
         panel = GuidePanel(content: view)
 
@@ -98,10 +102,16 @@ final class PermissionGuide {
     private func tick() {
         guard let pane, let panel else { return }
         ticks += 1
-        if ticks % Self.grantCheckTicks == 0, !isDragging, isGranted(pane) {
-            dismiss()
-            NSApp.activate()
-            return
+        if ticks % Self.grantCheckTicks == 0, !isDragging, !checking {
+            checking = true
+            Task { [weak self] in
+                guard let self else { return }
+                let health = await self.check(pane)
+                self.checking = false
+                guard self.pane == pane, health == .working else { return }
+                self.dismiss()
+                NSApp.activate()
+            }
         }
 
         let now = Date()
@@ -347,5 +357,35 @@ private final class FileDragWriter: NSObject, NSPasteboardWriting {
 
     func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
         type == .fileURL ? url.absoluteString : [url.path]
+    }
+}
+
+/// The trailing part of a permission row: Working ✓, a spinner, "Screen is locked", or the fix.
+struct PermissionStatusAccessory: View {
+    let pane: PermissionPane
+    let health: PermissionHealth
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        switch health {
+        case .working:
+            Label("Working", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .labelStyle(.titleAndIcon)
+                .font(.callout.weight(.medium))
+                .transition(.scale.combined(with: .opacity))
+        case .checking:
+            ProgressView().controlSize(.small)
+        case .noDisplays:
+            Label(health.statusTitle, systemImage: "lock.fill")
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
+                .font(.callout.weight(.medium))
+                .fixedSize()
+        default:
+            Button(health.actionTitle) { model.fixPermission(pane) }
+                .secondaryButtonStyle()
+                .fixedSize()
+        }
     }
 }

@@ -35,6 +35,7 @@ public final class DashcastService: DashcastServicing {
     /// WebRTC peers for cars without WebCodecs (HTTP mode). nil → those cars get JPEG over the socket.
     public let rtc: RTCPeerFactory?
     public let options: ServerOptions
+    private let displayAwake: DisplayAwakeHolding
 
     /// Bound ports (nil while not listening).
     public private(set) var devPort: UInt16?
@@ -69,12 +70,14 @@ public final class DashcastService: DashcastServicing {
     }
 
     public init(engine: StreamEngineProtocol, network: NetworkManaging, rtc: RTCPeerFactory? = nil,
-                settings: ServiceSettings = .init(), options: ServerOptions = .init()) {
+                settings: ServiceSettings = .init(), options: ServerOptions = .init(),
+                displayAwake: DisplayAwakeHolding = DisplayAwakeAssertion()) {
         self.engine = engine
         self.network = network
         self.rtc = rtc
         self.settings = settings
         self.options = options
+        self.displayAwake = displayAwake
         var hosts: Set<String> = ["localhost", "127.0.0.1", "::1",
                                   DashcastDefaults.serviceAddress, options.tlsHost, options.devHost]
         hosts.formUnion(options.extraAllowedHosts.map { $0.lowercased() })
@@ -140,11 +143,14 @@ public final class DashcastService: DashcastServicing {
         state.car = nil
         state.stats = LiveStats()
         state.phase = .idle
+        state.lastDisconnect = nil
+        updateDisplayAwake()
         log("Stopped")
     }
 
     public func applySettings() async {
         hub.updateSettings(latencyMode: settings.latencyMode, inputEnabled: settings.inputEnabled)
+        updateDisplayAwake()
         guard running, let car = active else { return }
         var tier = car.tier
         if settings.tierOverrideID != car.overrideID {
@@ -177,6 +183,36 @@ public final class DashcastService: DashcastServicing {
     public func requestAccessibility() {
         engine.requestAccessibilityPermission()
         refreshPermissions()
+    }
+
+    public func setHostState(_ hostState: HostState) {
+        guard state.hostState != hostState else { return }
+        state.hostState = hostState
+        log(Self.hostLogLine(hostState))
+        guard hostState == .sleeping else {
+            hub.setHostState(hostState)
+            return
+        }
+        // willSleep: the network is about to go; hold the caller until the car has been told.
+        let sent = DispatchSemaphore(value: 0)
+        hub.setHostState(hostState) { sent.signal() }
+        _ = sent.wait(timeout: .now() + Self.sleepNoticeTimeout)
+    }
+
+    static let sleepNoticeTimeout: TimeInterval = 0.5
+
+    static func hostLogLine(_ state: HostState) -> String {
+        switch state {
+        case .active: "Mac is active again; the car resumes"
+        case .locked: "Mac locked; the car shows a paused message"
+        case .displayAsleep: "Display asleep; the car shows a paused message"
+        case .sleeping: "Mac is going to sleep; told the car"
+        }
+    }
+
+    /// While a car is connected (and the setting is on), idle display sleep is held off.
+    private func updateDisplayAwake() {
+        displayAwake.setHeld(running && state.car != nil && settings.keepDisplayAwake)
     }
 
     // MARK: Listeners
@@ -319,9 +355,15 @@ public final class DashcastService: DashcastServicing {
             log("Stream error: \(message)")
             if active != nil { state.phase = .error(message) }
         case .permissionMissing(let message):
+            // Never leave the car on a frozen or black picture: stop casting and say why.
             log("Permission needed: \(message)")
-            state.phase = .error(message)
             refreshPermissions()
+            guard running else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.stop()
+                self.state.phase = .error(message)
+            }
         }
     }
 
@@ -342,7 +384,8 @@ public final class DashcastService: DashcastServicing {
     private func handle(_ event: SessionHub.Event) {
         switch event {
         case .hello(let id, let hello, let context): carSaidHello(id: id, hello: hello, context: context)
-        case .disconnected(let id, let reason): carDisconnected(id: id, reason: reason)
+        case .disconnected(let id, let reason, let ending, let address):
+            carDisconnected(id: id, reason: reason, ending: ending, carAddress: address)
         case .tierChange(let id, let tier, let reason): tierChangeRequested(id: id, tier: tier, reason: reason)
         case .stats(let stats): if state.stats != stats { state.stats = stats }
         case .log(let message): log(message)
@@ -358,6 +401,7 @@ public final class DashcastService: DashcastServicing {
         guard running else { return }
         graceTask?.cancel()
         graceTask = nil
+        state.lastDisconnect = nil
         if active != nil { log("New car session replaces the previous one") }
         let plan = makePlan(hello: hello, context: context)
         active = ActiveCar(id: id, hello: hello, context: context, plan: plan, tier: plan.decision.tier,
@@ -372,15 +416,19 @@ public final class DashcastService: DashcastServicing {
         enqueue { [self] in await configure(sessionID: id, tier: tier, isNewCar: false) }
     }
 
-    private func carDisconnected(id: UInt64, reason: String) {
+    private func carDisconnected(id: UInt64, reason: String, ending: DisconnectClassifier.Ending, carAddress: String?) {
         guard let car = active, car.id == id else { return }
         active = nil
         state.car = nil
         state.stats = LiveStats()
+        updateDisplayAwake()
         guard running else { return }
         state.phase = .waitingForCar
         let grace = options.reconnectGracePeriod
         log("Car disconnected (\(reason)); keeping the stream for \(Self.seconds(grace)) s")
+        Task { @MainActor [weak self] in
+            await self?.explainDisconnect(ending: ending, carAddress: carAddress, at: Date())
+        }
         graceTask?.cancel()
         graceTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(max(grace, 0) * 1_000_000_000))
@@ -393,6 +441,18 @@ public final class DashcastService: DashcastServicing {
                 self.log("No car reconnected; stream stopped")
             }
         }
+    }
+
+    /// Works out why the car left (asking the network when the socket just died) and shows it
+    /// unless a car has connected again meanwhile.
+    private func explainDisconnect(ending: DisconnectClassifier.Ending, carAddress: String?, at date: Date) async {
+        var stillOnNetwork: Bool?
+        if DisconnectClassifier.needsPresenceCheck(ending), let carAddress {
+            stillOnNetwork = await network.isStillOnNetwork(carAddress)
+        }
+        guard running, active == nil else { return }
+        let reason = DisconnectClassifier.reason(for: ending, stillOnNetwork: stillOnNetwork)
+        state.lastDisconnect = CarDisconnect(reason: reason, date: date)
     }
 
     private func makeConfig(for car: ActiveCar, tier: Tier) -> StreamConfig {
@@ -445,6 +505,8 @@ public final class DashcastService: DashcastServicing {
         state.car = ConnectedCar(computer: car.plan.decision.computer, userAgent: car.hello.ua, viewport: car.hello.viewport,
                                  tier: tier, connectedAt: car.connectedAt, transport: transport)
         state.phase = .streaming
+        state.lastDisconnect = nil
+        updateDisplayAwake()
         let media = transport == .webrtc ? "H.264 over WebRTC" : tier.codec.label
         let summary = "\(car.plan.decision.computer.label) · \(config.width)×\(config.height) \(media) \(tier.fps) fps"
         if isNewCar {

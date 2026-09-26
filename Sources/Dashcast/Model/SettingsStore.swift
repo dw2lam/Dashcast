@@ -12,6 +12,7 @@ enum SettingsStore {
         static let audioEnabled = "settings.audioEnabled"
         static let inputEnabled = "settings.inputEnabled"
         static let hiDPI = "settings.hiDPI"
+        static let keepDisplayAwake = "settings.keepDisplayAwake"
     }
 
     static func load(from defaults: UserDefaults = .standard) -> ServiceSettings {
@@ -31,6 +32,9 @@ enum SettingsStore {
         if defaults.object(forKey: Key.audioEnabled) != nil { settings.audioEnabled = defaults.bool(forKey: Key.audioEnabled) }
         if defaults.object(forKey: Key.inputEnabled) != nil { settings.inputEnabled = defaults.bool(forKey: Key.inputEnabled) }
         if defaults.object(forKey: Key.hiDPI) != nil { settings.hiDPI = defaults.bool(forKey: Key.hiDPI) }
+        if defaults.object(forKey: Key.keepDisplayAwake) != nil {
+            settings.keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
+        }
         return settings
     }
 
@@ -50,5 +54,6 @@ enum SettingsStore {
         defaults.set(settings.audioEnabled, forKey: Key.audioEnabled)
         defaults.set(settings.inputEnabled, forKey: Key.inputEnabled)
         defaults.set(settings.hiDPI, forKey: Key.hiDPI)
+        defaults.set(settings.keepDisplayAwake, forKey: Key.keepDisplayAwake)
     }
 }

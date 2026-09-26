@@ -132,7 +132,7 @@ final class TLSIntegrationTests: XCTestCase {
         options.tlsHost = "127.0.0.1"
         options.tlsPort = 0
         options.plainHTTPPort = nil
-        let service = DashcastService(engine: engine, network: network, options: options)
+        let service = DashcastService(engine: engine, network: network, options: options, displayAwake: FakeDisplayAwake())
         self.service = service
         await service.start()
         let port = try XCTUnwrap(service.tlsPort, service.state.log.map(\.message).joined(separator: "\n"))

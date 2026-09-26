@@ -185,21 +185,56 @@ private struct PermissionsPage: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let state = model.state
         SetupPage(symbol: "hand.raised.fill", title: "Two Quick Permissions",
                   subtitle: "So Dashcast can show your Mac in the car, and the touchscreen can control it.") {
-            RowGroup {
-                SetupRow(symbol: "rectangle.dashed.badge.record", title: "Screen Recording",
-                         detail: "Shows your Mac on the car screen.",
-                         done: state.screenRecordingGranted, doneLabel: "Allowed",
-                         actionTitle: "Grant…") { model.requestScreenRecording() }
-                Divider().padding(.leading, 54)
-                SetupRow(symbol: "hand.tap.fill", title: "Accessibility",
-                         detail: "Lets the car’s touchscreen move the pointer.",
-                         done: state.accessibilityGranted, doneLabel: "Allowed",
-                         actionTitle: "Grant…") { model.requestAccessibility() }
+            VStack(spacing: 12) {
+                RowGroup {
+                    PermissionSetupRow(pane: .screenRecording, symbol: "rectangle.dashed.badge.record",
+                                       title: "Screen Recording")
+                    Divider().padding(.leading, 54)
+                    PermissionSetupRow(pane: .accessibility, symbol: "hand.tap.fill", title: "Accessibility")
+                }
+                Button("Check Again") { model.checkPermissions() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Color.dashAccent)
             }
         }
+    }
+}
+
+/// A permission as measured: Working ✓, Checking…, Screen is locked, or the one action that fixes it.
+private struct PermissionSetupRow: View {
+    let pane: PermissionPane
+    let symbol: String
+    let title: String
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let health = model.permissions[pane]
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(Color.dashAccent)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(health.detail(pane))
+                    .font(.callout)
+                    .foregroundStyle(health == .grantedButNotWorking || health == .denied ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+                if health.explainsItself {
+                    PermissionStatusAccessory(pane: pane, health: health)
+                        .padding(.top, 6)
+                }
+            }
+            Spacer(minLength: 8)
+            if !health.explainsItself {
+                PermissionStatusAccessory(pane: pane, health: health)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .animation(.spring(duration: 0.35), value: health)
     }
 }
 
@@ -290,15 +325,21 @@ private struct TeslaPage: View {
     var body: some View {
         let mode = model.connectionMode
         SetupPage(symbol: "car.fill", title: "On Your Tesla",
-                  subtitle: "Open the browser and go to this address. Bookmark it for next time.") {
+                  subtitle: "Open the browser, type this address and tap ☆ to bookmark it for next time.") {
             VStack(spacing: 14) {
-                QRCodeView(string: mode.url, size: 96)
-                Text(mode.addressToType)
-                    .font(.title2.weight(.semibold))
-                    .textSelection(.enabled)
-                Label(mode.caption, systemImage: mode.symbol)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                CarAddress(mode: mode, size: 40)
+                    .padding(.vertical, 18)
+                    .padding(.horizontal, 22)
+                    .frame(maxWidth: .infinity)
+                    .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                HStack(spacing: 14) {
+                    Label(mode.caption, systemImage: mode.symbol)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    CopyButton(text: mode.url, label: "Copy")
+                        .secondaryButtonStyle()
+                        .controlSize(.small)
+                }
             }
         }
     }

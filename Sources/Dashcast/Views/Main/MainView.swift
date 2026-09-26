@@ -147,43 +147,44 @@ struct CastButton: View {
 
 // MARK: - Waiting
 
-/// "On your Tesla's browser, go to …" with the address (click to copy) and a QR code.
+/// "Type this in your Tesla's browser" with the address in big digits and Copy. (No QR code: the
+/// car can't scan one, and it would only invite phones to connect.)
 struct AddressCard: View {
     let mode: ConnectionMode
-    @State private var copied = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("On your Tesla’s browser, go to")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Type this in your Tesla’s browser")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Button {
-                    Pasteboard.copy(mode.url)
-                    copied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.5))
-                        copied = false
-                    }
-                } label: {
-                    Text(mode.addressToType)
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .buttonStyle(.plain)
-                .help("Click to copy")
-                Label(copied ? "Copied" : mode.caption, systemImage: copied ? "checkmark" : mode.symbol)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.symbolEffect(.replace))
+                Spacer(minLength: 8)
+                CopyButton(text: mode.url, label: "Copy")
+                    .secondaryButtonStyle()
+                    .controlSize(.small)
             }
-            Spacer(minLength: 0)
-            QRCodeView(string: mode.url, size: 64)
+            CarAddress(mode: mode, size: 34)
+            Label(mode.caption, systemImage: mode.symbol)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(16)
         .dashGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// The address itself: monospaced, big enough to read from the driver's seat, "http://" small.
+struct CarAddress: View {
+    let mode: ConnectionMode
+    var size: CGFloat
+
+    var body: some View {
+        (Text(mode.scheme ?? "").font(.system(size: size * 0.5, weight: .medium, design: .monospaced)).foregroundStyle(.tertiary)
+            + Text(mode.address).font(.system(size: size, weight: .semibold, design: .monospaced)))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .textSelection(.enabled)
+            .accessibilityLabel(mode.url)
     }
 }
 

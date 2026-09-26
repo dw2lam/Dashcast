@@ -67,10 +67,12 @@ final class ServiceIntegrationTests: XCTestCase {
     var network: MockNetwork!
     var rtc: MockRTCFactory?
     var service: DashcastService!
+    var awake: FakeDisplayAwake!
 
     override func setUp() async throws {
         engine = MockEngine()
         network = MockNetwork()
+        awake = FakeDisplayAwake()
     }
 
     override func tearDown() async throws {
@@ -88,7 +90,8 @@ final class ServiceIntegrationTests: XCTestCase {
             options.plainHTTPPort = nil
             options.reconnectGracePeriod = grace
             configure(&options)
-            return DashcastService(engine: engine, network: network, rtc: rtc, settings: settings, options: options)
+            return DashcastService(engine: engine, network: network, rtc: rtc, settings: settings, options: options,
+                                   displayAwake: awake)
         }
         service = make(preferredPort)
         await service.start()

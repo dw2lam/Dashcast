@@ -175,6 +175,9 @@ final class MockNetwork: NetworkManaging {
     var material: TLSMaterial?
     var localServicesStarts = 0
     var localServicesStops = 0
+    /// What `isStillOnNetwork` answers, and who asked.
+    var stillOnNetwork: Bool?
+    var presenceQueries: [String] = []
 
     func currentStatus() async -> NetworkStatus { status }
     func installLoopbackHelper() async throws {}
@@ -188,6 +191,22 @@ final class MockNetwork: NetworkManaging {
     func routerSetupScript(macLANAddress: String) -> String { "" }
     func startLocalServices() async { localServicesStarts += 1 }
     func stopLocalServices() async { localServicesStops += 1 }
+    func isStillOnNetwork(_ address: String) async -> Bool? {
+        presenceQueries.append(address)
+        return stillOnNetwork
+    }
+}
+
+/// Records the display-awake hold instead of creating a real power assertion.
+@MainActor
+final class FakeDisplayAwake: DisplayAwakeHolding {
+    private(set) var held = false
+    private(set) var changes: [Bool] = []
+    func setHeld(_ held: Bool) {
+        guard held != self.held else { return }
+        self.held = held
+        changes.append(held)
+    }
 }
 
 // MARK: - Async helpers

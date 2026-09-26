@@ -10,6 +10,8 @@ final class AppModel {
     let service: DashcastServicing
     let networkActions: NetworkActions
     let backend: Wiring.Backend
+    /// Measured Screen Recording / Accessibility health (not just what the TCC list claims).
+    let permissions: PermissionMonitor
 
     /// Edited by the UI; persisted and pushed to the live session on every change.
     var settings: ServiceSettings {
@@ -24,10 +26,20 @@ final class AppModel {
     private(set) var isTransitioning = false
     private(set) var networkActivity: NetworkActivity?
     var networkError: String?
+    /// The disconnect shown beside the menu bar icon for a few seconds after it happens.
+    private(set) var menuBarNotice: CarDisconnect?
+    /// Why the last Start didn't go ahead (a permission that doesn't work), until the next try.
+    private(set) var startProblem: PermissionPane?
+
+    static let menuBarNoticeDuration: Duration = .seconds(6)
 
     @ObservationIgnored private var applyTask: Task<Void, Never>?
     /// The drag-to-authorize panel beside System Settings (created on the first Grant…).
     @ObservationIgnored private var permissionGuide: PermissionGuide?
+    @ObservationIgnored private var hostMonitor: HostMonitor?
+    @ObservationIgnored private var noticedDisconnect: CarDisconnect?
+    @ObservationIgnored private var noticeTask: Task<Void, Never>?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
     enum NetworkActivity: Equatable {
         case refreshing, installingHelper, removingHelper, savingDomain, savingToken, provisioning,
@@ -43,6 +55,7 @@ final class AppModel {
         service = wired.service
         networkActions = wired.networkActions
         backend = wired.backend
+        permissions = PermissionMonitor(probe: wired.permissionProbe)
         self.settings = settings
         service.settings = settings
     }
@@ -65,14 +78,69 @@ final class AppModel {
     func didLaunch() {
         service.refreshPermissions()
         Task { await service.refreshNetwork() }
+        let monitor = HostMonitor { [weak self] state in self?.service.setHostState(state) }
+        hostMonitor = monitor
+        monitor.start()
+        watchDisconnects()
+        Task { await permissions.refreshAll(.force) }
+        // Coming back from System Settings: measure again.
+        activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
+                                                                    object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.permissions.refreshAll(.stale) }
+            }
+        }
+    }
+
+    // MARK: - Disconnect notices
+
+    /// Re-arms after every change of `state.lastDisconnect` or the phase.
+    private func watchDisconnects() {
+        withObservationTracking {
+            _ = state.lastDisconnect
+            _ = state.phase
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.disconnectChanged()
+                // Casting stopped on an error (e.g. a revoked grant): measure again.
+                if case .error = self.state.phase { await self.permissions.refreshAll(.force) }
+                self.watchDisconnects()
+            }
+        }
+    }
+
+    func disconnectChanged(notify: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.notifyOnDisconnect)) {
+        let current = state.lastDisconnect
+        guard current != noticedDisconnect else { return }
+        noticedDisconnect = current
+        noticeTask?.cancel()
+        menuBarNotice = current
+        guard let current else { return }
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.menuBarNoticeDuration)
+            guard !Task.isCancelled else { return }
+            self?.menuBarNotice = nil
+        }
+        if notify { DisconnectNotifier.post(current) }
     }
 
     func toggleStreaming() {
         isRunning ? stop() : start()
     }
 
+    /// Checks Screen Recording for real first: a stale or not-yet-applied grant would only give
+    /// the car a black screen.
     func start() {
-        transition { await self.service.start() }
+        transition {
+            self.startProblem = nil
+            if await self.permissions.refresh(.screenRecording, .force).isProblem {
+                self.startProblem = .screenRecording
+                return
+            }
+            await self.service.start()
+        }
     }
 
     func stop() {
@@ -125,9 +193,28 @@ final class AppModel {
     func requestScreenRecording() { requestPermission(.screenRecording) }
     func requestAccessibility() { requestPermission(.accessibility) }
 
+    /// The action a permission's current health calls for.
+    func fixPermission(_ pane: PermissionPane) {
+        switch permissions[pane].action {
+        case .grant, .fix: requestPermission(pane)
+        case .relaunch: permissions.relaunch(for: pane)
+        case .checkAgain: checkPermissions()
+        case nil: break
+        }
+    }
+
+    func checkPermissions() {
+        Task {
+            service.refreshPermissions()
+            await permissions.refreshAll(.force)
+            if startProblem.map({ !permissions[$0].isProblem }) == true { startProblem = nil }
+        }
+    }
+
     /// Opens the exact privacy pane with the drag panel beside it. The mock (and a build that isn't
     /// an app bundle, so has nothing to drag) goes through the service instead.
     private func requestPermission(_ pane: PermissionPane) {
+        permissions.markAsked(pane)
         guard backend == .real, PermissionGuide.isAvailable else {
             switch pane {
             case .screenRecording: service.requestScreenRecording()
@@ -135,17 +222,15 @@ final class AppModel {
             }
             return
         }
-        let guide = permissionGuide ?? PermissionGuide { [weak self] pane in self?.isGranted(pane) ?? false }
+        let guide = permissionGuide ?? PermissionGuide(check: { [weak self] pane in
+            guard let self else { return .checking }
+            self.service.refreshPermissions()
+            return await self.permissions.refresh(pane, .stale)
+        }, relaunch: { [weak self] pane in
+            self?.permissions.relaunch(for: pane)
+        })
         permissionGuide = guide
         guide.present(pane)
-    }
-
-    private func isGranted(_ pane: PermissionPane) -> Bool {
-        service.refreshPermissions()
-        switch pane {
-        case .screenRecording: return state.screenRecordingGranted
-        case .accessibility: return state.accessibilityGranted
-        }
     }
 
     // MARK: - Network
@@ -222,8 +307,7 @@ final class AppModel {
 
     func perform(_ action: ReadinessItem.Action) {
         switch action {
-        case .grantScreenRecording: requestScreenRecording()
-        case .grantAccessibility: requestAccessibility()
+        case .permission(let pane): fixPermission(pane)
         case .installHelper: installHelper()
         case .openInternetSharing: openInternetSharingSettings()
         case .recheckNetwork: Task { await refreshNetwork() }

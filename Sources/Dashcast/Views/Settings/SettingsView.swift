@@ -38,8 +38,10 @@ struct SettingsView: View {
 struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage(DefaultsKey.menuBarOnly) private var menuBarOnly = false
+    @AppStorage(DefaultsKey.notifyOnDisconnect) private var notifyOnDisconnect = false
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    @State private var notificationsDenied = false
 
     var body: some View {
         @Bindable var model = model
@@ -73,6 +75,18 @@ struct GeneralSettings: View {
                 .labelsHidden()
             }
 
+            Section {
+                PermissionSettingsRow(pane: .screenRecording, title: "Screen & System Audio Recording")
+                PermissionSettingsRow(pane: .accessibility, title: PermissionPane.accessibility.title)
+            } header: {
+                HStack {
+                    Text("Permissions")
+                    Spacer()
+                    Button("Check Again") { model.checkPermissions() }
+                        .buttonStyle(.borderless)
+                }
+            }
+
             Section("In the Car") {
                 Toggle(isOn: $model.settings.audioEnabled) {
                     Text("Play sound in the car")
@@ -80,14 +94,22 @@ struct GeneralSettings: View {
                 }
                 Toggle(isOn: $model.settings.inputEnabled) {
                     Text("Touch control")
-                    Text(model.state.accessibilityGranted
+                    Text(model.permissions[.accessibility] == .working
                          ? "Tap, drag and scroll on the car screen to control this Mac."
                          : "Needs Accessibility permission to move the pointer.")
                 }
-                if model.settings.inputEnabled && !model.state.accessibilityGranted {
-                    LabeledContent("Accessibility") {
-                        Button("Grant…") { model.requestAccessibility() }
-                    }
+            }
+
+            Section("While Casting") {
+                Toggle(isOn: $model.settings.keepDisplayAwake) {
+                    Text("Keep the display awake")
+                    Text("While your Tesla is connected. Closing the lid or locking this Mac still pauses the stream.")
+                }
+                Toggle(isOn: Binding(get: { notifyOnDisconnect }, set: setNotifyOnDisconnect)) {
+                    Text("Notify when your Tesla disconnects")
+                    Text(notificationsDenied
+                         ? "Notifications are off for Dashcast in System Settings → Notifications."
+                         : "Says why: the car left the Wi‑Fi, its browser closed, or the connection was lost.")
                 }
             }
         }
@@ -95,6 +117,16 @@ struct GeneralSettings: View {
         .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
         .task { await PermissionPoller.poll(model, interval: .seconds(2)) }
+    }
+
+    private func setNotifyOnDisconnect(_ enabled: Bool) {
+        notifyOnDisconnect = enabled
+        notificationsDenied = false
+        guard enabled else { return }
+        Task {
+            let allowed = await DisconnectNotifier.requestAuthorization()
+            notificationsDenied = !allowed && DisconnectNotifier.isAvailable
+        }
     }
 
     private func setOpenAtLogin(_ enabled: Bool) {
@@ -105,6 +137,23 @@ struct GeneralSettings: View {
             loginError = error.localizedDescription
         }
         openAtLogin = SMAppService.mainApp.status == .enabled
+    }
+}
+
+private struct PermissionSettingsRow: View {
+    let pane: PermissionPane
+    let title: String
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let health = model.permissions[pane]
+        LabeledContent {
+            PermissionStatusAccessory(pane: pane, health: health)
+        } label: {
+            Text(title)
+            Text(health.detail(pane))
+                .foregroundStyle(health == .grantedButNotWorking || health == .denied ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+        }
     }
 }
 

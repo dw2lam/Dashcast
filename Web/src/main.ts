@@ -7,6 +7,7 @@ import { AudioOut } from './audio/engine';
 import { Input } from './input';
 import { RtcOut } from './rtc';
 import { Config, InputKind, LatencyMode, T_PCM } from './protocol';
+import { HOST_MESSAGES, HostState, dismissTip, nextHost, tipWanted } from './host';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -88,6 +89,7 @@ const video = new VideoOut($('v') as HTMLCanvasElement, (m) => {
       break;
     case 'first':
       if (cfg) status(null);
+      streamed();
       break;
     case 'ready':
       rendererUp(m.r);
@@ -139,6 +141,7 @@ const rtc = new RtcOut(
   () => {
     rtcFails = 0;
     if (cfg) status(null);
+    streamed();
   },
 );
 
@@ -254,6 +257,7 @@ function lost(s: WebSocket, why?: string) {
   }
   clearTimeout(pingTimer);
   cfg = null;
+  host(nextHost(hostState, { k: 'lost' }));
   input.cancel();
   input.enabled = false;
   video.post({ k: 'reset' });
@@ -309,6 +313,9 @@ function text(data: string) {
     case 'bye':
       status('Waiting for Mac', 'wait');
       break;
+    case 'host':
+      host(nextHost(hostState, { k: 'host', state: m.state }));
+      break;
     case 'rtcOffer':
       if (transport === 'webrtc') rtc.offer(m.sdp).catch((e) => console.warn('[dashcast] rtcOffer:', e));
       break;
@@ -318,6 +325,7 @@ function text(data: string) {
 function applyConfig(m: Config) {
   cfg = m;
   backoff = 500;
+  host(nextHost(hostState, { k: 'stream' }));
   clock.seed(m.serverTime);
   vidW = m.width;
   vidH = m.height;
@@ -466,6 +474,49 @@ setInterval(() => {
   else sendStats();
 }, 1000);
 
+// ---- the Mac is locked / asleep (PROTOCOL.md `host`) -------------------------------
+
+const hostEl = $('host');
+const hostIcons: Record<string, HTMLElement> = { lock: $('iLock'), display: $('iDisplay'), moon: $('iMoon') };
+let hostState: HostState = 'active';
+
+function host(next: HostState) {
+  if (next === hostState) return;
+  hostState = next;
+  document.body.classList.toggle('paused', next !== 'active');
+  if (next === 'active') {
+    hostEl.hidden = true;
+    return;
+  }
+  const msg = HOST_MESSAGES[next];
+  $('hostTitle').textContent = msg.title;
+  $('hostBody').textContent = msg.body;
+  Object.keys(hostIcons).forEach((k) => (hostIcons[k].style.display = k === msg.icon ? '' : 'none'));
+  hostEl.hidden = false;
+}
+
+// ---- one-time bookmark tip -------------------------------------------------------
+
+const tip = $('tip');
+let store: Storage | null = null;
+try {
+  store = window.localStorage;
+} catch {
+  /* storage blocked */
+}
+let tipOffered = false;
+
+/** First picture on screen: offer the bookmark tip once (until it's dismissed on this car). */
+function streamed() {
+  if (tipOffered || !tipWanted(store)) return;
+  tipOffered = true;
+  setTimeout(() => (tip.hidden = false), 1500);
+}
+$('tipX').addEventListener('click', () => {
+  tip.hidden = true;
+  dismissTip(store);
+});
+
 // ---- tap to start / fullscreen ---------------------------------------------------
 
 const tap = $('tap');
@@ -524,6 +575,8 @@ let pxWait: ((m: any) => void) | null = null;
       status: pill.className.indexOf('off') >= 0 ? 'streaming' : pillText.textContent,
       transport,
       tier: cfg && cfg.tier,
+      host: hostState,
+      tip: !tip.hidden,
       codec: cfg && cfg.codec,
       mode,
       fps: v.fps,

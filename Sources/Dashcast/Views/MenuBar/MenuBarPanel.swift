@@ -2,27 +2,39 @@ import AppKit
 import DashcastContracts
 import SwiftUI
 
-/// Template symbol in the menu bar; the car fills in and gains waves while casting.
+/// Template symbol in the menu bar; the car fills in and gains waves while casting. For a few
+/// seconds after the car goes away, a short reason sits beside it.
 struct MenuBarLabel: View {
     let model: AppModel
     let controller: AppController
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: symbol)
-            .accessibilityLabel("Dashcast — \(Headline.short(model.state.phase))")
-            .onAppear {
-                // A menu-bar-only launch never shows the main window, so capture openWindow here too.
-                if controller.openWindowAction == nil { controller.openWindowAction = openWindow }
+        let notice = model.menuBarNotice
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+            if let notice {
+                Text(notice.reason.shortTitle)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: notice)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Dashcast — \(notice?.reason.title ?? Headline.short(model.state))")
+        .onAppear {
+            // A menu-bar-only launch never shows the main window, so capture openWindow here too.
+            if controller.openWindowAction == nil { controller.openWindowAction = openWindow }
+        }
     }
 
     private var symbol: String {
+        if model.menuBarNotice != nil { return "car.side.and.exclamationmark" }
         switch model.state.phase {
-        case .idle: "car"
-        case .waitingForCar: "car.front.waves.up"
-        case .streaming: "car.front.waves.up.fill"
-        case .error: "car.side.and.exclamationmark"
+        case .idle: return "car"
+        case .waitingForCar: return "car.front.waves.up"
+        case .streaming: return model.state.hostState == .active ? "car.front.waves.up.fill" : "pause.circle"
+        case .error: return "car.side.and.exclamationmark"
         }
     }
 }
@@ -146,9 +158,16 @@ struct CastTile: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Cast to Tesla")
                         .font(.headline)
-                    Text(Headline.short(model.state.phase))
+                    Text(Headline.short(model.state))
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    if let disconnect = model.state.lastDisconnect, !model.isStreaming {
+                        Label(disconnect.line, systemImage: disconnect.reason.symbol)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .padding(.top, 2)
+                            .transition(.opacity)
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -159,6 +178,7 @@ struct CastTile: View {
         .disabled(model.isTransitioning)
         .dashGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous), interactive: true)
         .accessibilityAddTraits(on ? .isSelected : [])
+        .animation(.easeInOut(duration: 0.3), value: model.state.lastDisconnect)
     }
 }
 

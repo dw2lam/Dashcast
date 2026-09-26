@@ -72,6 +72,22 @@ enum ConnectionMode: Equatable {
 
     var isSecure: Bool { self != .compatibility }
 
+    /// The big, glanceable part of the address: the hostname, or the service address's digits.
+    var address: String {
+        switch self {
+        case .secure(let hostname): hostname
+        case .compatibility: DashcastDefaults.serviceAddress
+        }
+    }
+
+    /// Shown small in front of `address` ("http://" for the bare IP; a hostname needs nothing).
+    var scheme: String? {
+        switch self {
+        case .secure: nil
+        case .compatibility: "http://"
+        }
+    }
+
     var url: String {
         switch self {
         case .secure(let hostname): "https://\(hostname)"
@@ -112,6 +128,113 @@ extension OwnDomain.Provider {
         switch self {
         case .cloudflare: "Cloudflare (automatic)"
         case .manual: "Another provider (manual)"
+        }
+    }
+}
+
+// MARK: - Disconnects and the Mac's state
+
+extension DisconnectReason {
+    /// "Car left the Wi‑Fi" (menu panel, notification).
+    var title: String {
+        switch self {
+        case .leftWiFi: "Car left the Wi‑Fi"
+        case .browserClosed: "Browser closed on the car"
+        case .connectionLost: "Connection lost"
+        }
+    }
+
+    /// Next to the menu bar icon for a few seconds.
+    var shortTitle: String {
+        switch self {
+        case .leftWiFi: "Left Wi‑Fi"
+        case .browserClosed: "Browser closed"
+        case .connectionLost: "Disconnected"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .leftWiFi: "wifi.slash"
+        case .browserClosed: "xmark.circle"
+        case .connectionLost: "exclamationmark.triangle"
+        }
+    }
+}
+
+extension CarDisconnect {
+    static let timeStyle: Date.FormatStyle = .dateTime.hour().minute()
+
+    /// "Car left the Wi‑Fi · 10:42"
+    var line: String { "\(reason.title) · \(date.formatted(Self.timeStyle))" }
+
+    /// "Your Tesla left the Wi‑Fi at 10:42."
+    var sentence: String {
+        let time = date.formatted(Self.timeStyle)
+        switch reason {
+        case .leftWiFi: return "Your Tesla left the Wi‑Fi at \(time)."
+        case .browserClosed: return "The browser on your Tesla closed at \(time)."
+        case .connectionLost: return "The connection to your Tesla was lost at \(time)."
+        }
+    }
+}
+
+extension HostState {
+    /// "Paused: Mac is locked" (nil while active).
+    var pausedTitle: String? {
+        switch self {
+        case .active: nil
+        case .locked: "Paused: Mac is locked"
+        case .displayAsleep: "Paused: display is asleep"
+        case .sleeping: "Paused: Mac is asleep"
+        }
+    }
+
+    var advice: String {
+        switch self {
+        case .active: ""
+        case .locked: "Your Tesla shows a pause message. Unlock this Mac to keep streaming."
+        case .displayAsleep: "Your Tesla shows a pause message. Wake the display to keep streaming."
+        case .sleeping: "Wake this Mac and your Tesla reconnects."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .active: "play.fill"
+        case .locked: "lock.fill"
+        case .displayAsleep: "display"
+        case .sleeping: "moon.zzz.fill"
+        }
+    }
+}
+
+extension PermissionHealth {
+    /// One line for the main window's list of things to fix.
+    func readinessTitle(_ pane: PermissionPane) -> String {
+        let name = pane == .screenRecording ? "Screen Recording" : "Accessibility"
+        switch self {
+        case .notDetermined:
+            return pane == .screenRecording ? "Screen Recording permission needed" : "Touch control needs Accessibility permission"
+        case .denied: return "\(name) is turned off for Dashcast"
+        case .needsRelaunch: return "\(name) is on. Relaunch Dashcast to use it."
+        case .grantedButNotWorking: return "\(name) is allowed for an older copy of Dashcast"
+        case .noDisplays: return "Screen is locked"
+        case .working, .checking: return name
+        }
+    }
+
+    /// The detail needs the row's width; its fix goes underneath instead of beside it.
+    var explainsItself: Bool { self == .grantedButNotWorking || self == .needsRelaunch }
+
+    /// Compact button title for tight rows.
+    var shortActionTitle: String {
+        switch action {
+        case .grant: "Grant…"
+        case .relaunch: "Relaunch"
+        case .fix: "Fix…"
+        case .checkAgain: "Check Again"
+        case nil: ""
         }
     }
 }
@@ -199,6 +322,11 @@ struct Headline {
     init(model: AppModel, readiness: [ReadinessItem]) {
         let state = model.state
         switch state.phase {
+        case .idle where model.startProblem != nil:
+            stage = .problem
+            title = "Can’t Start Yet"
+            let pane = model.startProblem ?? .screenRecording
+            detail = model.permissions[pane].detail(pane)
         case .idle:
             stage = .idle
             if readiness.isEmpty {
@@ -211,7 +339,15 @@ struct Headline {
         case .waitingForCar:
             stage = .waiting
             title = "Waiting for Your Tesla…"
-            detail = "Open the address below in the car’s browser."
+            if let disconnect = state.lastDisconnect {
+                detail = "\(disconnect.sentence) Open the address below to reconnect."
+            } else {
+                detail = "Open the address below in the car’s browser."
+            }
+        case .streaming where state.hostState != .active:
+            stage = .casting
+            title = state.hostState.pausedTitle ?? "Paused"
+            detail = state.hostState.advice
         case .streaming:
             stage = .casting
             title = "Casting to Your Tesla"
@@ -230,11 +366,11 @@ struct Headline {
 
     /// Short form for the menu bar.
     @MainActor
-    static func short(_ phase: ServicePhase) -> String {
-        switch phase {
+    static func short(_ state: ServiceState) -> String {
+        switch state.phase {
         case .idle: "Not casting"
         case .waitingForCar: "Waiting for your Tesla…"
-        case .streaming: "Casting"
+        case .streaming: state.hostState.pausedTitle ?? "Casting"
         case .error: "Casting stopped"
         }
     }
@@ -244,7 +380,7 @@ struct Headline {
 
 /// One thing standing between the user and casting, with the single action that fixes it.
 struct ReadinessItem: Identifiable, Equatable {
-    enum Action: Equatable { case grantScreenRecording, grantAccessibility, installHelper, openInternetSharing, recheckNetwork }
+    enum Action: Equatable { case permission(PermissionPane), installHelper, openInternetSharing, recheckNetwork }
 
     let id: String
     let symbol: String
@@ -258,15 +394,18 @@ struct ReadinessItem: Identifiable, Equatable {
         let state = model.state
         let network = state.network
         var items: [ReadinessItem] = []
-        if !state.screenRecordingGranted {
-            items.append(.init(id: "screen", symbol: "rectangle.dashed.badge.record", tint: .red,
-                               title: "Screen Recording permission needed",
-                               actionTitle: "Grant…", action: .grantScreenRecording))
+        let screen = model.permissions[.screenRecording]
+        if screen.action != nil {
+            items.append(.init(id: "screen", symbol: screen == .noDisplays ? "lock.fill" : "rectangle.dashed.badge.record",
+                               tint: screen == .noDisplays ? .gray : .red,
+                               title: screen.readinessTitle(.screenRecording),
+                               actionTitle: screen.shortActionTitle, action: .permission(.screenRecording)))
         }
-        if model.settings.inputEnabled && !state.accessibilityGranted {
+        let accessibility = model.permissions[.accessibility]
+        if model.settings.inputEnabled, accessibility.isProblem {
             items.append(.init(id: "ax", symbol: "hand.tap.fill", tint: .blue,
-                               title: "Touch control needs Accessibility permission",
-                               actionTitle: "Grant…", action: .grantAccessibility))
+                               title: accessibility.readinessTitle(.accessibility),
+                               actionTitle: accessibility.shortActionTitle, action: .permission(.accessibility)))
         }
         if network.serviceAddressConflict != nil {
             items.append(.init(id: "conflict", symbol: "exclamationmark.triangle.fill", tint: .orange,

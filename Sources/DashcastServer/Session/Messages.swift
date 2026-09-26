@@ -225,4 +225,8 @@ enum ServerMessage {
     static func bye(_ reason: String) -> String {
         "{\"t\":\"bye\",\"reason\":\(JSON.string(reason))}"
     }
+
+    static func host(_ state: HostState) -> String {
+        "{\"t\":\"host\",\"state\":\(JSON.string(state.rawValue))}"
+    }
 }

@@ -20,6 +20,18 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
     enum Mode { case http, webSocket, closed }
     enum SendKind { case control, video, audio }
 
+    /// How the connection ended, for telling a closed browser from a car that drove off.
+    enum Ending: Equatable {
+        /// The car sent a WebSocket close frame (nil = no status code).
+        case closedByCar(code: UInt16?)
+        /// TCP FIN from the car without a close frame: its side closed the socket on purpose.
+        case finishedByCar
+        /// Reset, receive/send error or a send-queue overflow.
+        case failed
+        /// We closed it (bye, replacement, shutdown).
+        case closedByServer
+    }
+
     let id: UInt64
     let role: Role
     let listenerName: String
@@ -27,6 +39,8 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
     /// Address this connection's listener is bound to (the address the car reached us on).
     let localHost: String
     let remote: String
+    /// The car's IP address (nil for a non-IP endpoint).
+    let remoteAddress: String?
     private let nw: NWConnection
     private let queue: DispatchQueue
     private weak var server: HTTPServer?
@@ -37,6 +51,7 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
     private(set) var pendingBytes = 0
     private(set) var pendingVideoFrames = 0
     private(set) var closeSent = false
+    private(set) var ending: Ending?
 
     private var httpBuffer: [UInt8] = []
     private var parser = WebSocketFrameParser(requireMasked: true, maxPayload: 1 << 20)
@@ -58,10 +73,24 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
         self.queue = queue
         self.server = server
         self.remote = "\(connection.endpoint)"
+        self.remoteAddress = Self.address(of: connection.endpoint)
         self.lastActivity = Self.now()
     }
 
     static func now() -> TimeInterval { Double(DashClock.nowMicros()) / 1_000_000 }
+
+    /// "192.168.2.3" from a host:port endpoint (scope suffixes dropped).
+    static func address(of endpoint: NWEndpoint) -> String? {
+        guard case .hostPort(let host, _) = endpoint else { return nil }
+        let text: String
+        switch host {
+        case .ipv4(let v4): text = "\(v4)"
+        case .ipv6(let v6): text = "\(v6)"
+        case .name(let name, _): text = name
+        @unknown default: return nil
+        }
+        return text.split(separator: "%").first.map(String.init)
+    }
 
     private var delegate: WebSocketDelegate? { server?.webSocketDelegate }
 
@@ -70,9 +99,9 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
             guard let self else { return }
             switch state {
             case .ready: self.receiveNext()
-            case .failed(let error): self.terminate(reason: "failed: \(error)")
-            case .waiting(let error): self.terminate(reason: "waiting: \(error)")
-            case .cancelled: self.terminate(reason: "cancelled")
+            case .failed(let error): self.terminate(reason: "failed: \(error)", ending: .failed)
+            case .waiting(let error): self.terminate(reason: "waiting: \(error)", ending: .failed)
+            case .cancelled: self.terminate(reason: "cancelled", ending: .failed)
             default: break
             }
         }
@@ -86,8 +115,8 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
                 self.lastActivity = Self.now()
                 self.ingest(data)
             }
-            if let error { self.terminate(reason: "receive error: \(error)"); return }
-            if isComplete { self.terminate(reason: "peer closed"); return }
+            if let error { self.terminate(reason: "receive error: \(error)", ending: .failed); return }
+            if isComplete { self.terminate(reason: "peer closed", ending: .finishedByCar); return }
             if !self.terminated { self.receiveNext() }
         }
     }
@@ -170,13 +199,14 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
             delegate?.webSocket(self, didReceivePong: payload)
         case .close(let code, let reason):
             if closeSent {
-                terminate(reason: "closed (\(code.map(String.init) ?? "no status"))")
+                terminate(reason: "closed (\(code.map(String.init) ?? "no status"))", ending: .closedByServer)
             } else {
                 // Echo the close and finish.
                 closeSent = true
+                ending = .closedByCar(code: code)
                 let why = "car closed (\(code.map(String.init) ?? "no status")\(reason.isEmpty ? "" : " \(reason)"))"
                 sendFrame(.close, WebSocketFrameEncoder.closePayload(code: code), final: true) { [weak self] in
-                    self?.terminate(reason: why)
+                    self?.terminate(reason: why, ending: .closedByCar(code: code))
                 }
             }
         }
@@ -187,8 +217,8 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
         close(code: error.closeCode, reason: "")
     }
 
-    func sendText(_ text: String) {
-        sendFrame(.text, Data(text.utf8))
+    func sendText(_ text: String, completion: (() -> Void)? = nil) {
+        sendFrame(.text, Data(text.utf8), completion: completion)
     }
 
     /// Whether the page that opened this socket is a secure context, judged by how it was reached
@@ -209,28 +239,29 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
     /// or after one second.
     func close(code: UInt16 = WebSocketCloseCode.normal, reason: String = "") {
         guard !terminated else { return }
-        guard mode == .webSocket else { terminate(reason: reason.isEmpty ? "closed" : reason); return }
+        guard mode == .webSocket else { terminate(reason: reason.isEmpty ? "closed" : reason, ending: .closedByServer); return }
         guard !closeSent else { return }
         closeSent = true
         sendFrame(.close, WebSocketFrameEncoder.closePayload(code: code, reason: reason), final: true)
         queue.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.terminate(reason: reason.isEmpty ? "closed" : reason)
+            self?.terminate(reason: reason.isEmpty ? "closed" : reason, ending: .closedByServer)
         }
     }
 
+    /// `completion` runs once the frame is handed off, or right away when it can't be sent.
     private func sendFrame(_ opcode: WebSocketOpcode, _ payload: Data, final: Bool = false, completion: (() -> Void)? = nil) {
-        guard mode == .webSocket, !terminated else { return }
-        guard opcode == .close || !closeSent else { return }
+        guard mode == .webSocket, !terminated, opcode == .close || !closeSent else { completion?(); return }
         send(WebSocketFrameEncoder.encode(WebSocketFrame(opcode: opcode, payload: payload)), kind: .control, final: final, completion: completion)
     }
 
     private func send(_ data: Data, kind: SendKind, final: Bool = false, completion: (() -> Void)? = nil) {
-        guard !terminated else { return }
+        guard !terminated else { completion?(); return }
         let count = data.count
         pendingBytes += count
         if kind == .video { pendingVideoFrames += 1 }
         if pendingBytes > Self.maxPendingBytes {
-            terminate(reason: "send queue overflow (\(pendingBytes) bytes)")
+            terminate(reason: "send queue overflow (\(pendingBytes) bytes)", ending: .failed)
+            completion?()
             return
         }
         nw.send(content: data, contentContext: final ? .finalMessage : .defaultMessage, isComplete: true,
@@ -242,16 +273,16 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
                 if !self.terminated { self.delegate?.webSocketDidDrain(self) }
             }
             if let error, !self.terminated {
-                self.terminate(reason: "send error: \(error)")
-                return
+                self.terminate(reason: "send error: \(error)", ending: .failed)
             }
             completion?()
         })
     }
 
-    func terminate(reason: String) {
+    func terminate(reason: String, ending: Ending = .closedByServer) {
         guard !terminated else { return }
         terminated = true
+        if self.ending == nil { self.ending = ending }
         let wasWebSocket = mode == .webSocket
         mode = .closed
         nw.cancel()

@@ -337,6 +337,117 @@ svg {
   font-size: 15px;
 }
 
+/* ---- the Mac is locked / asleep ---- */
+.host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 36;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+  background: radial-gradient(ellipse at 50% 45%, rgba(18, 20, 25, 0.96) 0%, rgba(0, 0, 0, 0.99) 70%);
+  text-align: center;
+  animation: fadein 0.6s ease;
+}
+
+.host-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 1px var(--line), 0 0 0 16px rgba(255, 255, 255, 0.025);
+  color: #c9cdd4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.host-icon svg {
+  width: 40px;
+  height: 40px;
+  stroke-width: 1.6;
+}
+
+.host h1 {
+  margin: 36px 0 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.host p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+body.paused .pill {
+  opacity: 0;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- bookmark tip ---- */
+.tip {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 48px);
+  padding: 10px 10px 10px 18px;
+  border-radius: 999px;
+  background: var(--glass);
+  box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+  font-size: 15px;
+  white-space: nowrap;
+  animation: fadein 0.5s ease;
+}
+
+.tip button {
+  width: 34px;
+  height: 34px;
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tip button svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .host,
+  .tip {
+    animation: none;
+  }
+
+  .pill,
+  .pill i {
+    transition: none;
+    animation: none;
+  }
+}
+
 /* Hidden input that summons the on-screen keyboard. */
 #kb {
   position: fixed;

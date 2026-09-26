@@ -24,7 +24,8 @@
 // stdin (when attached to a terminal): c = cinema, i = interactive, a = auto,
 //   r = resend config, k = jump to the next IDR, b = bye + close, q = quit.
 // Same over HTTP for scripted tests: GET /control?mode=cinema|interactive|auto,
-//   GET /control?cmd=config|idr|bye
+//   GET /control?cmd=config|idr|bye|drop (drop = the socket dies with no close frame, like a Mac
+//   going to sleep), GET /control?host=active|locked|displayAsleep|sleeping
 import { createServer } from 'node:http';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
@@ -210,9 +211,13 @@ const server = createServer((req, res) => {
     res.end(readFileSync(f));
   } else if (url === '/healthz') res.writeHead(200).end('ok');
   else if (url === '/control') {
-    // Test hook: /control?mode=cinema|interactive|auto  or  /control?cmd=config|idr|bye
+    // Test hook: /control?mode=cinema|interactive|auto  or  /control?cmd=config|idr|bye|drop
+    //   or  /control?host=active|locked|displayAsleep|sleeping
     const q = new URL(req.url, 'http://x').searchParams;
-    for (const s of sessions) control(s, q.get('mode') || q.get('cmd'));
+    for (const s of sessions) {
+      if (q.get('host')) s.json({ t: 'host', state: q.get('host') });
+      else control(s, q.get('mode') || q.get('cmd'));
+    }
     res.writeHead(200).end(`ok (${sessions.size} session${sessions.size === 1 ? '' : 's'})`);
   }
   else res.writeHead(404).end('not found');
@@ -521,6 +526,7 @@ function control(s, c) {
   else if (c === 'config' && s.clip) s.sendConfig();
   else if (c === 'idr') s.waitIDR = true;
   else if (c === 'bye') s.json({ t: 'bye', reason: 'stopped' }), setTimeout(() => s.ws.close(), 50);
+  else if (c === 'drop') s.ws.terminate();
 }
 
 if (process.stdin.isTTY) {

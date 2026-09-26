@@ -20,6 +20,8 @@ enum SnapshotRenderer {
         var width: CGFloat = 460
         /// Host in a titled window (toolbar, traffic lights) vs. bare content.
         var windowed = false
+        /// Puts the model in the state the shot shows before it renders.
+        var prepare: @MainActor (AppModel) -> Void = { _ in }
         let content: () -> AnyView
     }
 
@@ -41,9 +43,13 @@ enum SnapshotRenderer {
             Shot(name: "main-error", scenario: .init(phase: .error), size: MainView.size, windowed: true, content: main),
             Shot(name: "main-conflict", scenario: .init(topology: .phoneHotspot, conflict: true),
                  size: MainView.size, windowed: true, content: main),
+            Shot(name: "main-waiting-disconnected", scenario: .init(certificate: false, disconnect: .leftWiFi),
+                 size: MainView.size, windowed: true, content: main),
+            Shot(name: "main-paused-locked", scenario: .init(phase: .streaming, host: .locked),
+                 size: MainView.size, windowed: true, content: main),
 
             // Settings tabs.
-            Shot(name: "settings-general", width: 520, content: { AnyView(GeneralSettings()) }),
+            Shot(name: "settings-general", size: CGSize(width: 520, height: 930), content: { AnyView(GeneralSettings()) }),
             Shot(name: "settings-display", width: 520, content: { AnyView(DisplaySettings()) }),
             Shot(name: "settings-display-mirror", settings: mirror, width: 520, content: { AnyView(DisplaySettings()) }),
             Shot(name: "settings-network", scenario: .init(certificate: false), size: CGSize(width: 520, height: 560),
@@ -75,10 +81,33 @@ enum SnapshotRenderer {
             // Menu bar panel.
             Shot(name: "menu-idle", width: 300, content: { AnyView(MenuBarPanel()) }),
             Shot(name: "menu-casting", scenario: .init(phase: .streaming), width: 300, content: { AnyView(MenuBarPanel()) }),
+            Shot(name: "menu-disconnected", scenario: .init(certificate: false, disconnect: .leftWiFi), width: 300,
+                 content: { AnyView(MenuBarPanel()) }),
+            Shot(name: "menu-paused", scenario: .init(phase: .streaming, host: .locked), width: 300,
+                 content: { AnyView(MenuBarPanel()) }),
+            Shot(name: "menubar-notice", scenario: .init(disconnect: .leftWiFi), width: 150,
+                 prepare: { $0.disconnectChanged(notify: false) }, content: { AnyView(MenuBarLabelSample()) }),
+            Shot(name: "menubar-notice-browser", scenario: .init(disconnect: .browserClosed), width: 150,
+                 prepare: { $0.disconnectChanged(notify: false) }, content: { AnyView(MenuBarLabelSample()) }),
 
             // Setup assistant.
             Shot(name: "setup-1-permissions", scenario: .init(fresh: true), size: CGSize(width: 440, height: 480),
                  content: { AnyView(SetupAssistant(step: 0)) }),
+            // Measured permission health, one state each (Screen Recording; Accessibility working).
+            ] + PermissionHealth.allCases.filter { $0 != .checking }.map { health in
+                Shot(name: "setup-1-\(health.rawValue)", size: CGSize(width: 440, height: 480),
+                     prepare: { $0.permissions.pin(health, for: .screenRecording); $0.permissions.pin(.working, for: .accessibility) },
+                     content: { AnyView(SetupAssistant(step: 0)) })
+            } + [
+            Shot(name: "main-permission-stale", size: MainView.size, windowed: true,
+                 prepare: { $0.permissions.pin(.grantedButNotWorking, for: .screenRecording); $0.permissions.pin(.working, for: .accessibility) },
+                 content: main),
+            Shot(name: "main-permission-relaunch", size: MainView.size, windowed: true,
+                 prepare: { $0.permissions.pin(.needsRelaunch, for: .screenRecording); $0.permissions.pin(.denied, for: .accessibility) },
+                 content: main),
+            Shot(name: "settings-general-permissions", size: CGSize(width: 520, height: 930),
+                 prepare: { $0.permissions.pin(.grantedButNotWorking, for: .screenRecording); $0.permissions.pin(.denied, for: .accessibility) },
+                 content: { AnyView(GeneralSettings()) }),
             Shot(name: "setup-2-connect", scenario: .init(topology: .offline, fresh: true), size: CGSize(width: 440, height: 480),
                  content: { AnyView(SetupAssistant(step: 1)) }),
             Shot(name: "setup-2-connect-done", size: CGSize(width: 440, height: 480),
@@ -129,6 +158,7 @@ enum SnapshotRenderer {
 
     private static func render(_ shot: Shot, appearance: NSAppearance) async -> Data? {
         let model = AppModel(wired: Wiring.mock(settings: shot.settings, scenario: shot.scenario), settings: shot.settings)
+        shot.prepare(model)
         let controller = AppController()
         let root = shot.content()
             .environment(model)
@@ -138,6 +168,8 @@ enum SnapshotRenderer {
 
         let hosting = NSHostingView(rootView: root)
         hosting.sceneBridgingOptions = [.toolbars]
+        // A fixed-size shot stays that size (a scroll-disabled Form reports a huge ideal height offscreen).
+        if shot.size != nil, !shot.windowed { hosting.sizingOptions = [] }
         var size = shot.size ?? CGSize(width: shot.width, height: 600)
         if shot.size == nil {
             hosting.frame = NSRect(origin: .zero, size: size)
@@ -197,5 +229,19 @@ private struct DomainSectionsSnapshot: View {
     var body: some View {
         Form { OwnDomainSections() }
             .formStyle(.grouped)
+    }
+}
+
+/// The status item's label as a bar-height strip.
+private struct MenuBarLabelSample: View {
+    @Environment(AppModel.self) private var model
+    @Environment(AppController.self) private var controller
+
+    var body: some View {
+        MenuBarLabel(model: model, controller: controller)
+            .font(.system(size: 13))
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

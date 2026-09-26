@@ -416,11 +416,15 @@ public protocol NetworkManaging: AnyObject {
     /// names), so the car link works with no internet and no public DNS record.
     func startLocalServices() async
     func stopLocalServices() async
+    /// Whether `address` (a car that just dropped) is still on this Mac's link, judged from the ARP
+    /// table. nil = can't tell.
+    func isStillOnNetwork(_ address: String) async -> Bool?
 }
 
 public extension NetworkManaging {
     func startLocalServices() async {}
     func stopLocalServices() async {}
+    func isStillOnNetwork(_ address: String) async -> Bool? { nil }
 }
 
 // MARK: - Service (implemented in DashcastServer, observed by the UI)
@@ -457,6 +461,39 @@ public enum ServicePhase: Equatable, Sendable {
     case error(String)
 }
 
+/// Why the car went away, as well as the Mac can tell.
+public enum DisconnectReason: String, Sendable, CaseIterable {
+    /// The socket dropped and the car is no longer on the Mac's link.
+    case leftWiFi
+    /// The car's browser closed the connection cleanly (tab closed, page left, browser quit).
+    case browserClosed
+    /// A timeout or error with the car (possibly) still around.
+    case connectionLost
+}
+
+public struct CarDisconnect: Equatable, Sendable {
+    public var reason: DisconnectReason
+    public var date: Date
+    public init(reason: DisconnectReason, date: Date) { self.reason = reason; self.date = date }
+}
+
+/// Whether this Mac can currently show the car anything. Sent to the car as `{"t":"host"}`.
+public enum HostState: String, Codable, Sendable, CaseIterable {
+    case active
+    case locked
+    case displayAsleep
+    /// The whole Mac is about to sleep (sent from willSleep, before the network goes away).
+    case sleeping
+
+    /// The most important condition wins: asleep beats locked beats a dark display.
+    public static func resolve(systemSleeping: Bool, locked: Bool, displayAsleep: Bool) -> HostState {
+        if systemSleeping { return .sleeping }
+        if locked { return .locked }
+        if displayAsleep { return .displayAsleep }
+        return .active
+    }
+}
+
 public struct LogLine: Identifiable, Equatable, Sendable {
     public let id = UUID()
     public var date: Date
@@ -476,6 +513,10 @@ public final class ServiceState {
     public var accessibilityGranted = false
     public var displays: [DisplayInfo] = []
     public var log: [LogLine] = []
+    /// The last car disconnect, until a car connects again or casting stops.
+    public var lastDisconnect: CarDisconnect?
+    /// Locked, display asleep or sleeping: the car sees a "paused" message.
+    public var hostState: HostState = .active
 
     /// URL the car should open: the own domain once it has a valid certificate, else the service address.
     public var carURL: String {
@@ -505,6 +546,8 @@ public struct ServiceSettings: Equatable, Sendable {
     public var audioEnabled = true
     public var inputEnabled = true
     public var hiDPI = true
+    /// Hold off display sleep while a car is connected (lid close and locking still pause).
+    public var keepDisplayAwake = true
     public init() {}
 }
 
@@ -521,5 +564,9 @@ public protocol DashcastServicing: AnyObject {
     func refreshPermissions()
     func requestScreenRecording()
     func requestAccessibility()
+    /// Tells the car (and `state.hostState`) the Mac locked, slept or woke. For `.sleeping` it
+    /// returns once the message is on the wire (or after a short timeout), so the caller can let
+    /// the system sleep only then.
+    func setHostState(_ hostState: HostState)
     var network: NetworkManaging { get }
 }
