@@ -19,7 +19,9 @@ function flowTop(el: HTMLElement) {
 
 function targetY(el: HTMLElement) {
   const max = document.documentElement.scrollHeight - window.innerHeight;
-  return Math.max(0, Math.min(max, Math.round(flowTop(el) - navH())));
+  // The closing section hides the nav, so it lands flush with the top of the viewport.
+  const offset = el.id === 'download' ? 0 : navH();
+  return Math.max(0, Math.min(max, Math.round(flowTop(el) - offset)));
 }
 
 function emit(phase: NavPhase, id: string) {

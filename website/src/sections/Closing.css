@@ -5,8 +5,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--nav-h));
-  min-height: calc(100svh - var(--nav-h));
+  /* A full viewport: the nav slides away here, so the section owns the top of the screen too. */
+  min-height: 100vh;
+  min-height: 100svh;
   overflow: hidden;
   background: var(--c-black);
   color: var(--c-white);
