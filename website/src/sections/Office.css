@@ -1,8 +1,9 @@
-/* "Your office, anywhere" on /powerwall's vertical carousel: black, a left-aligned heading, the steps as a list
-   (24/28 titles, the active one white with its 14/20 text open) beside the media, which follows the active step.
-   The drawing is ours: white hairlines on black, Tesla greys for the solid parts, the brand wallpaper on screen. */
+/* "Your office, anywhere": one dark passage in /powerwall's layout (measured there: sections on black, media in
+   the 1116px main column with a row of 14/20 step columns under it, the active one white and the rest #d0d1d2).
+   Heading, then the composite across the content column, the three steps as columns under it, the note, and the
+   band's photo (Band.css) rising out of the same black. No bottom padding: the band's fade is that space. */
 .office {
-  padding: var(--section-pad) 0;
+  padding: var(--section-pad) 0 0;
   background: var(--c-dark-bg);
 }
 
@@ -11,21 +12,49 @@
   color: var(--c-grey-50);
 }
 
-.office__row {
-  display: grid;
-  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
-  grid-column-gap: var(--s-6);
-  column-gap: var(--s-6);
-  align-items: center;
+/* As wide as the content column, but never so tall that the composite and the steps under it can't share one
+   screen (the composite is 1.849:1; 160px leaves room for the steps). */
+.office__art,
+.office__steps {
+  max-width: 1200px;
+  max-width: min(100%, calc((100vh - var(--nav-h) - 160px) * 1.849));
+  max-width: min(100%, calc((100svh - var(--nav-h) - 160px) * 1.849));
+}
+
+.office__art {
+  min-width: 0;
   margin-top: var(--head-gap);
 }
 
-.office__steps li {
-  padding-bottom: var(--s-4);
+.office__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-column-gap: var(--s-3);
+  column-gap: var(--s-3);
+  margin-top: var(--s-4);
 }
 
-.office__steps li:last-child {
-  padding-bottom: 0;
+.office__steps li {
+  position: relative;
+  padding-top: var(--s-2);
+  border-top: var(--hairline-dark);
+}
+
+/* The active step's line turns white: the only sign of the auto-advance, no progress animation. */
+.office__steps li::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--c-white);
+  opacity: 0;
+  transition: opacity var(--dur-ui);
+}
+
+.office__steps .is-on::before {
+  opacity: 1;
 }
 
 .office__step {
@@ -36,6 +65,7 @@
 }
 
 .office__title {
+  display: block;
   font-family: var(--font-display);
   font-size: var(--fs-60);
   line-height: var(--lh-60);
@@ -45,37 +75,30 @@
   transition: color var(--dur-ui);
 }
 
+.office__body {
+  display: block;
+  max-width: 30em;
+  margin-top: var(--s-1);
+  font-size: var(--fs-30);
+  line-height: var(--lh-30);
+  color: var(--c-dark-low);
+  transition: color var(--dur-ui);
+}
+
 .office__step:hover .office__title,
 .office__steps .is-on .office__title {
   color: var(--c-white);
+}
+
+.office__step:hover .office__body,
+.office__steps .is-on .office__body {
+  color: var(--c-grey-50);
 }
 
 .office__step:focus-visible {
   outline: 2px solid var(--c-white);
   outline-offset: 4px;
   border-radius: var(--radius);
-}
-
-.office__body {
-  max-width: 30em;
-  margin-top: var(--s-1);
-  font-size: var(--fs-30);
-  line-height: var(--lh-30);
-  color: var(--c-grey-50);
-  animation: office-body var(--dur-short) var(--ease-mktg);
-}
-
-@keyframes office-body {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.office__art {
-  min-width: 0;
 }
 
 /* A real Model 3 cabin (Bram Van Oost, Unsplash) with the setup drawn in its own perspective. The model's
@@ -214,35 +237,18 @@
 }
 
 .office__note {
-  margin-top: var(--head-gap);
+  margin-top: var(--s-4);
   font-size: var(--fs-20);
   line-height: var(--lh-20);
   color: var(--c-dark-low);
 }
 
-/* Narrow desktops and landscape tablets: a slimmer step list, so the photo keeps its size. */
-@media (max-width: 1199px) {
-  .office__row {
-    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
-    grid-column-gap: var(--s-5);
-    column-gap: var(--s-5);
-  }
-}
-
-/* Tablets and phones: the photo above the steps. */
-@media (max-width: 899px) {
-  .office__row {
+/* Phones: the steps as a list under the composite. */
+@media (max-width: 599px) {
+  .office__steps {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .office__art {
-    grid-row: 1;
-    margin-bottom: var(--s-5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .office__body {
-    animation: none;
+    grid-row-gap: var(--s-3);
+    row-gap: var(--s-3);
+    margin-top: var(--s-3);
   }
 }

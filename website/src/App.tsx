@@ -3,7 +3,6 @@ import { Hero } from './sections/Hero';
 import { Features } from './sections/Features';
 import { Demo } from './sections/Demo';
 import { Touch } from './sections/Touch';
-import { Band } from './sections/Band';
 import { Office } from './sections/Office';
 import { Connect } from './sections/Connect';
 import { Tech } from './sections/Tech';
@@ -25,7 +24,6 @@ export default function App() {
         <Showcase />
         <Touch />
         <Office />
-        <Band />
         <Connect />
         <Tech />
         <Compare />

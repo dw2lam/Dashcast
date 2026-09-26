@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { gsap, ease, prefersReducedMotion } from '../lib/motion';
+import { Band } from './Band';
 import './Office.css';
 
 const STEPS = [
@@ -126,11 +127,13 @@ const POSES: Pose[] = [
 const STEP_MS = 2800;
 
 /**
- * "Your office, anywhere" on Powerwall's vertical carousel: the steps on the left, on the right a real
- * Model 3 cabin (Bram Van Oost, Unsplash) with the setup drawn into it in the photo's own perspective:
- * the screen swivels toward the passenger, the trunk's subfloor cover slides in under the wheel, and a
- * MacBook sits on its passenger end with the car's screen as its second display. Each step animates in
- * 0.7 s; the steps advance while the section is on screen, until someone picks one.
+ * "Your office, anywhere" as one dark passage in /powerwall's layout: the heading, then the composite across the
+ * content column (a real Model 3 cabin by Bram Van Oost on Unsplash, with the setup drawn into it in the photo's
+ * own perspective: the screen swivels toward the passenger, the trunk's subfloor cover slides in under the wheel,
+ * and a MacBook sits on its passenger end with the car's screen as its second display), the three steps as
+ * columns under it with the active one white, and the band's photo rising out of the same black with the story's
+ * closing line. Each step animates in 0.7 s; the steps advance while the section is on screen, until someone
+ * picks one.
  */
 export function Office() {
   const root = useRef<HTMLElement>(null);
@@ -265,84 +268,82 @@ export function Office() {
           <p className="t-sub office__sub">Park, swivel, set up. A desk and a second screen, wherever you charge.</p>
         </header>
 
-        <div className="office__row">
-          <ol className="office__steps">
-            {STEPS.map((s, i) => {
-              const on = i === active;
-              return (
-                <li key={s.title} className={on ? 'is-on' : undefined}>
-                  <button type="button" className="office__step" aria-expanded={on} aria-controls={`office-step-${i}`} onClick={() => choose(i)}>
-                    <span className="office__title">{s.title}</span>
-                  </button>
-                  <p className="office__body" id={`office-step-${i}`} hidden={!on}>
-                    {s.body}
-                  </p>
-                </li>
-              );
-            })}
-          </ol>
-
-          <div className="office__art">
-            <div
-              className="office__photo"
-              ref={photo}
-              role="img"
-              aria-label="A Tesla Model 3 cabin seen from the back seat: the centre screen turned toward the passenger, a board across the front under the steering wheel, and a MacBook on it."
-            >
-              <img
-                className="office__base"
-                src={BASE + 'office-1400.webp'}
-                srcSet={`${BASE}office-1400.webp 1400w, ${BASE}office-2000.webp 2000w, ${BASE}office-2700.webp 2700w`}
-                sizes="(max-width: 899px) 100vw, 60vw"
-                alt=""
-                decoding="async"
-                onLoad={onPhoto}
-              />
-              <div className="o-world" ref={world} aria-hidden="true">
-                <svg className="o-under" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-                  <polygon className="o-side" />
-                </svg>
-                <div className="o-screen">
-                  <i className="o-screen-ui" />
-                  <i className="o-screen-mac" />
-                </div>
-                <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-                  <defs>
-                    <clipPath id="office-rim">
-                      <ellipse cx={RIM.cx} cy={RIM.cy} rx={RIM.rx} ry={RIM.ry} />
-                    </clipPath>
-                    <linearGradient id="office-board" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor="#3a3b3f" />
-                      <stop offset="1" stopColor="#232427" />
-                    </linearGradient>
-                    <linearGradient id="office-deck" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor="#6a6c71" />
-                      <stop offset="1" stopColor="#4a4c50" />
-                    </linearGradient>
-                  </defs>
-                  <g className="o-board">
-                    <polygon className="o-board-top" fill="url(#office-board)" />
-                    <polygon className="o-board-front" />
-                  </g>
-                  <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
-                  <g className="o-mac">
-                    <polygon className="o-mac-shadow" />
-                    <polygon className="o-mac-left" />
-                    <polygon className="o-mac-deck" fill="url(#office-deck)" />
-                    <polygon className="o-mac-keys" />
-                    <polygon className="o-mac-pad" />
-                    <polygon className="o-mac-front" />
-                    <polygon className="o-mac-lid" />
-                  </g>
-                </svg>
-                <div className="o-mac-display" />
+        <div className="office__art">
+          <div
+            className="office__photo"
+            ref={photo}
+            role="img"
+            aria-label="A Tesla Model 3 cabin seen from the back seat: the centre screen turned toward the passenger, a board across the front under the steering wheel, and a MacBook on it."
+          >
+            <img
+              className="office__base"
+              src={BASE + 'office-1400.webp'}
+              srcSet={`${BASE}office-1400.webp 1400w, ${BASE}office-2000.webp 2000w, ${BASE}office-2700.webp 2700w`}
+              sizes="(max-width: 1247px) 100vw, 1200px"
+              alt=""
+              decoding="async"
+              onLoad={onPhoto}
+            />
+            <div className="o-world" ref={world} aria-hidden="true">
+              <svg className="o-under" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+                <polygon className="o-side" />
+              </svg>
+              <div className="o-screen">
+                <i className="o-screen-ui" />
+                <i className="o-screen-mac" />
               </div>
+              <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+                <defs>
+                  <clipPath id="office-rim">
+                    <ellipse cx={RIM.cx} cy={RIM.cy} rx={RIM.rx} ry={RIM.ry} />
+                  </clipPath>
+                  <linearGradient id="office-board" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#3a3b3f" />
+                    <stop offset="1" stopColor="#232427" />
+                  </linearGradient>
+                  <linearGradient id="office-deck" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#6a6c71" />
+                    <stop offset="1" stopColor="#4a4c50" />
+                  </linearGradient>
+                </defs>
+                <g className="o-board">
+                  <polygon className="o-board-top" fill="url(#office-board)" />
+                  <polygon className="o-board-front" />
+                </g>
+                <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
+                <g className="o-mac">
+                  <polygon className="o-mac-shadow" />
+                  <polygon className="o-mac-left" />
+                  <polygon className="o-mac-deck" fill="url(#office-deck)" />
+                  <polygon className="o-mac-keys" />
+                  <polygon className="o-mac-pad" />
+                  <polygon className="o-mac-front" />
+                  <polygon className="o-mac-lid" />
+                </g>
+              </svg>
+              <div className="o-mac-display" />
             </div>
           </div>
         </div>
 
+        <ol className="office__steps">
+          {STEPS.map((s, i) => {
+            const on = i === active;
+            return (
+              <li key={s.title} className={on ? 'is-on' : undefined}>
+                <button type="button" className="office__step" aria-current={on ? 'step' : undefined} onClick={() => choose(i)}>
+                  <span className="office__title">{s.title}</span>
+                  <span className="office__body">{s.body}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+
         <p className="office__note">Our setup, in a Model 3/Y. Parked only. Take the board out before you drive.</p>
       </div>
+
+      <Band />
     </section>
   );
 }

@@ -135,8 +135,8 @@ Every section is one of these. Numbers are Tesla's at 1800px unless noted; the r
 | 3 | Demo `#demo` | Media + content row | white | `DemoStage` in the #f4f4f4 block; Display and Car computer as Segmented; 60 fps · 48 kHz stats |
 | 4 | The Mac app `#app` | Media + content row | white | the pair's second half: same block, same 16:10 stage; chapter tabs + Light/Dark; chapters advance every 7s until one is picked; 1 window · 3 steps |
 | 5 | Touch is the mouse | Info-card grid | white | left heading; five #f4f4f4 tiles with the wallpaper-blue screens |
-| 6 | Your office, anywhere | Vertical carousel | black | steps on the left, our drawing on the right showing the active step; advances every 4.8s until one is picked |
-| 7 | "Nothing to install in the car." | Photo section | full-bleed | static (no zoom) |
+| 6 | Your office, anywhere `#office` | /powerwall media + step row, one dark passage with the band | black | round 10: heading, the composite across the content column (capped so it and the steps share one screen), the three steps as columns under it (active title and hairline white; 0.7 s steps, 2.8 s auto-advance, unchanged), the note, then the band inside the same section |
+| 7 | "Nothing to install in the car." | photo rising out of the office black | full-bleed | round 10: part of `#office` (no own section); a long #000 → clear fade over the photo's top 78%, the line in the office heading's 48/56 and its left column; clean cut into white Connect |
 | 8 | Connect | (its own tabs + diagram) | white | **kept**; only the Phone Hotspot copy changed |
 | 9 | Under the hood | Specs table | black | **kept** |
 | 10 | Compare | /compare | white | kept: it already follows /compare |

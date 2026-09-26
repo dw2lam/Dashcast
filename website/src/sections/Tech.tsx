@@ -1,4 +1,6 @@
 import { CAR_ADDRESS } from '../lib/links';
+import { prefersReducedMotion } from '../lib/motion';
+import { ParticleText } from '../ui/ParticleText';
 import './Tech.css';
 
 const WHY = [
@@ -50,7 +52,27 @@ export function Tech() {
         </header>
 
         <div className="tech__address">
-          <p className="tech__ip">{CAR_ADDRESS}</p>
+          {prefersReducedMotion() ? (
+            <p className="tech__ip">{CAR_ADDRESS}</p>
+          ) : (
+            <ParticleText
+              className="tech__ip tech__ip--particles"
+              text={CAR_ADDRESS}
+              particleSize={2}
+              density={3}
+              color="#ffffff"
+              highlightColor="#18d3fd"
+              scatter={160}
+              gatherDuration={1500}
+              stagger={400}
+              pointerRepel={36}
+              repelRadius={110}
+              idleDrift={0.5}
+              fontSize="inherit"
+              fontWeight="inherit"
+              glow
+            />
+          )}
           <p className="t-label">The address your car opens</p>
         </div>
 

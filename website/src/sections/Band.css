@@ -1,32 +1,47 @@
+/* The office passage's close (inside #office): the cabin photo rises out of the section's black under a long
+   fade (solid #000 at the top edge, clear by three quarters of the way down), with the story's closing line in the
+   office heading's size and column. The photo's bottom is a clean cut into the white Connect section. */
 .band {
   position: relative;
-  height: 72vh;
-  min-height: 440px;
-  max-height: 760px;
+  height: 76vh;
+  min-height: 460px;
+  max-height: 780px;
+  margin-top: var(--s-5);
   overflow: hidden;
   background: var(--c-dark-bg);
 }
 
-.band__scrim {
+.band__fade {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.74), rgba(0, 0, 0, 0.4) 24%, rgba(0, 0, 0, 0) 48%);
+  background: linear-gradient(
+    to bottom,
+    #000000 0%,
+    rgba(0, 0, 0, 0.94) 14%,
+    rgba(0, 0, 0, 0.72) 30%,
+    rgba(0, 0, 0, 0.38) 48%,
+    rgba(0, 0, 0, 0.12) 64%,
+    rgba(0, 0, 0, 0) 78%
+  );
 }
 
-.band__title {
+.band__copy {
   position: relative;
   z-index: 1;
-  padding: var(--photo-title-top) var(--gutter) 0;
-  text-align: center;
+  padding-top: var(--photo-title-top);
+}
+
+.band__line {
+  color: var(--c-white);
 }
 
 @media (max-width: 599px) {
   .band {
     height: 64vh;
-    min-height: 400px;
+    min-height: 420px;
   }
 }

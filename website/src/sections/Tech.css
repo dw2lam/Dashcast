@@ -29,6 +29,18 @@
   -webkit-text-fill-color: transparent;
 }
 
+/* The particle version keeps .tech__ip's font metrics (the canvas samples the computed size and
+   weight) but paints on a canvas the height of one line, so the gradient text rule doesn't apply. */
+.tech__ip--particles {
+  display: block;
+  width: 100%;
+  max-width: 1040px;
+  height: 1.3em;
+  margin: 0 auto;
+  background: none;
+  -webkit-text-fill-color: initial;
+}
+
 .tech__address .t-label {
   margin-top: var(--s-2);
   color: var(--c-dark-low);
