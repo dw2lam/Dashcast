@@ -10,6 +10,8 @@ z = 1.373 m, which makes its 536 px width the real 36.8 cm glass. A small homogr
 model's projection of the flat screen onto the measured quad (the photo's slight roll); it is applied
 to every projected point. Car frame = camera frame: x → right (passenger), y ↓, z → forward, metres.
 
+The master is first run through the site's grade (research/tesla-web/tools/grade.py, the lead's recipe).
+
 Outputs (public/demo/):
   office-{1400,2000,2700}.webp   the photo cropped to (150, 560, 2850, 2020), its screen area retouched
                                  to the dash behind it (the turned screen uncovers a sliver of it)
@@ -20,6 +22,8 @@ and prints the model constants for Office.tsx.
 """
 import json
 import os
+import subprocess
+import sys
 
 import cv2
 import numpy as np
@@ -28,6 +32,9 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.abspath(os.path.join(HERE, '../..'))
 SRC = os.path.join(SITE, 'research/photos/unsplash-ort-4xM5cytsdMo.jpg')
+# The site's shared photo grade (the lead's recipe, matched to the hero cabin), applied to the whole
+# master first: every derivative, and the screen's glass textures, come from the graded photo.
+GRADE = os.path.join(SITE, 'research/tesla-web/tools/grade.py')
 OUT = os.path.join(SITE, 'public/demo')
 SCRATCH = os.environ.get('OFFICE_SCRATCH', '/tmp')
 CROP = (150, 560, 2850, 2020)
@@ -91,7 +98,9 @@ def main():
     HC = homography(project(screen_corners(m, 0)), Q0)
     turned = apply_h(HC, project(screen_corners(m, np.radians(30))))
 
-    bgr = cv2.imread(SRC)
+    graded = os.path.join(SCRATCH, 'office-graded.png')
+    subprocess.run([sys.executable, GRADE, SRC, graded], check=True, stdout=subprocess.DEVNULL)
+    bgr = cv2.imread(graded)
     # Retouch: the dash behind the glass, wherever the turned screen no longer covers the flat one.
     mask = np.zeros(bgr.shape[:2], np.uint8)
     cv2.fillPoly(mask, [Q0.round().astype(np.int32)], 255)

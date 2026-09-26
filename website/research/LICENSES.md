@@ -2,11 +2,10 @@
 
 ## Site lead — highlight photos
 
-Originals in `research/tesla-web/refs/photos/` (git-ignored). Shipped derivatives in `public/media/` (`<prefix>-960/1600/2400` and `<prefix>-p750/p1125`, `.avif` + `.webp`). All three were checked as free (not Unsplash+/premium) on 2026-09-24. Every photo shows a Tesla interior or a Tesla, and none comes from the demo cabin's shoot (I'M ZION). The Touch gesture art is our own drawing. The Sound and MCU visuals reuse the demo's licensed assets, and the car-office scene is a Bram Van Oost Model 3 interior (see the Demo section below).
+Originals in `research/tesla-web/refs/photos/` (git-ignored). Shipped derivatives in `public/media/` (`<prefix>-960/1600/2400` and `<prefix>-p750/p1125`, `.avif` + `.webp`). Both were checked as free (not Unsplash+/premium) on 2026-09-24, and both carry the site's one grade (`research/tesla-web/tools/grade.py`, matched to the hero's cabin photo) applied to the originals before the derivatives were cut (`tools/media.py`). Every photo shows a Tesla interior or a Tesla, and none comes from the demo cabin's shoot (I'M ZION). The Touch gesture art is our own drawing. The Sound and MCU visuals reuse the demo's licensed assets, and the car-office scene is a Bram Van Oost Model 3 interior (see the Demo section below).
 
 | slot | file prefix | photographer | source page URL | licence |
 |---|---|---|---|---|
-| Extend or mirror | `extend` | [Priscilla Du Preez](https://unsplash.com/@priscilladupreez) | https://unsplash.com/photos/a-car-dashboard-with-a-monitor-and-steering-wheel-518PH1Y_1EI | Unsplash License |
 | Band: “Nothing to install in the car.” | `mcu` | [Bram Van Oost](https://unsplash.com/@ort) | https://unsplash.com/photos/the-interior-of-a-car-with-a-laptop-on-the-dashboard-1tm9Rkp_43Q | Unsplash License |
 | Download (closing section + footer) | `charge` | [Prometheus](https://unsplash.com/@iamateapot) | https://unsplash.com/photos/a-group-of-cars-parked-in-a-parking-lot-at-night-OcFDX9_kfLg | Unsplash License |
 

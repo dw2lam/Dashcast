@@ -94,6 +94,8 @@
   font-size: var(--fs-50);
   line-height: var(--lh-50);
   font-weight: var(--fw-display);
+  letter-spacing: var(--ls-digits);
+  font-variant-numeric: tabular-nums;
   color: var(--c-ink);
 }
 

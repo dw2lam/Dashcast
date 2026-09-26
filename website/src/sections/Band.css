@@ -29,6 +29,34 @@
   );
 }
 
+/* A slow push-in, 1.00 → 1.06 over 12 s and back (alternate, so it never jumps), only while on screen. The
+   animation pauses rather than resets when the band leaves, so it picks up where it was. */
+.band__photo img {
+  transform-origin: 50% 45%;
+  animation: band-push 12s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.band.is-live .band__photo img {
+  animation-play-state: running;
+  will-change: transform;
+}
+
+@keyframes band-push {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .band__photo img {
+    animation: none;
+  }
+}
+
 .band__copy {
   position: relative;
   z-index: 1;

@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../../../src/styles/tokens.css';
 import '../../../src/styles/global.css';
-import { CabinScreen, DemoStage, McuVisual, SoundVisual } from '../../../src/demo';
+import { CabinScreen, DemoStage, ExtendVisual, McuVisual, SoundVisual } from '../../../src/demo';
 import { DemoScreen } from '../../../src/demo/screen';
 
 const q = new URLSearchParams(location.search);
@@ -28,7 +28,7 @@ function Panel() {
 function Vis() {
   const w = Number(q.get('w') || 634);
   const h = Number(q.get('h') || 508);
-  const V = q.get('vis') === 'mcu' ? McuVisual : SoundVisual;
+  const V = q.get('vis') === 'mcu' ? McuVisual : q.get('vis') === 'extend' ? ExtendVisual : SoundVisual;
   return (
     <div style={{ padding: 20, background: '#f4f4f4', minHeight: '100vh', boxSizing: 'border-box' }}>
       <div id="card" style={{ position: 'relative', width: w, height: h, borderRadius: 8, overflow: 'hidden' }}>

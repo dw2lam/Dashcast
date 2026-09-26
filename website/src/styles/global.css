@@ -281,7 +281,7 @@ button {
   font-weight: var(--fw-display);
   font-size: var(--type-stat);
   line-height: var(--type-stat-lh);
-  letter-spacing: var(--ls-display);
+  letter-spacing: var(--ls-digits);
   color: var(--c-ink);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

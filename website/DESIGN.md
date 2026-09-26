@@ -75,6 +75,9 @@ Tesla uses two proprietary faces, **Universal Sans Display** for titles and numb
 
 **One palette (round 8).** Removed: the office graphite `#111317` and its fills `#0b0c0f #23262d #2d3139 #1c1f25`; the dark tile gradient `#2b3240 → #1b1e25 → #15171c` (Touch and the old split panels); the purple screen gradient `#1d3b7a → #35307a → #5b2a7a`; the brand gradient as a screen fill in the office drawing; the brand-blue step numbers; the closing's `#08090b` night backdrop and its scrims; the Band's `#1a1c20`; the macOS traffic-light red/yellow/green in the gesture art (now #c9ccd3); Tesla blue as the gesture caret (now the one brand accent). The native Mac captures keep their real colours.
 
+### Photo grade (round 11)
+Every photo matches the hero's cabin photo (`public/demo/cabin-*`): cool-neutral, deep but not crushed blacks, restrained saturation, soft highlights. `research/tesla-web/tools/grade.py in out [--strength 1.0]` applies it: levels (a black-point eyedropper on the darkest 0.5% onto ~1.5/255, one gain to a ~251 white), white balance (shadows R/G 0.977 · B/G 1.025, mids neutral), a soft shoulder above 0.8, and relative chroma toward 0.075 (never below 0.45× the original). `tools/media.py` cuts the derivatives from the graded masters. Graded: the band (`mcu`), the finale (`charge`) and, by the demo agent, the office photo.
+
 ## Components
 - **Nav** (`sections/Nav`): tesla.com's home header as it is today.
   - A solid white 56px bar, `position: sticky; top: 0`, always visible, with no shadow and no hide-on-scroll. The hero starts below it.
@@ -212,6 +215,8 @@ The track is a native `overflow-x: auto` scroller (`.snap-track` in global.css).
 - **Load:** the header fades in over 1s (Tesla's `tds--fade-in`). The hero keeps its own load stagger and scroll-out fade (kept section).
 - **Media only:** the demo loop, `SoundVisual`/`McuVisual`, the gesture tiles (only while on screen), the Mac app's chapters (7s each, windows glide .9s with Tesla's curves, captures crossfade), the office steps (4.8s each; each step animates only what it adds). Anything that advances by itself stops as soon as someone picks a tab or step, and only runs while its section is on screen.
 - **Carousels:** native scroll; dots glide the track with `--ease-mktg`; the dot state switches instantly, like Tesla's.
+- **Band push-in (round 11):** "Nothing to install in the car." scales its photo 1.00 → 1.06 over 12s, ease-in-out, alternating (no jump), CSS only; it runs only while the band is on screen (IntersectionObserver toggles `.is-live`, the animation pauses rather than resets) and is off under reduced motion.
+- **Spec digits (round 11):** every big number (hero stats, the demo/app rows, the split cards, Connect's "In the car" numerals, Tech's measured numbers, Compare values) uses `letter-spacing: var(--ls-digits)` (−0.02em) and `tabular-nums`. The big IP keeps proportional digits: it's one display figure, not a column.
 - **Reduced motion:** no loops or autoplay, instant state changes, CSS durations collapse to 0.01s, the header doesn't fade.
 
 ## Reserved global class names (site lead)

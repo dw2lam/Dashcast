@@ -85,6 +85,7 @@
   font-size: var(--fs-60);
   line-height: var(--lh-60);
   font-weight: var(--fw-display);
+  letter-spacing: var(--ls-digits);
   font-variant-numeric: tabular-nums;
 }
 

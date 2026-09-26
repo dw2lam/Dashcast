@@ -16,6 +16,7 @@
   --fw-medium: 500;
   --fw-display: 500;
   --ls-display: -0.01em;
+  --ls-digits: -0.02em;             /* big spec numbers (Tesla's badge values), always with tabular-nums */
 
   /* TDS type scale: --tds-font-size-* / --tds-line-height-* (px) */
   --fs-10: 10px;  --lh-10: 18px;

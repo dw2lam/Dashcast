@@ -20,3 +20,4 @@ shots-raw/wallpaper/*
 research/photos/*.jpg
 !research/photos/unsplash-ziontech-u4FO_unYC8I.jpg
 !research/photos/wallpaper-original.jpg
+__pycache__/

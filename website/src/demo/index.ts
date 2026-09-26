@@ -10,3 +10,5 @@ export { CabinScreen } from './CabinScreen';
 //   McuVisual    — Features "Built for MCU2 and MCU3" media: fills its positioned parent. No props.
 export { SoundVisual } from './visuals/SoundVisual';
 export { McuVisual } from './visuals/McuVisual';
+//   ExtendVisual — Features "Extend or mirror" media: fills its positioned parent. No props.
+export { ExtendVisual } from './visuals/ExtendVisual';

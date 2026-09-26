@@ -120,7 +120,8 @@
   font-size: var(--fs-80);
   line-height: var(--lh-80);
   font-weight: var(--fw-display);
-  letter-spacing: var(--ls-display);
+  letter-spacing: var(--ls-digits);
+  font-variant-numeric: tabular-nums;
   color: var(--c-ink);
   white-space: nowrap;
 }

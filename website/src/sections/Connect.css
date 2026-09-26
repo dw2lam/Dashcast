@@ -314,6 +314,7 @@
   font-size: var(--fs-90);
   line-height: var(--lh-90);
   font-weight: var(--fw-display);
+  letter-spacing: var(--ls-digits);
   color: var(--c-ink);
   font-variant-numeric: tabular-nums;
 }

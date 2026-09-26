@@ -327,3 +327,14 @@ Model pages set it per section with CSS variables on `.tcl-section-padding`:
   - The media on the right is 620×465 with an 8px radius. Pictures crossfade over .8s ease-in-out.
   - The list advances by itself; the aria state changed between reads.
 - **Specs table:** a 28/36 title with a tab list on the right, over a spec grid.
+
+## Round 11: photo grade, measured (grade.py --measure; 1400px downscales)
+| photo | meanY | black (p0.2) | white (p99.8) | shadows R/G · B/G | mids R/G · B/G | rel. chroma |
+|---|---|---|---|---|---|---|
+| reference: hero cabin | 51.3 | 0.0 | 254.0 | 0.977 · 1.025 | 1.023 · 0.991 | 0.075 |
+| band `mcu`, before | 56.2 | 30.0 | 232.4 | 0.880 · 1.083 | 0.880 · 0.974 | 0.225 |
+| band `mcu`, after | 33.8 | 3.0 | 245.8 | 0.882 · 1.001 | 0.981 · 0.984 | 0.244 |
+| finale `charge`, before | 14.3 | 0.0 | 226.4 | 1.178 · 0.798 | 1.054 · 0.903 | 0.343 |
+| finale `charge`, after | 16.6 | 0.7 | 250.1 | 0.972 · 0.983 | 0.999 · 0.996 | 0.160 |
+
+The band's relative chroma stays high because its seats sit just above black, where chroma/luminance is noisy; its mids are neutral and its milky, teal floor (30/255) is now near black. The saturation floor (0.45×) keeps the Supercharger's red and the band's trees from going monochrome.

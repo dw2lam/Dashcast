@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Photo } from '../ui/Photo';
-import { SoundVisual, McuVisual } from '../demo';
+import { SoundVisual, McuVisual, ExtendVisual } from '../demo';
 import { useCarousel } from '../hooks/useCarousel';
 import './Features.css';
 
@@ -25,7 +24,7 @@ const FEATURES: Feature[] = [
       { value: 'Mirror', label: 'The screen you’re on' },
     ],
     secondary: { label: 'Learn more', href: '#app' },
-    media: <Photo name="extend" alt="A Tesla Model 3 centre screen glowing in a dark cabin" tone="#171a20" position="50% 55%" landscapeOnly />,
+    media: <ExtendVisual />,
   },
   {
     id: 'sound',
