@@ -5,11 +5,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  /* Fills the viewport under the nav, and the page snaps to it once you scroll close (html sets
-     scroll-snap-type; scroll-padding-top keeps it below the nav). */
-  min-height: calc(100vh - var(--nav-h));
-  min-height: calc(100svh - var(--nav-h));
+  /* A full viewport: the page snaps into it near the end (html sets scroll-snap-type) and the nav
+     slides away, so the negative scroll margin cancels html's scroll-padding and it lands at the top. */
+  min-height: 100vh;
+  min-height: 100svh;
   scroll-snap-align: start;
+  scroll-margin-top: calc(-1 * var(--nav-h));
   overflow: hidden;
   background: var(--c-black);
   color: var(--c-white);

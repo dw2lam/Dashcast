@@ -95,6 +95,30 @@ export function Nav() {
     if (!hovering.current) restPill();
   }, [restPill]);
 
+  // Slides away once the closing section has taken the top of the page, and back as soon as it hasn't.
+  const [closingReached, setClosingReached] = useState(false);
+  useEffect(() => {
+    const closing = document.getElementById('download');
+    if (!closing) return;
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56;
+      setClosingReached(closing.getBoundingClientRect().top <= navH + 1);
+    };
+    const queue = () => {
+      if (!frame) frame = window.requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue);
+    return () => {
+      window.removeEventListener('scroll', queue);
+      window.removeEventListener('resize', queue);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
@@ -108,7 +132,7 @@ export function Nav() {
 
   return (
     <>
-      <header className="nav">
+      <header className={`nav${closingReached && !menuOpen ? ' is-hidden' : ''}`}>
         <a className="nav__brand" href="#top" aria-label="Dashcast, back to top">
           <Wordmark />
         </a>
