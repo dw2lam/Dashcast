@@ -10,6 +10,8 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-padding-top: var(--nav-h);
+  /* Only the closing section declares a snap point, so the page snaps into it near the end. */
+  scroll-snap-type: y proximity;
 }
 
 body {

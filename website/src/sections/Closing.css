@@ -5,9 +5,11 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  /* A full viewport: the nav slides away here, so the section owns the top of the screen too. */
-  min-height: 100vh;
-  min-height: 100svh;
+  /* Fills the viewport under the nav, and the page snaps to it once you scroll close (html sets
+     scroll-snap-type; scroll-padding-top keeps it below the nav). */
+  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100svh - var(--nav-h));
+  scroll-snap-align: start;
   overflow: hidden;
   background: var(--c-black);
   color: var(--c-white);

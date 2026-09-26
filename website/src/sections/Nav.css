@@ -16,18 +16,6 @@
   background-color: var(--c-white);
   /* tesla.com's only entrance: the header fades in over 1s on load (tds--fade-in). */
   animation: nav-in 1s both;
-  transition: transform var(--dur-short) var(--ease-slide);
-}
-
-/* Once the closing section owns the top of the page, the bar slides up out of the way. */
-.nav.is-hidden {
-  transform: translateY(-100%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nav {
-    transition: none;
-  }
 }
 
 @keyframes nav-in {
