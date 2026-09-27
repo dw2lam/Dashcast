@@ -16,13 +16,18 @@ Outputs (public/demo/):
   office-{1400,2000,2700}.webp   the graded photo cropped to (150, 560, 2850, 2020), untouched
   extend-{960,1480}.webp         the Extend card's crop (620, 450, 2100, 1450), the screen's active area
                                  blacked out to dark glass so only the live panel shows a picture
-  office-desk.webp               the office screen's second-display picture (our render), photographed:
-                                 mapped onto the photo's own screen levels, softened, the photo's grain
-  office-board.webp, office-macbook.webp   the Blender renders of the board and the MacBook (render_macbook.py),
+  office-board.webp, office-macbook.webp   the Blender renders of the board and the MacBook (render_office.py),
                                  graded and grained into the photo, cropped to their extent (offsets printed)
 
-Order: run this once (it writes macbook-display.png, the MacBook's screen), render the board and the
-MacBook into $OFFICE_SCRATCH/board.png and macbook.png with render_macbook.py, then run this again.
+  office-swivel.webm/.mp4, office-swivel-end.webp, office-swivel-desk.webp
+                                 the screen turning 0→30° toward the passenger (render_office.py's swivel scene:
+                                 the photo projected onto the scene, the slab turned about its mount), only the
+                                 pixels that change, blended into the photo; its last frame; and that pose with
+                                 the Mac's desktop on the screen
+
+Order: run this once (it writes macbook-display.png and the swivel's inputs), render the board, the MacBook
+and the swivel with render_office.py into $OFFICE_SCRATCH/board.png, macbook.png and swivel/, then run this
+again.
 and prints the model constants for Office.tsx.
 """
 import json
@@ -174,7 +179,7 @@ def load_render(path):
 
 
 def sprites(HC):
-    """The Blender renders (render_macbook.py) → graded, grained sprites for the page.
+    """The Blender renders (render_office.py) → graded, grained sprites for the page.
 
     Each render is placed in the photo by the model's correction homography, composited onto the ungraded
     photo (the MacBook over the board), graded with the photo's own recipe, then cut back out by its alpha,
@@ -225,6 +230,116 @@ def sprites(HC):
     print('sprites (crop px: x, y, w, h):', json.dumps(out))
 
 
+SWIVEL_WIN = (1150, 680, 1830, 1190)  # the swivel's render window, model px (render_office.py)
+SWIVEL_FRAMES = 27
+
+
+def swivel_inputs(bgr, HC):
+    """What the swivel scene projects: the photo in model space with the screen's area filled, and the
+    screen's own glass (and the desk-on-screen version) as the slab's face textures."""
+    # Fill behind the screen along the dash's bands: each row blends from the dash just left of the glass to
+    # the dash just right of it; the photo's grain on top. Only the strips the turn reveals are ever seen.
+    hole = np.zeros(bgr.shape[:2], np.uint8)
+    cv2.fillPoly(hole, [Q0.round().astype(np.int32)], 255)
+    hole = cv2.dilate(hole, np.ones((21, 21), np.uint8))  # well past the glass's silver rim
+    filled = bgr.astype(np.float32).copy()
+    for r in range(hole.shape[0]):
+        xs = np.where(hole[r])[0]
+        if not len(xs):
+            continue
+        a, b = xs.min(), xs.max()
+        left = bgr[r, max(0, a - 10):a - 1].astype(np.float32).mean(axis=0)
+        right = bgr[r, b + 2:b + 11].astype(np.float32).mean(axis=0)
+        t = ((xs - a) / max(1, b - a))[:, None]
+        filled[r, xs] = left * (1 - t) + right * t
+    soft = cv2.GaussianBlur(filled, (0, 0), 1.0)
+    m = hole[..., None] > 0
+    filled = np.where(m, grain(soft, PHOTO_NOISE), filled)
+    model = cv2.warpPerspective(np.clip(filled, 0, 255).astype(np.uint8), np.linalg.inv(HC), (bgr.shape[1], bgr.shape[0]), flags=cv2.INTER_LINEAR)
+    cv2.imwrite(os.path.join(SCRATCH, 'swivel-backdrop.png'), model)
+    # The glass, rectified at 4× (2144×1408), its rounded corners as alpha.
+    TW, TH = 2144, 1408
+    Hr = homography(Q0, [[0, 0], [TW, 0], [TW, TH], [0, TH]])
+    glass = cv2.warpPerspective(bgr, Hr, (TW, TH), flags=cv2.INTER_LANCZOS4)
+    mask = np.zeros((TH, TW), np.uint8)
+    rr = 56
+    cv2.rectangle(mask, (rr, 0), (TW - rr, TH), 255, -1)
+    cv2.rectangle(mask, (0, rr), (TW, TH - rr), 255, -1)
+    for cx, cy in [(rr, rr), (TW - rr, rr), (rr, TH - rr), (TW - rr, TH - rr)]:
+        cv2.circle(mask, (cx, cy), rr, 255, -1, lineType=cv2.LINE_AA)
+    rgba = np.dstack([glass, mask])
+    cv2.imwrite(os.path.join(SCRATCH, 'swivel-face-ui.png'), rgba)
+    act = apply_h(Hr, ACTIVE)
+    ax0, ay0 = act.min(axis=0).round().astype(int)
+    ax1, ay1 = act.max(axis=0).round().astype(int)
+    desk = Image.open(os.path.join(SCRATCH, 'desk-loop.png')).convert('RGB').resize((ax1 - ax0, ay1 - ay0), Image.LANCZOS)
+    desk = cv2.cvtColor(np.asarray(photographed(desk, blur=1.6, noise=PHOTO_NOISE * 2)), cv2.COLOR_RGB2BGR)
+    glass_desk = glass.copy()
+    glass_desk[ay0:ay1, ax0:ax1] = desk
+    cv2.imwrite(os.path.join(SCRATCH, 'swivel-face-desk.png'), np.dstack([glass_desk, mask]))
+
+
+def swivel_output(bgr, HC):
+    """The swivel renders → only what changed, blended into the photo: a 0.9 s clip (WebM + MP4) of the turn
+    from 0° to 30°, its last frame as a still, and the turned screen showing the Mac's desktop."""
+    d = os.path.join(SCRATCH, 'swivel')
+    if not os.path.exists(os.path.join(d, 'A-desk-end.png')):
+        return
+    x0, y0, x1, y1 = SWIVEL_WIN
+    # The photo window fully covered by the warped render, inset, even-sized.
+    corners = apply_h(HC, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+    px0 = int(np.ceil(max(corners[0, 0], corners[3, 0]))) + 6
+    py0 = int(np.ceil(max(corners[0, 1], corners[1, 1]))) + 6
+    px1 = int(np.floor(min(corners[1, 0], corners[2, 0]))) - 6
+    py1 = int(np.floor(min(corners[2, 1], corners[3, 1]))) - 6
+    pw, ph = (px1 - px0) // 2 * 2, (py1 - py0) // 2 * 2
+    S = lambda k: np.diag([k, k, 1.0])
+    T = lambda tx, ty: np.array([[1, 0, tx], [0, 1, ty], [0, 0, 1]], float)
+    M = S(2) @ T(-px0, -py0) @ HC @ T(x0 + 0.3, y0 + 0.3) @ S(0.5)  # +0.3: measured, the render lands on the photo within 0.05 px
+    base = bgr[py0:py0 + ph, px0:px0 + pw].astype(np.float32)
+
+    def load(name, alpha=False):
+        a = cv2.imread(os.path.join(d, name), cv2.IMREAD_UNCHANGED).astype(np.float32) / 257.0
+        a = cv2.warpPerspective(a, M, (pw * 2, ph * 2), flags=cv2.INTER_LINEAR)
+        a = cv2.resize(a, (pw, ph), interpolation=cv2.INTER_AREA)
+        return a[..., 3] / 255.0 if alpha else a[..., :3]
+
+    b_ref, c_ref = load('B-ui-ref.png', True), load('C-ui-ref.png', True)
+    a_ref = load('A-ui-ref.png')
+    inside = cv2.erode((c_ref > 0.99).astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
+    ref_err = float(np.abs(a_ref - base)[inside].mean())
+    rng_ = np.random.default_rng(3)
+
+    def frame(tag):
+        a, b, c = load(f'A-{tag}.png'), load(f'B-{tag}.png', True), load(f'C-{tag}.png', True)
+        extra = np.clip(b - b_ref, 0, 1) * 0.8
+        a = a * (1 - (extra * (1 - c))[..., None])
+        changed = np.maximum(np.maximum(c, c_ref), (extra > 0.01).astype(np.float32))
+        # Past the photo's own silver rim (≈6 px outside the glass edge), inside the fill (10 px): no rim ghost.
+        changed = cv2.dilate(changed, np.ones((15, 15), np.uint8))
+        changed = cv2.GaussianBlur(changed, (0, 0), 1.5)[..., None]
+        g = rng_.normal(0, 3.0, a.shape[:2]).astype(np.float32)[..., None] * c[..., None]
+        return np.clip(base * (1 - changed) + (a + g) * changed, 0, 255).round().astype(np.uint8)
+
+    out = os.path.join(SCRATCH, 'swivel-out')
+    os.makedirs(out, exist_ok=True)
+    for f in os.listdir(out):
+        os.remove(os.path.join(out, f))
+    last = None
+    for i in range(1, SWIVEL_FRAMES + 1):
+        last = frame(f'ui-{i:02d}')
+        cv2.imwrite(os.path.join(out, f'{i:02d}.png'), last)
+    Image.fromarray(cv2.cvtColor(last, cv2.COLOR_BGR2RGB)).save(f'{OUT}/office-swivel-end.webp', quality=84, method=6)
+    desk = frame('desk-end')
+    Image.fromarray(cv2.cvtColor(desk, cv2.COLOR_BGR2RGB)).save(f'{OUT}/office-swivel-desk.webp', quality=84, method=6)
+    pattern = os.path.join(out, '%02d.png')
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', '30', '-start_number', '1', '-i', pattern, '-c:v', 'libvpx-vp9',
+                    '-crf', '28', '-b:v', '0', '-pix_fmt', 'yuv420p', '-an', f'{OUT}/office-swivel.webm'], check=True)
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', '30', '-start_number', '1', '-i', pattern, '-c:v', 'libx264',
+                    '-crf', '19', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', f'{OUT}/office-swivel.mp4'], check=True)
+    print('swivel window (crop px: x, y, w, h):', json.dumps([px0 - CROP[0], py0 - CROP[1], pw, ph]), '0° re-render vs photo, mean |diff| on the glass:', round(ref_err, 2))
+
+
 def main():
     os.makedirs(SCRATCH, exist_ok=True)
     m = screen_model()
@@ -247,10 +362,6 @@ def main():
         r = ext.resize((w, round(ext.height * w / ext.width)), Image.LANCZOS) if w != ext.width else ext
         r.save(f'{OUT}/extend-{w}.webp', quality=q, method=6)
 
-    # The office screen's second-display picture (step 3): our render, photographed.
-    desk = Image.open(os.path.join(SCRATCH, 'desk-loop.png')).convert('RGB').resize((1000, 625), Image.LANCZOS)
-    photographed(desk).save(f'{OUT}/office-desk.webp', quality=84, method=6)
-
     # The MacBook's own display (14", 3024×1964): brand wallpaper, the Dashcast window casting.
     W, H = 1100, 714
     wall = Image.open(os.path.join(SITE, 'public/shots/wallpaper.jpg')).convert('RGB')
@@ -265,7 +376,9 @@ def main():
     disp.paste(bar, (0, 0), bar)
     disp.save(os.path.join(HERE, 'macbook-display.png'))
 
+    swivel_inputs(bgr, HC)
     sprites(HC)
+    swivel_output(bgr, HC)
 
 
     print(json.dumps({'HC': HC.round(9).tolist(), 'active_crop': (ACTIVE - CROP[:2]).round(2).tolist(),

@@ -15,24 +15,19 @@ const STEPS = [
 
 /*
  * The composite, on the office photo (Bram Van Oost, Unsplash) cropped to 2700×1460 px:
- * research/office/prep_office.py (grade, screen fit) and render_macbook.py (the board and the MacBook,
- * rendered in Blender through the photo's own fitted camera, then graded and grained into it).
+ * research/office/prep_office.py (grade, screen fit) and render_office.py (the board and the MacBook,
+ * rendered in Blender through the photo's own fitted camera, then graded and grained into it) and render_office.py
+ * (the whole scene: the board, the MacBook and the screen's swivel as a real slab in front of the projected photo).
  */
 const W = 2700;
 const H = 1460;
-type P2 = [number, number];
-/** The screen's active area in the crop (edge-fitted, pixel edges). */
-const ACTIVE: P2[] = [
-  [1083.92, 180.83],
-  [1584.52, 187.64],
-  [1581.19, 499.52],
-  [1079.95, 502.9],
-];
-/** The live picture overlaps the bezel by this much (crop px), so its edge never shows a gap. */
-const OUTSET = 0.75;
+/** The swivel's window in the crop (x, y, w, h): the clip, its last frame and the desk still, from prep_office.py. */
+const SWIVEL = [1008, 132, 664, 488];
+/** The turn's clip length (s): 27 frames at 30 fps, from 0° to 30° toward the passenger. */
+const TURN_S = 0.9;
 /** The rendered sprites' places in the crop (x, y, w, h), from prep_office.py. */
-const BOARD_SPRITE = [443, 627, 1989, 340];
-const MAC_SPRITE = [1274, 269, 1147, 556];
+const BOARD_SPRITE = [308, 633, 1870, 362];
+const MAC_SPRITE = [1356, 398, 801, 456];
 /** The steering wheel in the photo (crop px): its rim and lower spoke are drawn back over the board. */
 const RIM = { cx: 670, cy: 370, rx: 312, ry: 291 };
 const RIM_T = 45;
@@ -40,48 +35,23 @@ const ellipsePath = (cx: number, cy: number, rx: number, ry: number) => `M${cx -
 const RIM_RING = ellipsePath(RIM.cx, RIM.cy, RIM.rx, RIM.ry) + ' ' + ellipsePath(RIM.cx, RIM.cy, RIM.rx - RIM_T, RIM.ry - RIM_T);
 const BASE = '/demo/';
 
-/** CSS matrix3d that maps a w×h box onto the quad (TL, TR, BR, BL). */
-function quadMatrix(w: number, h: number, q: P2[]) {
-  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
-  const dx1 = x1 - x2;
-  const dx2 = x3 - x2;
-  const dx3 = x0 - x1 + x2 - x3;
-  const dy1 = y1 - y2;
-  const dy2 = y3 - y2;
-  const dy3 = y0 - y1 + y2 - y3;
-  const den = dx1 * dy2 - dx2 * dy1;
-  const g = (dx3 * dy2 - dx2 * dy3) / den;
-  const hh = (dx1 * dy3 - dx3 * dy1) / den;
-  const a = x1 - x0 + g * x1;
-  const b = x3 - x0 + hh * x3;
-  const d = y1 - y0 + g * y1;
-  const e = y3 - y0 + hh * y3;
-  return `matrix3d(${[a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, x0, y0, 0, 1].map((n) => +n.toPrecision(10)).join(',')})`;
-}
-
-/** A quad pushed out by d px along each side (for a quad this close to a rectangle, per corner along the diagonal). */
-function outset(q: P2[], d: number): P2[] {
-  const cx = q.reduce((t, p) => t + p[0], 0) / 4;
-  const cy = q.reduce((t, p) => t + p[1], 0) / 4;
-  return q.map(([x, y]) => [x + Math.sign(x - cx) * d, y + Math.sign(y - cy) * d] as P2);
-}
-
 interface Pose {
+  /** The turned screen at rest (the clip's last frame). */
+  turned: number;
+  /** The clip of the turn itself, while it plays. */
+  clip: number;
   board: number;
   mac: number;
   mirror: number;
 }
 
-/**
- * Where each step leaves the scene. The swivel mount is optional and, from this seat, a 12–15° turn moves the
- * screen's edge by ~15 of 2700 px: step 1 keeps the photo untouched and lets its text say it.
- */
+/** Where each step leaves the scene. */
 const POSES: Pose[] = [
-  { board: 0, mac: 0, mirror: 0 },
-  { board: 1, mac: 0, mirror: 0 },
-  { board: 1, mac: 1, mirror: 1 },
+  { turned: 1, clip: 0, board: 0, mac: 0, mirror: 0 },
+  { turned: 1, clip: 0, board: 1, mac: 0, mirror: 0 },
+  { turned: 1, clip: 0, board: 1, mac: 1, mirror: 1 },
 ];
-const OPENING: Pose = { board: 0, mac: 0, mirror: 0 };
+const OPENING: Pose = { turned: 0, clip: 0, board: 0, mac: 0, mirror: 0 };
 
 /** How long each step stays up before the next, while nobody has picked one. */
 const STEP_MS = 2800;
@@ -89,7 +59,7 @@ const STEP_MS = 2800;
 /**
  * "Your office, anywhere" as one dark passage in /powerwall's layout: the heading, then the composite across the
  * content column (a real Model 3 cabin by Bram Van Oost on Unsplash, with the setup drawn into it in the photo's
- * own perspective: the trunk's subfloor cover slides in under the wheel,
+ * own perspective: the screen swivels toward the passenger, the trunk's subfloor cover slides in under the wheel,
  * and a MacBook sits on its passenger end with the car's screen as its second display), the three steps as
  * columns under it with the active one white, and the band's photo rising out of the same black with the story's
  * closing line. Each step animates in 0.7 s; the steps advance while the section is on screen, until someone
@@ -112,7 +82,10 @@ export function Office() {
     if (!w) return;
     const p = pose.current;
     const q = (s: string) => w.querySelector(s) as HTMLElement;
-    q('.o-desk').style.opacity = String(p.mirror);
+    const clip = w.querySelector<HTMLElement>('.o-swivel-clip');
+    if (clip) clip.style.opacity = String(p.clip);
+    q('.o-swivel-end').style.opacity = String(p.turned);
+    q('.o-swivel-desk').style.opacity = String(p.mirror * p.turned);
     const board = q('.o-board-img');
     board.style.opacity = String(Math.min(1, p.board * 2));
     board.style.transform = `translate(${BOARD_SPRITE[0] + (1 - p.board) * 900}px, ${BOARD_SPRITE[1]}px)`;
@@ -134,15 +107,41 @@ export function Office() {
         return;
       }
       const t = gsap.timeline({ onUpdate: draw });
+      const clip = world.current?.querySelector('.o-swivel-clip') as HTMLVideoElement | null;
       if (k === 0) {
-        t.to(p, { board: 0, mac: 0, mirror: 0, duration: 0.5, ease: ease.tds }, 0);
-      } else if (k === 1) {
-        t.to(p, { mac: 0, mirror: 0, duration: 0.3, ease: ease.tds }, 0);
-        t.to(p, { board: 1, duration: 0.7, ease: ease.mktg }, 0);
+        // Back to the photo as it is (if anything was set up), then the screen turns: the clip plays once and
+        // hands over to its last frame; if it can't play, the last frame fades in over the same time.
+        const busy = p.turned + p.board + p.mac > 0;
+        t.to(p, { turned: 0, clip: 0, board: 0, mac: 0, mirror: 0, duration: busy ? 0.4 : 0, ease: ease.tds }, 0);
+        t.call(() => {
+          const fallback = () => {
+            if (p.turned === 0 && p.clip === 0) gsap.to(p, { turned: 1, duration: TURN_S, ease: ease.tds, onUpdate: draw });
+          };
+          if (!clip) return fallback();
+          clip.currentTime = 0;
+          // Shown from its first painted frame (≈ the photo), so nothing flashes while it loads.
+          clip.addEventListener(
+            'playing',
+            () => {
+              p.clip = 1;
+              draw();
+            },
+            { once: true },
+          );
+          const played = clip.play();
+          if (played) played.catch(fallback);
+          window.setTimeout(fallback, 2500);
+        });
       } else {
-        t.to(p, { board: 1, duration: 0.4, ease: ease.mktg }, 0);
-        t.to(p, { mac: 1, duration: 0.6, ease: ease.mktg }, 0.05);
-        t.to(p, { mirror: 1, duration: 0.55, ease: ease.tds }, 0.15);
+        if (p.turned < 1 && !(clip && !clip.paused)) t.to(p, { turned: 1, duration: 0.4, ease: ease.tds }, 0);
+        if (k === 1) {
+          t.to(p, { mac: 0, mirror: 0, duration: 0.3, ease: ease.tds }, 0);
+          t.to(p, { board: 1, duration: 0.7, ease: ease.mktg }, 0);
+        } else {
+          t.to(p, { board: 1, duration: 0.4, ease: ease.mktg }, 0);
+          t.to(p, { mac: 1, duration: 0.6, ease: ease.mktg }, 0.05);
+          t.to(p, { mirror: 1, duration: 0.55, ease: ease.tds }, 0.15);
+        }
       }
       shown.current = k;
     },
@@ -169,6 +168,27 @@ export function Office() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  // The clip loads once the section is near; when it ends, its last frame (the still) takes over.
+  useEffect(() => {
+    const clip = world.current?.querySelector('.o-swivel-clip') as HTMLVideoElement | null;
+    if (!clip || reduced) return;
+    const ended = () => {
+      pose.current.turned = 1;
+      pose.current.clip = 0;
+      draw();
+    };
+    clip.addEventListener('ended', ended);
+    return () => clip.removeEventListener('ended', ended);
+  }, [draw, reduced]);
+
+  useEffect(() => {
+    const clip = world.current?.querySelector('.o-swivel-clip') as HTMLVideoElement | null;
+    if (inView && clip && clip.preload === 'none') {
+      clip.preload = 'auto';
+      clip.load();
+    }
+  }, [inView]);
 
   useEffect(() => {
     if (reduced) return;
@@ -233,7 +253,16 @@ export function Office() {
               onLoad={onPhoto}
             />
             <div className="o-world" ref={world} aria-hidden="true">
-              <div className="o-desk" style={{ transform: quadMatrix(1000, 625, outset(ACTIVE, OUTSET)) }} />
+              <div className="o-swivel" style={{ transform: `translate(${SWIVEL[0]}px, ${SWIVEL[1]}px)`, width: SWIVEL[2], height: SWIVEL[3] }}>
+                <img className="o-swivel-end" src={BASE + 'office-swivel-end.webp' + ASSET_V} alt="" loading="lazy" decoding="async" />
+                <img className="o-swivel-desk" src={BASE + 'office-swivel-desk.webp' + ASSET_V} alt="" loading="lazy" decoding="async" />
+                {!reduced && (
+                  <video className="o-swivel-clip" muted playsInline preload="none" disablePictureInPicture>
+                    <source src={BASE + 'office-swivel.webm' + ASSET_V} type="video/webm" />
+                    <source src={BASE + 'office-swivel.mp4' + ASSET_V} type="video/mp4" />
+                  </video>
+                )}
+              </div>
               <img className="o-board-img" src={BASE + 'office-board.webp' + ASSET_V} width={BOARD_SPRITE[2]} height={BOARD_SPRITE[3]} alt="" loading="lazy" decoding="async" />
               <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
                 <defs>
