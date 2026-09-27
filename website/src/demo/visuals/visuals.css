@@ -278,23 +278,32 @@
   pointer-events: none;
 }
 
-/* The screen's own glass and bezel (the photo, rectified), under the live picture. */
-.dm-ev-glass {
-  width: 1072px;
-  height: 704px;
-  border-radius: 30px;
-  background: url(/demo/office-screen-ui.webp) 0 0 / 100% 100% no-repeat;
-}
-
-.dm-ev-panel,
-.dm-ev-sheen {
+/* The live picture on the photo's dark glass, as the camera saw the real screen: its black and white levels
+   (15 and 179 of 255 in the graded photo) and a little softness. The panel is 1920×1200 mapped onto
+   ~500 photo px, so 2 panel px of blur is about half a photo pixel. */
+.dm-ev-panel {
   width: 1920px;
   height: 1200px;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 10px;
+  filter: blur(1.6px);
 }
 
-/* Daylight on the glass: the cabin is bright, so the picture sits a touch lifted, brightest top-left. */
-.dm-ev-sheen {
-  background: linear-gradient(115deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(255, 255, 255, 0) 62%);
+.dm-ev-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 200;
+  background: rgb(42, 42, 44);
+  opacity: 0.357;
+  pointer-events: none;
+}
+
+/* The hero photo's glass reflections belong to that photo only. */
+.dm-ev .dm-tsl-glare,
+.dm-vis .dm-tsl-glare {
+  display: none;
 }

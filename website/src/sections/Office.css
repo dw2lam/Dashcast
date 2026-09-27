@@ -134,8 +134,7 @@
 }
 
 .o-world > svg,
-.o-screen,
-.o-mac-display {
+.o-world > div {
   position: absolute;
   top: 0;
   left: 0;
@@ -146,94 +145,115 @@
   overflow: visible;
 }
 
-/* The car's screen: its own glass (Tesla UI), then the Mac's desktop fading in over the active area. */
-.o-screen {
-  width: 1072px;
-  height: 704px;
-  overflow: hidden;
-  border-radius: 30px;
-}
-
-.o-screen i {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+/* Everything drawn into the photo carries its softness: the camera resolved about 1 px less than a render. */
+.o-desk,
+.o-board-top,
+.o-mac-deck,
+.o-mac-display {
   background-position: 0 0;
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  filter: blur(0.6px);
+  will-change: opacity;
 }
 
-.o-screen .o-screen-ui {
-  background-image: url(/demo/office-screen-ui.webp);
-}
-
-.o-screen .o-screen-mac {
-  background-image: url(/demo/office-screen-mac.webp);
+/* Step 3: the Mac's desktop on the car's own screen, photographed (the photo's levels, grain and softness),
+   on the edge-fitted active area with a 0.75 px overlap onto the bezel so no seam can show. */
+.o-desk {
+  width: 1000px;
+  height: 625px;
+  border-radius: 8px;
+  background-image: url(/demo/office-desk.webp);
   opacity: 0;
 }
 
-.o-side {
-  fill: #1c1d20;
-  stroke: rgba(255, 255, 255, 0.28);
-  stroke-width: 1.5;
-}
-
-/* The trunk's subfloor cover: a dark board with a hairline where the light from the windshield catches it. */
+/* The trunk's subfloor cover: carpeted board, the photo's tones and grain, its shading below it. */
 .o-board-top {
-  stroke: rgba(255, 255, 255, 0.34);
-  stroke-width: 2;
-  stroke-linejoin: round;
+  width: 1100px;
+  height: 420px;
+  background-image: url(/demo/office-board.webp);
+  opacity: 0;
 }
 
 .o-board-front {
-  fill: #141416;
-  stroke: rgba(255, 255, 255, 0.16);
-  stroke-width: 1.5;
-}
-
-.o-mac-shadow {
-  fill: rgba(0, 0, 0, 0.45);
-  filter: blur(6px);
-}
-
-.o-mac-left {
-  fill: #3b3c40;
-}
-
-.o-mac-deck {
-  stroke: rgba(255, 255, 255, 0.3);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-
-.o-mac-keys {
-  fill: #1e1f22;
-}
-
-.o-mac-pad {
-  fill: rgba(255, 255, 255, 0.08);
-  stroke: rgba(255, 255, 255, 0.14);
+  stroke: rgba(255, 255, 255, 0.07);
   stroke-width: 1;
 }
 
-.o-mac-front {
-  fill: #2c2d30;
+.o-board-shade {
+  fill: #000;
+  opacity: 0.5;
+  filter: blur(14px);
+}
+
+.o-rim-shadow {
+  fill: none;
+  stroke: #000;
+  stroke-width: 46;
+  opacity: 0.7;
+}
+
+.o-mac-shadow {
+  fill: #000;
+  opacity: 0.55;
+}
+
+.o-mac-contact {
+  fill: #000;
+  opacity: 0.55;
+  filter: blur(2px);
+}
+
+.o-mac-left {
+  fill: #2f3033;
 }
 
 .o-mac-lid {
-  fill: #0d0d0e;
-  stroke: rgba(255, 255, 255, 0.38);
-  stroke-width: 2;
+  fill: #0a0a0b;
+  stroke: rgba(170, 172, 178, 0.55);
+  stroke-width: 1.5;
   stroke-linejoin: round;
+}
+
+.o-mac-deck {
+  width: 1560px;
+  height: 1105px;
+  background-image: url(/demo/office-deck.webp);
+  opacity: 0;
 }
 
 .o-mac-display {
   width: 1100px;
   height: 714px;
-  border-radius: 6px;
-  background: url(/demo/office-macbook.webp) 0 0 / 100% 100% no-repeat;
+  border-radius: 4px;
+  background-image: url(/demo/office-macbook.webp);
+  opacity: 0;
+}
+
+/* Step 1's cue: the swivel mount is optional, so the screen stays as photographed; a calm outline and an
+   arc toward the passenger say what turns. */
+.o-cue {
+  opacity: 0;
+}
+
+.o-cue-glass {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.o-cue-arc,
+.o-cue-head {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.o-cue-arc {
+  stroke-dasharray: 360;
 }
 
 .office__note {

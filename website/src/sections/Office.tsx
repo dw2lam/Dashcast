@@ -17,6 +17,8 @@ const STEPS = [
  * down the car's axis, f = 2000 px, principal point (1490, 690) in the original 3000×2000 photo; HC maps
  * the model onto the measured screen. Car frame: x → passenger, y ↓, z → forward, metres from the camera.
  */
+type P2 = [number, number];
+
 const F = 2000;
 const CX = 1490;
 const CY = 690;
@@ -28,17 +30,31 @@ const HC = [
   [0.018615382, 0.997630216, -21.668737224],
   [6.327e-6, -5.545e-6, 1],
 ];
-const SCREEN = { c: [-0.00535, 0.14686, 1.37462], w: 0.368, h: 0.24153, depth: 0.026 };
-const TEX = [1072, 704];
-const TURN = (30 * Math.PI) / 180;
-const BOARD = { x0: -0.55, x1: 0.55, z0: 1.0, z1: 1.42, y: 0.335, t: 0.013 };
+/** The screen's active area in the crop (edge-fitted, pixel edges), and its outer glass. */
+const ACTIVE: P2[] = [
+  [1083.92, 180.83],
+  [1584.52, 187.64],
+  [1581.19, 499.52],
+  [1079.95, 502.9],
+];
+const GLASS: P2[] = [
+  [1066.56, 165.03],
+  [1601.93, 172.49],
+  [1599.41, 522.72],
+  [1062.99, 516.43],
+];
+/** The live picture overlaps the bezel by this much (crop px), so its edge never shows a gap. */
+const OUTSET = 0.75;
+const BOARD = { x0: -0.55, x1: 0.55, z0: 1.0, z1: 1.31, y: 0.335, t: 0.013 };
 const MAC = { x0: 0.21, x1: 0.522, zf: 1.07, zh: 1.29, base: 0.0155, lid: 0.215, lean: (20 * Math.PI) / 180 };
 /** The steering wheel's rim in the photo (crop px): drawn back over the board, which slides in under it. */
 const RIM = { cx: 670, cy: 370, rx: 312, ry: 291 };
+const RIM_T = 45;
+const ellipsePath = (cx: number, cy: number, rx: number, ry: number) => `M${cx - rx} ${cy} a${rx} ${ry} 0 1 0 ${2 * rx} 0 a${rx} ${ry} 0 1 0 ${-2 * rx} 0 Z`;
+const RIM_RING = ellipsePath(RIM.cx, RIM.cy, RIM.rx, RIM.ry) + ' ' + ellipsePath(RIM.cx, RIM.cy, RIM.rx - RIM_T, RIM.ry - RIM_T);
 const BASE = '/demo/';
 
 type V3 = [number, number, number];
-type P2 = [number, number];
 
 function project(p: V3): P2 {
   const u = CX + (F * p[0]) / p[2];
@@ -68,18 +84,29 @@ function quadMatrix(w: number, h: number, q: P2[]) {
   return `matrix3d(${[a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, x0, y0, 0, 1].map((n) => +n.toPrecision(10)).join(',')})`;
 }
 
-/** The screen's glass (and the left side of its housing) turned toward the passenger by `a` radians. */
-function screenGeometry(a: number) {
-  const [X, Y, D] = SCREEN.c;
-  const hw = SCREEN.w / 2;
-  const hh = SCREEN.h / 2;
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  const at = (x: number, y: number, back = 0): V3 => [X + x * c - back * s, Y + y, D + x * s + back * c];
-  const glass = [at(-hw, -hh), at(hw, -hh), at(hw, hh), at(-hw, hh)].map(project);
-  const side = [at(-hw, -hh), at(-hw, -hh, SCREEN.depth), at(-hw, hh, SCREEN.depth), at(-hw, hh)].map(project);
-  return { glass, side };
+/** A quad pushed out by d px along each side (for a quad this close to a rectangle, per corner along the diagonal). */
+function outset(q: P2[], d: number): P2[] {
+  const cx = q.reduce((t, p) => t + p[0], 0) / 4;
+  const cy = q.reduce((t, p) => t + p[1], 0) / 4;
+  return q.map(([x, y]) => [x + Math.sign(x - cx) * d, y + Math.sign(y - cy) * d] as P2);
 }
+
+/** The swivel glyph: a shallow arc over the screen, turning toward the passenger (crop px). */
+const ARROW = (() => {
+  const cx = (GLASS[0][0] + GLASS[1][0]) / 2;
+  const top = (GLASS[0][1] + GLASS[1][1]) / 2 - 58;
+  const rx = 150;
+  const ry = 30;
+  const at = (deg: number): P2 => [cx + rx * Math.cos((deg * Math.PI) / 180), top + ry * Math.sin((deg * Math.PI) / 180)];
+  const a0 = at(160);
+  const a1 = at(20);
+  const head = at(20);
+  const f = (p: P2) => p[0].toFixed(1) + ' ' + p[1].toFixed(1);
+  return {
+    arc: `M${f(a0)} A${rx} ${ry} 0 0 0 ${f(a1)}`,
+    head: `M${(head[0] - 30).toFixed(1)} ${(head[1] - 2).toFixed(1)} L${f(head)} L${(head[0] - 12).toFixed(1)} ${(head[1] + 26).toFixed(1)}`,
+  };
+})();
 
 function boardGeometry(dx: number) {
   const b = BOARD;
@@ -87,7 +114,9 @@ function boardGeometry(dx: number) {
   const x1 = b.x1 + dx;
   const top = ([[x0, b.y, b.z1], [x1, b.y, b.z1], [x1, b.y, b.z0], [x0, b.y, b.z0]] as V3[]).map(project);
   const front = ([[x0, b.y, b.z0], [x1, b.y, b.z0], [x1, b.y + b.t, b.z0], [x0, b.y + b.t, b.z0]] as V3[]).map(project);
-  return { top, front };
+  // What the board shades below its near edge: the console lid and the seat fronts, a soft band.
+  const shade = ([[x0, b.y + b.t, b.z0], [x1, b.y + b.t, b.z0], [x1, b.y + 0.09, b.z0 - 0.02], [x0, b.y + 0.09, b.z0 - 0.02]] as V3[]).map(project);
+  return { top, front, shade };
 }
 
 function macGeometry(dy: number) {
@@ -98,30 +127,30 @@ function macGeometry(dy: number) {
   const lid = (x: number, t: number): V3 => [x, top + up[1] * t, m.zh + up[2] * t];
   const inset = 0.006;
   return {
-    shadow: ([[m.x0 - 0.01, BOARD.y, m.zh + 0.01], [m.x1 + 0.02, BOARD.y, m.zh + 0.01], [m.x1 + 0.02, BOARD.y, m.zf - 0.015], [m.x0 - 0.01, BOARD.y, m.zf - 0.015]] as V3[]).map(project),
+    shadow: ([[m.x0 - 0.012, BOARD.y, m.zh + 0.012], [m.x1 + 0.024, BOARD.y, m.zh + 0.012], [m.x1 + 0.024, BOARD.y, m.zf - 0.018], [m.x0 - 0.012, BOARD.y, m.zf - 0.018]] as V3[]).map(project),
+    contact: ([[m.x0, BOARD.y, m.zh], [m.x1, BOARD.y, m.zh], [m.x1, BOARD.y, m.zf], [m.x0, BOARD.y, m.zf]] as V3[]).map(project),
     deck: ([[m.x0, top, m.zh], [m.x1, top, m.zh], [m.x1, top, m.zf], [m.x0, top, m.zf]] as V3[]).map(project),
     front: ([[m.x0, top, m.zf], [m.x1, top, m.zf], [m.x1, y0, m.zf], [m.x0, y0, m.zf]] as V3[]).map(project),
     left: ([[m.x0, top, m.zh], [m.x0, top, m.zf], [m.x0, y0, m.zf], [m.x0, y0, m.zh]] as V3[]).map(project),
     lid: [lid(m.x0, m.lid), lid(m.x1, m.lid), lid(m.x1, 0), lid(m.x0, 0)].map(project),
-    keys: ([[m.x0 + 0.018, top, m.zh - 0.012], [m.x1 - 0.018, top, m.zh - 0.012], [m.x1 - 0.018, top, m.zh - 0.118], [m.x0 + 0.018, top, m.zh - 0.118]] as V3[]).map(project),
-    pad: ([[m.x0 + 0.095, top, m.zh - 0.13], [m.x1 - 0.095, top, m.zh - 0.13], [m.x1 - 0.095, top, m.zf + 0.012], [m.x0 + 0.095, top, m.zf + 0.012]] as V3[]).map(project),
     display: [lid(m.x0 + inset, m.lid - inset), lid(m.x1 - inset, m.lid - inset), lid(m.x1 - inset, 0.013), lid(m.x0 + inset, 0.013)].map(project),
   };
 }
 
 interface Pose {
-  turn: number;
+  swivel: number;
   board: number;
   mac: number;
   mirror: number;
 }
 
-/** Where each step leaves the scene. */
+/** Where each step leaves the scene. The screen stays as photographed; step 1 is a cue, not a turn. */
 const POSES: Pose[] = [
-  { turn: 1, board: 0, mac: 0, mirror: 0 },
-  { turn: 1, board: 1, mac: 0, mirror: 0 },
-  { turn: 1, board: 1, mac: 1, mirror: 1 },
+  { swivel: 1, board: 0, mac: 0, mirror: 0 },
+  { swivel: 0, board: 1, mac: 0, mirror: 0 },
+  { swivel: 0, board: 1, mac: 1, mirror: 1 },
 ];
+const OPENING: Pose = { swivel: 0, board: 0, mac: 0, mirror: 0 };
 
 /** How long each step stays up before the next, while nobody has picked one. */
 const STEP_MS = 2800;
@@ -143,7 +172,7 @@ export function Office() {
   const [active, setActive] = useState(reduced ? STEPS.length - 1 : 0);
   const [inView, setInView] = useState(false);
   const [picked, setPicked] = useState(false);
-  const pose = useRef<Pose>({ ...(reduced ? POSES[2] : { turn: 0, board: 0, mac: 0, mirror: 0 }) });
+  const pose = useRef<Pose>({ ...(reduced ? POSES[2] : OPENING) });
   const shown = useRef(reduced ? STEPS.length - 1 : -1);
 
   /** Draws the current pose: every part is recomputed from the model, so it stays in perspective. */
@@ -152,18 +181,23 @@ export function Office() {
     if (!w) return;
     const p = pose.current;
     const q = (s: string) => w.querySelector(s) as HTMLElement & SVGElement;
-    const sc = screenGeometry(TURN * p.turn);
-    q('.o-screen').style.transform = quadMatrix(TEX[0], TEX[1], sc.glass);
-    q('.o-screen-mac').style.opacity = String(p.mirror);
-    q('.o-side').setAttribute('points', pts(sc.side));
-    q('.o-side').style.opacity = String(Math.min(1, p.turn * 1.5));
+    q('.o-cue').style.opacity = String(p.swivel);
+    q('.o-cue-arc').style.strokeDashoffset = String(360 * (1 - p.swivel));
+    q('.o-desk').style.opacity = String(p.mirror);
     const b = boardGeometry((1 - p.board) * 0.7);
-    q('.o-board-top').setAttribute('points', pts(b.top));
+    q('.o-board-top').style.transform = quadMatrix(1100, 420, [b.top[0], b.top[1], b.top[2], b.top[3]]);
     q('.o-board-front').setAttribute('points', pts(b.front));
-    q('.o-board').style.opacity = String(Math.min(1, p.board * 2.5));
+    q('.o-board-shade').setAttribute('points', pts(b.shade));
+    q('.o-board-clip').setAttribute('points', pts(b.top));
+    const bo = String(Math.min(1, p.board * 2.5));
+    q('.o-board').style.opacity = bo;
+    q('.o-board-top').style.opacity = bo;
     const m = macGeometry(-(1 - p.mac) * 0.05);
-    for (const k of ['shadow', 'deck', 'keys', 'pad', 'front', 'left', 'lid'] as const) q('.o-mac-' + k).setAttribute('points', pts(m[k]));
+    for (const k of ['shadow', 'contact', 'front', 'left', 'lid'] as const) q('.o-mac-' + k).setAttribute('points', pts(m[k]));
     q('.o-mac').style.opacity = String(p.mac);
+    const deck = q('.o-mac-deck');
+    deck.style.transform = quadMatrix(1560, 1105, m.deck);
+    deck.style.opacity = String(p.mac);
     const disp = q('.o-mac-display');
     disp.style.transform = quadMatrix(1100, 714, m.display);
     disp.style.opacity = String(p.mac);
@@ -183,18 +217,16 @@ export function Office() {
       }
       const t = gsap.timeline({ onUpdate: draw });
       if (k === 0) {
-        // The swivel itself: back to straight ahead if needed, then round to the passenger.
-        t.to(p, { board: 0, mac: 0, mirror: 0, duration: 0.3, ease: ease.tds }, 0);
-        if (p.turn > 0) t.to(p, { turn: 0, duration: 0.25, ease: ease.tds }, 0);
-        t.to(p, { turn: 1, duration: p.turn > 0 ? 0.5 : 0.7, ease: ease.tds }, p.turn > 0 ? 0.25 : 0);
+        t.to(p, { board: 0, mac: 0, mirror: 0, duration: 0.35, ease: ease.tds }, 0);
+        t.fromTo(p, { swivel: 0 }, { swivel: 1, duration: 0.7, ease: ease.mktg }, 0.1);
+      } else if (k === 1) {
+        t.to(p, { swivel: 0, mac: 0, mirror: 0, duration: 0.3, ease: ease.tds }, 0);
+        t.to(p, { board: 1, duration: 0.7, ease: ease.mktg }, 0);
       } else {
-        t.to(p, { turn: 1, mac: to.mac === 0 ? 0 : p.mac, mirror: to.mirror === 0 ? 0 : p.mirror, duration: 0.3, ease: ease.tds }, 0);
-        if (k === 1) t.to(p, { board: 1, duration: 0.7, ease: ease.mktg }, 0);
-        else {
-          t.to(p, { board: 1, duration: 0.4, ease: ease.mktg }, 0);
-          t.to(p, { mac: 1, duration: 0.6, ease: ease.mktg }, 0.05);
-          t.to(p, { mirror: 1, duration: 0.5, ease: ease.tds }, 0.2);
-        }
+        t.to(p, { swivel: 0, duration: 0.3, ease: ease.tds }, 0);
+        t.to(p, { board: 1, duration: 0.4, ease: ease.mktg }, 0);
+        t.to(p, { mac: 1, duration: 0.6, ease: ease.mktg }, 0.05);
+        t.to(p, { mirror: 1, duration: 0.55, ease: ease.tds }, 0.15);
       }
       shown.current = k;
     },
@@ -255,7 +287,7 @@ export function Office() {
   /** The rim is redrawn from the photo itself, so use whichever size the browser picked for the base. */
   const onPhoto = (e: SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    world.current?.querySelector('.o-rim')?.setAttribute('href', img.currentSrc || img.src);
+    world.current?.querySelectorAll('.o-rim').forEach((r) => r.setAttribute('href', img.currentSrc || img.src));
   };
 
   return (
@@ -285,42 +317,54 @@ export function Office() {
               onLoad={onPhoto}
             />
             <div className="o-world" ref={world} aria-hidden="true">
+              <div className="o-desk" style={{ transform: quadMatrix(1000, 625, outset(ACTIVE, OUTSET)) }} />
               <svg className="o-under" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-                <polygon className="o-side" />
+                <polygon className="o-board-shade" />
               </svg>
-              <div className="o-screen">
-                <i className="o-screen-ui" />
-                <i className="o-screen-mac" />
-              </div>
+              <div className="o-board-top" />
               <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
                 <defs>
+                  {/* What of the wheel is in front of the board: the rim (an annulus) and the lower spoke, as two
+                      clips (one clip with both would even-odd away their overlap). */}
                   <clipPath id="office-rim">
-                    <ellipse cx={RIM.cx} cy={RIM.cy} rx={RIM.rx} ry={RIM.ry} />
+                    <path clipRule="evenodd" d={RIM_RING} />
                   </clipPath>
-                  <linearGradient id="office-board" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#3a3b3f" />
-                    <stop offset="1" stopColor="#232427" />
-                  </linearGradient>
-                  <linearGradient id="office-deck" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#6a6c71" />
-                    <stop offset="1" stopColor="#4a4c50" />
+                  <clipPath id="office-spoke">
+                    <polygon points="607,517 737,517 708,640 612,640" />
+                  </clipPath>
+                  <clipPath id="office-board-clip">
+                    <polygon className="o-board-clip" />
+                  </clipPath>
+                  <filter id="office-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9" />
+                  </filter>
+                  <linearGradient id="office-edge" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#3a3b3e" />
+                    <stop offset="1" stopColor="#18191b" />
                   </linearGradient>
                 </defs>
                 <g className="o-board">
-                  <polygon className="o-board-top" fill="url(#office-board)" />
-                  <polygon className="o-board-front" />
+                  <polygon className="o-board-front" fill="url(#office-edge)" />
+                  <g clipPath="url(#office-board-clip)">
+                    <ellipse className="o-rim-shadow" cx={RIM.cx + 4} cy={RIM.cy + 16} rx={RIM.rx - 20} ry={RIM.ry - 20} filter="url(#office-soft)" />
+                  </g>
                 </g>
                 <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
+                <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-spoke)" preserveAspectRatio="none" />
                 <g className="o-mac">
-                  <polygon className="o-mac-shadow" />
+                  <polygon className="o-mac-shadow" filter="url(#office-soft)" />
+                  <polygon className="o-mac-contact" />
                   <polygon className="o-mac-left" />
-                  <polygon className="o-mac-deck" fill="url(#office-deck)" />
-                  <polygon className="o-mac-keys" />
-                  <polygon className="o-mac-pad" />
-                  <polygon className="o-mac-front" />
+                  <polygon className="o-mac-front" fill="url(#office-edge)" />
                   <polygon className="o-mac-lid" />
                 </g>
+                <g className="o-cue">
+                  <polygon className="o-cue-glass" points={pts(GLASS)} />
+                  <path className="o-cue-arc" d={ARROW.arc} />
+                  <path className="o-cue-head" d={ARROW.head} />
+                </g>
               </svg>
+              <div className="o-mac-deck" />
               <div className="o-mac-display" />
             </div>
           </div>

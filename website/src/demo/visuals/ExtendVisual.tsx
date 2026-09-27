@@ -6,24 +6,28 @@ import { useLive } from './useLive';
 import './visuals.css';
 
 /**
- * The office photo (Bram Van Oost, Unsplash; research/office/prep_office.py), cropped to 2700×1460. The
- * screen's outer glass and active area, edge-fitted, in that crop's px.
+ * The office photo (Bram Van Oost, Unsplash; research/office/prep_office.py) cropped to the Extend card,
+ * 1480×1000, its screen's active area blacked out to dark glass. The active area's corners, edge-fitted,
+ * in this crop's px (pixel edges).
  */
-const PHOTO = { w: 2700, h: 1460, src: [1400, 2000, 2700].map((w) => [`/demo/office-${w}.webp`, w] as const) };
-const GLASS: Quad = [
-  [1066.06, 164.53],
-  [1601.43, 171.99],
-  [1598.91, 522.22],
-  [1062.49, 515.93],
-];
+const PHOTO = { w: 1480, h: 1000, src: [960, 1480].map((w) => [`/demo/extend-${w}.webp`, w] as const) };
 const ACTIVE: Quad = [
-  [1083.42, 180.33],
-  [1584.02, 187.14],
-  [1580.69, 499.02],
-  [1079.45, 502.4],
+  [613.92, 290.83],
+  [1114.52, 297.64],
+  [1111.19, 609.52],
+  [609.95, 612.9],
 ];
+/** The live picture overlaps the bezel by this much (photo px), so its edge never shows a gap. */
+const OUTSET = 0.75;
+
+function outset(q: Quad, d: number): Quad {
+  const cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4;
+  const cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4;
+  return q.map(([x, y]) => [x + Math.sign(x - cx) * d, y + Math.sign(y - cy) * d]) as Quad;
+}
+
 /** The wheel and the screen: what the card keeps in frame at every size. */
-const FOCUS = { x: 620, y: 60, w: 1180, h: 600 };
+const FOCUS = { x: 150, y: 170, w: 1180, h: 600 };
 
 /** The loop, in seconds: a Safari window dragged in from the Mac's own display, left there, dragged back. */
 const LOOP = 10;
@@ -76,9 +80,7 @@ export function ExtendVisual() {
       init(el) {
         const img = el.querySelector('img') as HTMLImageElement;
         const world = el.querySelector('.dm-ev-world') as HTMLDivElement;
-        const glass = el.querySelector('.dm-ev-glass') as HTMLDivElement;
         const panel = el.querySelector('.dm-ev-panel') as HTMLDivElement;
-        const sheen = el.querySelector('.dm-ev-sheen') as HTMLDivElement;
         const tesla = createTesla();
         tesla.setFull(1);
         desk = createDesktop({ wallpaper: ASSETS.wallpaper, clip: ASSETS.clip });
@@ -89,9 +91,7 @@ export function ExtendVisual() {
         desk.cursor.style.transition = 'opacity 0.3s ease';
         tesla.viewport.appendChild(desk.root);
         panel.appendChild(tesla.root);
-        glass.style.transform = quadMatrix(1072, 704, GLASS);
-        panel.style.transform = quadMatrix(1920, 1200, ACTIVE);
-        sheen.style.transform = quadMatrix(1920, 1200, ACTIVE);
+        panel.style.transform = quadMatrix(1920, 1200, outset(ACTIVE, OUTSET));
         const layout = () => {
           const W = el.clientWidth;
           const H = el.clientHeight;
@@ -135,9 +135,7 @@ export function ExtendVisual() {
     <div ref={ref} className="dm-ev" role="img" aria-label="A Tesla Model 3's centre screen working as a second display for a Mac: a window slides onto it from the Mac.">
       <img className="dm-ev-photo" alt="" decoding="async" loading="lazy" />
       <div className="dm-ev-world" aria-hidden="true">
-        <div className="dm-ev-glass" />
         <div className="dm-ev-panel" />
-        <div className="dm-ev-sheen" />
       </div>
     </div>
   );

@@ -13,11 +13,13 @@ to every projected point. Car frame = camera frame: x → right (passenger), y �
 The master is first run through the site's grade (research/tesla-web/tools/grade.py, the lead's recipe).
 
 Outputs (public/demo/):
-  office-{1400,2000,2700}.webp   the photo cropped to (150, 560, 2850, 2020), its screen area retouched
-                                 to the dash behind it (the turned screen uncovers a sliver of it)
-  office-screen-ui.webp          the screen's own glass (Tesla UI), rectified, for the flat/turning screen
-  office-screen-mac.webp         the same glass streaming the Mac desktop (our render, brand wallpaper)
-  office-macbook.webp            the MacBook's own display: brand wallpaper and the Dashcast window
+  office-{1400,2000,2700}.webp   the graded photo cropped to (150, 560, 2850, 2020), untouched
+  extend-{960,1480}.webp         the Extend card's crop (620, 450, 2100, 1450), the screen's active area
+                                 blacked out to dark glass so only the live panel shows a picture
+  office-desk.webp               the office screen's second-display picture (our render), photographed:
+                                 mapped onto the photo's own screen levels, softened, the photo's grain
+  office-macbook.webp            the MacBook's own display: brand wallpaper and the Dashcast window, likewise
+  office-board.webp, office-deck.webp   the board's carpet and the MacBook's top case, in the photo's tones
 and prints the model constants for Office.tsx.
 """
 import json
@@ -92,60 +94,150 @@ def screen_corners(m, theta):
     return out
 
 
+# The Extend card's crop (full-res px) and how its screen is blacked out.
+EXT_CROP = (620, 450, 2100, 1450)
+RING = 30       # panel px outside the active area where the dark-glass fill is sampled (≈8 photo px, black bezel)
+BLEED = 3       # photo px of bezel the fill also covers (the lit UI's halo)
+FEATHER = 3
+# The photographed screen's tone (graded master, active area): what streamed pictures are mapped onto.
+SCREEN_BLACK, SCREEN_WHITE = 15.0, 179.0
+PHOTO_NOISE = 5.0
+
+
+def rng():
+    return np.random.default_rng(7)
+
+
+def grain(a, sigma, blur=0.6):
+    """The photo's own grain (luminance-correlated, a little soft), added to a float image."""
+    n = rng().normal(0, sigma, a.shape[:2]).astype(np.float32)
+    if blur:
+        n = cv2.GaussianBlur(n, (0, 0), blur)
+    return a + n[..., None]
+
+
+def photographed(img, blur=0.8, noise=PHOTO_NOISE * 1.4):
+    """A picture on the car's screen as the camera saw the photo's own screen: its black and white levels,
+    a touch of softness and the photo's grain."""
+    a = np.asarray(img, np.float32)
+    a = SCREEN_BLACK + a * (SCREEN_WHITE - SCREEN_BLACK) / 255
+    a = cv2.GaussianBlur(a, (0, 0), blur)
+    return Image.fromarray(np.clip(grain(a, noise), 0, 255).round().astype(np.uint8))
+
+
+def blackout_active(bgr, H):
+    """The photo's active screen area as dark glass: a Coons patch of the black bezel sampled RING panel px
+    outside it, covering BLEED px past the edge and feathered over FEATHER px into the real bezel.
+    H maps panel px (1920×1200) to photo pixel-index coords."""
+    E, step = RING, 4
+    gw, gh = (1920 + 2 * E) // step + 1, (1200 + 2 * E) // step + 1
+
+    def ring(pts):
+        q = apply_h(H, pts).astype(np.float32)
+        v = cv2.remap(bgr, q[:, 0].reshape(1, -1), q[:, 1].reshape(1, -1), cv2.INTER_LINEAR)[0].astype(np.float32)
+        return cv2.GaussianBlur(v.reshape(1, -1, 3), (0, 0), 12).reshape(-1, 3)
+
+    xs = np.linspace(-E, 1920 + E, gw)
+    ys = np.linspace(-E, 1200 + E, gh)
+    T, B = ring([[x, -E] for x in xs]), ring([[x, 1200 + E] for x in xs])
+    L, R = ring([[-E, y] for y in ys]), ring([[1920 + E, y] for y in ys])
+    u = np.linspace(0, 1, gw)[None, :, None]
+    v = np.linspace(0, 1, gh)[:, None, None]
+    F = (1 - v) * T[None] + v * B[None] + (1 - u) * L[:, None] + u * R[:, None]
+    F -= (1 - u) * (1 - v) * T[0] + u * (1 - v) * T[-1] + (1 - u) * v * B[0] + u * v * B[-1]
+    act = apply_h(H, [[0, 0], [1920, 0], [1920, 1200], [0, 1200]])
+    x0, y0 = (act.min(axis=0) - 40).astype(int)
+    x1, y1 = (act.max(axis=0) + 40).astype(int)
+    G = np.array([[step, 0, -E], [0, step, -E], [0, 0, 1]], float)
+    M = np.array([[1, 0, -x0], [0, 1, -y0], [0, 0, 1]], float) @ H @ G
+    fill = cv2.warpPerspective(np.clip(F, 0, 255).astype(np.float32), M, (x1 - x0, y1 - y0), flags=cv2.INTER_LINEAR)
+    fill = grain(fill, PHOTO_NOISE * 0.8)
+    ss = 4
+    m = np.zeros(((y1 - y0) * ss, (x1 - x0) * ss), np.uint8)
+    cv2.fillPoly(m, [((act - [x0, y0]) * ss).round().astype(np.int32)], 255, lineType=cv2.LINE_AA)
+    m = cv2.resize(m, (x1 - x0, y1 - y0), interpolation=cv2.INTER_AREA)
+    hole = cv2.dilate((m > 0).astype(np.uint8) * 255, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * BLEED + 1, 2 * BLEED + 1)))
+    a = np.clip(1 - cv2.distanceTransform(255 - hole, cv2.DIST_L2, 5) / FEATHER, 0, 1)[..., None]
+    out = bgr.copy()
+    roi = bgr[y0:y1, x0:x1].astype(np.float32)
+    out[y0:y1, x0:x1] = np.clip(fill * a + roi * (1 - a), 0, 255).round().astype(np.uint8)
+    return out
+
+
+def board_texture():
+    """The trunk's subfloor cover, 1 px = 1 mm, far edge (toward the windshield) at the top: black carpet on
+    a hard board, lit from the windshield, in the graded photo's carpet tones."""
+    w, h = 1100, 420
+    y = np.linspace(0, 1, h)[:, None]
+    base = np.array([44, 45, 48], np.float32) * (1 - y) + np.array([30, 31, 33], np.float32) * y
+    a = np.broadcast_to(base[:, None, :], (h, w, 3)).copy()
+    fibre = cv2.GaussianBlur(rng().normal(0, 3, (h, w)).astype(np.float32), (0, 0), 0.5)
+    a += fibre[..., None]
+    edge = np.minimum.reduce([np.arange(w)[None, :].repeat(h, 0), (w - 1 - np.arange(w))[None, :].repeat(h, 0),
+                              np.arange(h)[:, None].repeat(w, 1), (h - 1 - np.arange(h))[:, None].repeat(w, 1)]).astype(np.float32)
+    a *= (0.72 + 0.28 * np.clip(edge / 10, 0, 1))[..., None]
+    a[:4] += 22  # the far edge catches the windshield light
+    return Image.fromarray(np.clip(grain(a, PHOTO_NOISE * 0.6), 0, 255).round().astype(np.uint8))
+
+
+def deck_texture():
+    """A 14" MacBook's top case, 5 px per mm, hinge at the top: space-grey aluminium lit from the windshield,
+    the keyboard in its well, the trackpad, the speaker grilles."""
+    k = 5
+    w, h = 312 * k, 221 * k
+    y = np.linspace(0, 1, h)[:, None]
+    # Dimmer than a product shot: the cabin's light, lighter at the hinge (toward the windshield).
+    base = np.array([88, 90, 95], np.float32) * (1 - y) + np.array([60, 62, 66], np.float32) * y
+    a = np.broadcast_to(base[:, None, :], (h, w, 3)).copy()
+    a += cv2.GaussianBlur(rng().normal(0, 2.5, (h, w)).astype(np.float32), (0, 0), 1.5)[..., None]
+    im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(im)
+    kx0, kx1, ky0, ky1 = 18 * k, (312 - 18) * k, 12 * k, 118 * k
+    d.rounded_rectangle([kx0, ky0, kx1, ky1], radius=3 * k, fill=(40, 41, 44))
+    rows = [(1, 15), (1, 14), (1.35, 13), (1.6, 12), (2.1, 11), (1, 9)]
+    ry = ky0 + 2 * k
+    rh = (ky1 - ky0 - 4 * k) / len(rows)
+    for i, (_, n) in enumerate(rows):
+        kw = (kx1 - kx0 - 4 * k) / n
+        for j in range(n):
+            x = kx0 + 2 * k + j * kw
+            d.rounded_rectangle([x + 0.7 * k, ry + i * rh + 0.7 * k, x + kw - 0.7 * k, ry + (i + 1) * rh - 0.7 * k], radius=int(1.2 * k), fill=(18, 18, 20))
+    px0, px1 = 95 * k, (312 - 95) * k
+    d.rounded_rectangle([px0, 130 * k, px1, (221 - 12) * k], radius=4 * k, fill=(76, 78, 82), outline=(66, 68, 72), width=2)
+    for gx in (7 * k, (312 - 15) * k):
+        for yy in range(ky0 + 3 * k, ky1 - 2 * k, int(1.6 * k)):
+            for xx in range(gx, gx + 8 * k, int(1.6 * k)):
+                d.ellipse([xx, yy, xx + 3, yy + 3], fill=(50, 51, 54))
+    a = cv2.GaussianBlur(np.asarray(im, np.float32), (0, 0), 1.6)
+    return Image.fromarray(np.clip(grain(a, PHOTO_NOISE * 1.6, blur=1.2), 0, 255).round().astype(np.uint8))
+
+
 def main():
     os.makedirs(SCRATCH, exist_ok=True)
     m = screen_model()
     HC = homography(project(screen_corners(m, 0)), Q0)
-    turned = apply_h(HC, project(screen_corners(m, np.radians(30))))
 
     graded = os.path.join(SCRATCH, 'office-graded.png')
     subprocess.run([sys.executable, GRADE, SRC, graded], check=True, stdout=subprocess.DEVNULL)
     bgr = cv2.imread(graded)
-    # Retouch: the dash behind the glass, wherever the turned screen no longer covers the flat one.
-    mask = np.zeros(bgr.shape[:2], np.uint8)
-    cv2.fillPoly(mask, [Q0.round().astype(np.int32)], 255)
-    keep = np.zeros_like(mask)
-    cv2.fillPoly(keep, [turned.round().astype(np.int32)], 255)
-    keep = cv2.erode(keep, np.ones((9, 9), np.uint8))
-    hole = cv2.dilate(mask, np.ones((9, 9), np.uint8))
-    hole[keep > 0] = 0
-    x0, y0 = Q0.min(axis=0).astype(int) - 60
-    x1, y1 = Q0.max(axis=0).astype(int) + 60
-    roi = bgr[y0:y1, x0:x1].copy()
-    # The dash behind is made of horizontal bands (hedge, dash top, wood strip): carry each row in from
-    # the dash just right of the hole, then soften the seam, so the bands run on unbroken.
-    hr = hole[y0:y1, x0:x1] > 0
-    fixed = roi.copy()
-    for r in range(hr.shape[0]):
-        xs = np.where(hr[r])[0]
-        if not len(xs):
-            continue
-        right = min(xs.max() + 3, hr.shape[1] - 1)
-        src = roi[r, right:right + 6].astype(np.float32).mean(axis=0)
-        fixed[r, xs] = src.round().astype(np.uint8)
-    blur = cv2.GaussianBlur(fixed, (0, 0), 1.2)
-    soft = cv2.GaussianBlur(hr.astype(np.float32), (0, 0), 2)[..., None]
-    fixed = (blur * soft + fixed * (1 - soft)).round().astype(np.uint8)
-    # Behind the untouched middle, the glass stays: it is always covered by the live screen.
-    out = bgr.copy()
-    out[y0:y1, x0:x1] = fixed
-    im = Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB)).crop(CROP)
+
+    # Office section: the graded photo as it is; the screen stays as photographed.
+    im = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)).crop(CROP)
     for w, q in [(1400, 80), (2000, 78), (2700, 74)]:
         r = im.resize((w, round(im.height * w / im.width)), Image.LANCZOS) if w != im.width else im
         r.save(f'{OUT}/office-{w}.webp', quality=q, method=6)
 
-    # Screen textures: the outer glass rectified to TEX.
-    Hr = homography(Q0, [[0, 0], [TEX[0], 0], [TEX[0], TEX[1]], [0, TEX[1]]])
-    glass = cv2.warpPerspective(bgr, Hr, TEX, flags=cv2.INTER_LANCZOS4)
-    ui = Image.fromarray(cv2.cvtColor(glass, cv2.COLOR_BGR2RGB))
-    ui.save(f'{OUT}/office-screen-ui.webp', quality=84, method=6)
-    act = apply_h(Hr, ACTIVE)
-    ax0, ay0 = act[:, 0].min(), act[:, 1].min()
-    ax1, ay1 = act[:, 0].max(), act[:, 1].max()
-    desk = Image.open(os.path.join(SCRATCH, 'desk-loop.png')).convert('RGB').resize((round(ax1 - ax0), round(ay1 - ay0)), Image.LANCZOS)
-    mac = ui.copy()
-    mac.paste(desk, (round(ax0), round(ay0)))
-    mac.save(f'{OUT}/office-screen-mac.webp', quality=84, method=6)
+    # Extend card: the screen's active area blacked out, so only the live panel shows a picture.
+    Hp = homography([[0, 0], [1920, 0], [1920, 1200], [0, 1200]], ACTIVE - 0.5)
+    ext = Image.fromarray(cv2.cvtColor(blackout_active(bgr, Hp), cv2.COLOR_BGR2RGB)).crop(EXT_CROP)
+    for w, q in [(960, 80), (1480, 78)]:
+        r = ext.resize((w, round(ext.height * w / ext.width)), Image.LANCZOS) if w != ext.width else ext
+        r.save(f'{OUT}/extend-{w}.webp', quality=q, method=6)
+
+    # The office screen's second-display picture (step 3): our render, photographed.
+    desk = Image.open(os.path.join(SCRATCH, 'desk-loop.png')).convert('RGB').resize((1000, 625), Image.LANCZOS)
+    photographed(desk).save(f'{OUT}/office-desk.webp', quality=84, method=6)
 
     # The MacBook's own display (14", 3024×1964): brand wallpaper, the Dashcast window casting.
     W, H = 1100, 714
@@ -159,12 +251,34 @@ def main():
     disp.paste(win, ((W - win.width) // 2, round(H * 0.1)), win)
     bar = Image.new('RGBA', (W, 26), (0, 0, 0, 90))
     disp.paste(bar, (0, 0), bar)
-    disp.save(f'{OUT}/office-macbook.webp', quality=82, method=6)
+    photographed(disp, blur=1.0).save(f'{OUT}/office-macbook.webp', quality=82, method=6)
+    disp.save(os.path.join(HERE, 'macbook-display.png'))
 
-    print(json.dumps({
-        'f': F, 'c': [CX, CY], 'crop': CROP[:2], 'HC': HC.round(9).tolist(), 'screen': m,
-        'tex': TEX, 'Q0': Q0.tolist(), 'turned30': turned.round(2).tolist(),
-    }, indent=1))
+    # The rendered MacBook (render_macbook.py with the Sketchfab model), when there is one: composited onto
+    # the ungraded photo, graded with the photo's own recipe, then cut back out by its alpha, so the sprite
+    # carries exactly the photo's grade; the photo's grain on top.
+    render = os.path.join(HERE, 'macbook-render.png')
+    if os.path.exists(render):
+        raw = cv2.imread(SRC)
+        rgba = cv2.imread(render, cv2.IMREAD_UNCHANGED)
+        T = np.array([[1, 0, CROP[0]], [0, 1, CROP[1]], [0, 0, 1]], float)
+        warped = cv2.warpPerspective(rgba, HC @ T, (raw.shape[1], raw.shape[0]), flags=cv2.INTER_LINEAR)
+        a = warped[..., 3:4].astype(np.float32) / 255
+        comp = (warped[..., :3].astype(np.float32) * a + raw.astype(np.float32) * (1 - a)).round().astype(np.uint8)
+        cpath = os.path.join(SCRATCH, 'macbook-comp.png')
+        cv2.imwrite(cpath, comp)
+        subprocess.run([sys.executable, GRADE, cpath, cpath], check=True, stdout=subprocess.DEVNULL)
+        g = cv2.imread(cpath).astype(np.float32)
+        g = grain(g, PHOTO_NOISE)
+        sprite = np.dstack([np.clip(g, 0, 255), a * 255]).astype(np.uint8)
+        sprite = cv2.cvtColor(sprite, cv2.COLOR_BGRA2RGBA)
+        Image.fromarray(sprite).crop(CROP).save(f'{OUT}/office-macbook-render.webp', quality=86, method=6)
+
+    board_texture().save(f'{OUT}/office-board.webp', quality=82, method=6)
+    deck_texture().save(f'{OUT}/office-deck.webp', quality=82, method=6)
+
+    print(json.dumps({'HC': HC.round(9).tolist(), 'active_crop': (ACTIVE - CROP[:2]).round(2).tolist(),
+                      'active_ext': (ACTIVE - EXT_CROP[:2]).round(2).tolist(), 'glass_ext': (Q0 - EXT_CROP[:2]).round(2).tolist()}))
 
 
 if __name__ == '__main__':
