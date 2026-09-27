@@ -18,8 +18,11 @@ Outputs (public/demo/):
                                  blacked out to dark glass so only the live panel shows a picture
   office-desk.webp               the office screen's second-display picture (our render), photographed:
                                  mapped onto the photo's own screen levels, softened, the photo's grain
-  office-macbook.webp            the MacBook's own display: brand wallpaper and the Dashcast window, likewise
-  office-board.webp, office-deck.webp   the board's carpet and the MacBook's top case, in the photo's tones
+  office-board.webp, office-macbook.webp   the Blender renders of the board and the MacBook (render_macbook.py),
+                                 graded and grained into the photo, cropped to their extent (offsets printed)
+
+Order: run this once (it writes macbook-display.png, the MacBook's screen), render the board and the
+MacBook into $OFFICE_SCRATCH/board.png and macbook.png with render_macbook.py, then run this again.
 and prints the model constants for Office.tsx.
 """
 import json
@@ -164,53 +167,62 @@ def blackout_active(bgr, H):
     return out
 
 
-def board_texture():
-    """The trunk's subfloor cover, 1 px = 1 mm, far edge (toward the windshield) at the top: black carpet on
-    a hard board, lit from the windshield, in the graded photo's carpet tones."""
-    w, h = 1100, 420
-    y = np.linspace(0, 1, h)[:, None]
-    base = np.array([44, 45, 48], np.float32) * (1 - y) + np.array([30, 31, 33], np.float32) * y
-    a = np.broadcast_to(base[:, None, :], (h, w, 3)).copy()
-    fibre = cv2.GaussianBlur(rng().normal(0, 3, (h, w)).astype(np.float32), (0, 0), 0.5)
-    a += fibre[..., None]
-    edge = np.minimum.reduce([np.arange(w)[None, :].repeat(h, 0), (w - 1 - np.arange(w))[None, :].repeat(h, 0),
-                              np.arange(h)[:, None].repeat(w, 1), (h - 1 - np.arange(h))[:, None].repeat(w, 1)]).astype(np.float32)
-    a *= (0.72 + 0.28 * np.clip(edge / 10, 0, 1))[..., None]
-    a[:4] += 22  # the far edge catches the windshield light
-    return Image.fromarray(np.clip(grain(a, PHOTO_NOISE * 0.6), 0, 255).round().astype(np.uint8))
+def load_render(path):
+    """A 16-bit RGBA render as float BGR (0–255) and alpha (0–1), crop-sized."""
+    a = cv2.imread(path, cv2.IMREAD_UNCHANGED).astype(np.float32) / 257.0
+    return a[..., :3], a[..., 3] / 255.0
 
 
-def deck_texture():
-    """A 14" MacBook's top case, 5 px per mm, hinge at the top: space-grey aluminium lit from the windshield,
-    the keyboard in its well, the trackpad, the speaker grilles."""
-    k = 5
-    w, h = 312 * k, 221 * k
-    y = np.linspace(0, 1, h)[:, None]
-    # Dimmer than a product shot: the cabin's light, lighter at the hinge (toward the windshield).
-    base = np.array([88, 90, 95], np.float32) * (1 - y) + np.array([60, 62, 66], np.float32) * y
-    a = np.broadcast_to(base[:, None, :], (h, w, 3)).copy()
-    a += cv2.GaussianBlur(rng().normal(0, 2.5, (h, w)).astype(np.float32), (0, 0), 1.5)[..., None]
-    im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
-    from PIL import ImageDraw
-    d = ImageDraw.Draw(im)
-    kx0, kx1, ky0, ky1 = 18 * k, (312 - 18) * k, 12 * k, 118 * k
-    d.rounded_rectangle([kx0, ky0, kx1, ky1], radius=3 * k, fill=(40, 41, 44))
-    rows = [(1, 15), (1, 14), (1.35, 13), (1.6, 12), (2.1, 11), (1, 9)]
-    ry = ky0 + 2 * k
-    rh = (ky1 - ky0 - 4 * k) / len(rows)
-    for i, (_, n) in enumerate(rows):
-        kw = (kx1 - kx0 - 4 * k) / n
-        for j in range(n):
-            x = kx0 + 2 * k + j * kw
-            d.rounded_rectangle([x + 0.7 * k, ry + i * rh + 0.7 * k, x + kw - 0.7 * k, ry + (i + 1) * rh - 0.7 * k], radius=int(1.2 * k), fill=(18, 18, 20))
-    px0, px1 = 95 * k, (312 - 95) * k
-    d.rounded_rectangle([px0, 130 * k, px1, (221 - 12) * k], radius=4 * k, fill=(76, 78, 82), outline=(66, 68, 72), width=2)
-    for gx in (7 * k, (312 - 15) * k):
-        for yy in range(ky0 + 3 * k, ky1 - 2 * k, int(1.6 * k)):
-            for xx in range(gx, gx + 8 * k, int(1.6 * k)):
-                d.ellipse([xx, yy, xx + 3, yy + 3], fill=(50, 51, 54))
-    a = cv2.GaussianBlur(np.asarray(im, np.float32), (0, 0), 1.6)
-    return Image.fromarray(np.clip(grain(a, PHOTO_NOISE * 1.6, blur=1.2), 0, 255).round().astype(np.uint8))
+def sprites(HC):
+    """The Blender renders (render_macbook.py) → graded, grained sprites for the page.
+
+    Each render is placed in the photo by the model's correction homography, composited onto the ungraded
+    photo (the MacBook over the board), graded with the photo's own recipe, then cut back out by its alpha,
+    so it carries exactly the photo's grade."""
+    board_png, mac_png = os.path.join(SCRATCH, 'board.png'), os.path.join(SCRATCH, 'macbook.png')
+    if not (os.path.exists(board_png) and os.path.exists(mac_png)):
+        return
+    raw = cv2.imread(SRC).astype(np.float32)
+    T = np.array([[1, 0, CROP[0]], [0, 1, CROP[1]], [0, 0, 1]], float)
+    M = HC @ T
+    size = (raw.shape[1], raw.shape[0])
+
+    def place(img):
+        return cv2.warpPerspective(img, M, size, flags=cv2.INTER_LINEAR)
+
+    bc, ba = load_render(board_png)
+    # The board's shade on what's below its near edge (armrest, seat fronts): a soft band under it, where
+    # the glass roof's light is blocked. The renders have no stand-ins for those surfaces, so it's added here.
+    solid = ba > 0.98
+    rows = np.arange(solid.shape[0])[:, None]
+    has = solid.any(axis=0)
+    bottom = np.where(has, solid.shape[0] - 1 - np.argmax(solid[::-1], axis=0), -1)
+    d = rows - bottom[None, :]
+    band = np.where((d > 0) & has[None, :], 0.42 * np.exp(-d / 48.0), 0).astype(np.float32)
+    band = cv2.GaussianBlur(band, (0, 0), 6)
+    band[solid] = 0
+    bc = bc * (1 - band[..., None]) * (ba[..., None] / np.maximum(ba + band, 1e-6)[..., None])
+    ba = np.clip(ba + band, 0, 1)
+    mc, ma = load_render(mac_png)
+    bc, ba, mc, ma = place(bc), place(ba), place(mc), place(ma)
+    over = lambda c, a, under: c * a[..., None] + under * (1 - a[..., None])
+    comp_b = over(bc, ba, raw)
+    comp_m = over(mc, ma, comp_b)
+    out = {}
+    for name, comp, alpha in [('board', comp_b, ba), ('macbook', comp_m, ma)]:
+        path = os.path.join(SCRATCH, f'{name}-comp.png')
+        cv2.imwrite(path, np.clip(comp, 0, 255).round().astype(np.uint8))
+        subprocess.run([sys.executable, GRADE, path, path], check=True, stdout=subprocess.DEVNULL)
+        g = grain(cv2.imread(path).astype(np.float32), PHOTO_NOISE)
+        g = cv2.GaussianBlur(g, (0, 0), 0.5)
+        rgba = np.dstack([np.clip(g, 0, 255), np.clip(alpha, 0, 1) * 255]).round().astype(np.uint8)
+        rgba = cv2.cvtColor(rgba, cv2.COLOR_BGRA2RGBA)[CROP[1]:CROP[3], CROP[0]:CROP[2]]
+        ys, xs = np.where(rgba[..., 3] > 8)
+        x0, y0 = max(0, xs.min() - 4), max(0, ys.min() - 4)
+        x1, y1 = min(rgba.shape[1], xs.max() + 5), min(rgba.shape[0], ys.max() + 5)
+        Image.fromarray(rgba[y0:y1, x0:x1]).save(f'{OUT}/office-{name}.webp', quality=82, method=6, exact=False)
+        out[name] = [int(x0), int(y0), int(x1 - x0), int(y1 - y0)]
+    print('sprites (crop px: x, y, w, h):', json.dumps(out))
 
 
 def main():
@@ -251,31 +263,10 @@ def main():
     disp.paste(win, ((W - win.width) // 2, round(H * 0.1)), win)
     bar = Image.new('RGBA', (W, 26), (0, 0, 0, 90))
     disp.paste(bar, (0, 0), bar)
-    photographed(disp, blur=1.0).save(f'{OUT}/office-macbook.webp', quality=82, method=6)
     disp.save(os.path.join(HERE, 'macbook-display.png'))
 
-    # The rendered MacBook (render_macbook.py with the Sketchfab model), when there is one: composited onto
-    # the ungraded photo, graded with the photo's own recipe, then cut back out by its alpha, so the sprite
-    # carries exactly the photo's grade; the photo's grain on top.
-    render = os.path.join(HERE, 'macbook-render.png')
-    if os.path.exists(render):
-        raw = cv2.imread(SRC)
-        rgba = cv2.imread(render, cv2.IMREAD_UNCHANGED)
-        T = np.array([[1, 0, CROP[0]], [0, 1, CROP[1]], [0, 0, 1]], float)
-        warped = cv2.warpPerspective(rgba, HC @ T, (raw.shape[1], raw.shape[0]), flags=cv2.INTER_LINEAR)
-        a = warped[..., 3:4].astype(np.float32) / 255
-        comp = (warped[..., :3].astype(np.float32) * a + raw.astype(np.float32) * (1 - a)).round().astype(np.uint8)
-        cpath = os.path.join(SCRATCH, 'macbook-comp.png')
-        cv2.imwrite(cpath, comp)
-        subprocess.run([sys.executable, GRADE, cpath, cpath], check=True, stdout=subprocess.DEVNULL)
-        g = cv2.imread(cpath).astype(np.float32)
-        g = grain(g, PHOTO_NOISE)
-        sprite = np.dstack([np.clip(g, 0, 255), a * 255]).astype(np.uint8)
-        sprite = cv2.cvtColor(sprite, cv2.COLOR_BGRA2RGBA)
-        Image.fromarray(sprite).crop(CROP).save(f'{OUT}/office-macbook-render.webp', quality=86, method=6)
+    sprites(HC)
 
-    board_texture().save(f'{OUT}/office-board.webp', quality=82, method=6)
-    deck_texture().save(f'{OUT}/office-deck.webp', quality=82, method=6)
 
     print(json.dumps({'HC': HC.round(9).tolist(), 'active_crop': (ACTIVE - CROP[:2]).round(2).tolist(),
                       'active_ext': (ACTIVE - EXT_CROP[:2]).round(2).tolist(), 'glass_ext': (Q0 - EXT_CROP[:2]).round(2).tolist()}))
