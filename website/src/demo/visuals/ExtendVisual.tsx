@@ -1,3 +1,4 @@
+import { ASSET_V } from '../../lib/links';
 import { createTesla } from '../tesla/tesla';
 import { createDesktop, type Desktop } from '../mac/desktop';
 import { ASSETS } from '../assets';
@@ -10,7 +11,7 @@ import './visuals.css';
  * 1480×1000, its screen's active area blacked out to dark glass. The active area's corners, edge-fitted,
  * in this crop's px (pixel edges).
  */
-const PHOTO = { w: 1480, h: 1000, src: [960, 1480].map((w) => [`/demo/extend-${w}.webp`, w] as const) };
+const PHOTO = { w: 1480, h: 1000, src: [960, 1480].map((w) => [`/demo/extend-${w}.webp${ASSET_V}`, w] as const) };
 const ACTIVE: Quad = [
   [613.92, 290.83],
   [1114.52, 297.64],

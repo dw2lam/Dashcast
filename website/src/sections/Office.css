@@ -152,7 +152,7 @@
   width: 1000px;
   height: 625px;
   border-radius: 8px;
-  background: url(/demo/office-desk.webp) 0 0 / 100% 100% no-repeat;
+  background: url(/demo/office-desk.webp?v=2) 0 0 / 100% 100% no-repeat;
   filter: blur(0.6px);
   opacity: 0;
 }

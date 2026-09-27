@@ -1,4 +1,5 @@
 import type { Quad } from './geometry';
+import { ASSET_V } from '../lib/links';
 
 const base = '/demo/';
 
@@ -11,7 +12,7 @@ const base = '/demo/';
 export const PHOTO = {
   width: 5512,
   height: 3640,
-  src: { 1600: base + 'cabin-1600.webp', 2560: base + 'cabin-2560.webp', 3840: base + 'cabin-3840.webp', 5504: base + 'cabin-5504.webp' } as Record<number, string>,
+  src: { 1600: base + 'cabin-1600.webp' + ASSET_V, 2560: base + 'cabin-2560.webp' + ASSET_V, 3840: base + 'cabin-3840.webp' + ASSET_V, 5504: base + 'cabin-5504.webp' + ASSET_V } as Record<number, string>,
   quad: [
     [2117.34, 1377.15],
     [3447.24, 1375.77],

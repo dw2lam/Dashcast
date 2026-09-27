@@ -1,3 +1,5 @@
+import { ASSET_V } from '../lib/links';
+
 type Props = {
   name: string;
   alt: string;
@@ -18,8 +20,8 @@ const P = [750, 1125];
  * <name>-p{750,1125}.{avif,webp} for portrait ones. `tone` paints the box while it loads.
  */
 export function Photo({ name, alt, tone = '#1b1d21', position = '50% 50%', portraitPosition, eager, className, landscapeOnly }: Props) {
-  const src = (w: number, ext: string) => `/media/${name}-${w}.${ext}`;
-  const psrc = (w: number, ext: string) => `/media/${name}-p${w}.${ext}`;
+  const src = (w: number, ext: string) => `/media/${name}-${w}.${ext}${ASSET_V}`;
+  const psrc = (w: number, ext: string) => `/media/${name}-p${w}.${ext}${ASSET_V}`;
   const portrait = '(max-aspect-ratio: 4/5)';
   return (
     <picture className={`photo ${className ?? ''}`} style={{ backgroundColor: tone }}>

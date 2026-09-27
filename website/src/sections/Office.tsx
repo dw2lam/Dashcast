@@ -1,3 +1,4 @@
+import { ASSET_V } from '../lib/links';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { gsap, ease, prefersReducedMotion } from '../lib/motion';
 import { Band } from './Band';
@@ -224,8 +225,8 @@ export function Office() {
           >
             <img
               className="office__base"
-              src={BASE + 'office-1400.webp'}
-              srcSet={`${BASE}office-1400.webp 1400w, ${BASE}office-2000.webp 2000w, ${BASE}office-2700.webp 2700w`}
+              src={BASE + 'office-1400.webp' + ASSET_V}
+              srcSet={`${BASE}office-1400.webp${ASSET_V} 1400w, ${BASE}office-2000.webp${ASSET_V} 2000w, ${BASE}office-2700.webp${ASSET_V} 2700w`}
               sizes="(max-width: 1247px) 100vw, 1200px"
               alt=""
               decoding="async"
@@ -233,7 +234,7 @@ export function Office() {
             />
             <div className="o-world" ref={world} aria-hidden="true">
               <div className="o-desk" style={{ transform: quadMatrix(1000, 625, outset(ACTIVE, OUTSET)) }} />
-              <img className="o-board-img" src={BASE + 'office-board.webp'} width={BOARD_SPRITE[2]} height={BOARD_SPRITE[3]} alt="" loading="lazy" decoding="async" />
+              <img className="o-board-img" src={BASE + 'office-board.webp' + ASSET_V} width={BOARD_SPRITE[2]} height={BOARD_SPRITE[3]} alt="" loading="lazy" decoding="async" />
               <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
                 <defs>
                   {/* What of the wheel is in front of the board: the rim (an annulus) and the lower spoke, as two
@@ -245,10 +246,10 @@ export function Office() {
                     <polygon points="607,517 737,517 708,640 612,640" />
                   </clipPath>
                 </defs>
-                <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
-                <image className="o-rim" href={BASE + 'office-1400.webp'} x="0" y="0" width={W} height={H} clipPath="url(#office-spoke)" preserveAspectRatio="none" />
+                <image className="o-rim" href={BASE + 'office-1400.webp' + ASSET_V} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
+                <image className="o-rim" href={BASE + 'office-1400.webp' + ASSET_V} x="0" y="0" width={W} height={H} clipPath="url(#office-spoke)" preserveAspectRatio="none" />
               </svg>
-              <img className="o-mac-img" src={BASE + 'office-macbook.webp'} width={MAC_SPRITE[2]} height={MAC_SPRITE[3]} alt="" loading="lazy" decoding="async" />
+              <img className="o-mac-img" src={BASE + 'office-macbook.webp' + ASSET_V} width={MAC_SPRITE[2]} height={MAC_SPRITE[3]} alt="" loading="lazy" decoding="async" />
             </div>
           </div>
         </div>
