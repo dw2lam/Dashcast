@@ -25,8 +25,8 @@ const SWIVEL = [1008, 132, 664, 488];
 /** The turn's clip length (s): 27 frames at 30 fps, from 0° to 30° toward the passenger. */
 const TURN_S = 0.9;
 /** The rendered sprites' places in the crop (x, y, w, h), from prep_office.py. */
-const BOARD_SPRITE = [403, 727, 1966, 396];
-const MAC_SPRITE = [1391, 462, 968, 520];
+const BOARD_SPRITE = [154, 715, 2464, 403];
+const MAC_SPRITE = [1560, 414, 1046, 561];
 const BASE = '/demo/';
 
 interface Pose {

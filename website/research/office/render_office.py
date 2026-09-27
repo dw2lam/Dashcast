@@ -9,12 +9,12 @@ looking straight down the car. Car frame (x → passenger, y ↓, z → forward,
 (X = x, Y = z, Z = -y). Renders are in this "model" camera; prep_office.py maps them onto the photo with the
 screen's correction homography (HC), grades and grains them.
 
-board:   the trunk's subfloor cover, a bevelled carpeted slab 1.02 × 0.40 m × 12 mm at lap height, entirely
-         below the steering wheel: its top 11 cm under the rim's lowest point (wheel fitted from the photo's rim
-         through HC⁻¹: centre (−0.41, 0.15, 1.23) m, 38 cm, tilted 20°), and its far edge ~40 px below the rim
-         in the image, so the two never overlap. Its driver end starts near the wheel's centre line.
-macbook: "MacBook Pro M3 16 Inch 2024" by jackbaeten (CC BY 4.0, refs/macbook) scaled to a 14" footprint
-         (×0.88), open at its modelled ~112°, our Mac desktop on its display, its logo and engravings hidden,
+board:   the trunk's subfloor cover, a bevelled carpeted slab 1.22 × 0.39 m × 12 mm at lap height, entirely
+         below the steering wheel: its top 8.4 cm under the rim's lowest point (wheel fitted from the photo's rim
+         through HC⁻¹: centre (−0.41, 0.15, 1.23) m, 38 cm, tilted 20°), and its far edge ~28 px below the rim
+         in the image, so the two never overlap. It runs from under the wheel to near the passenger door.
+macbook: "MacBook Pro M3 16 Inch 2024" by jackbaeten (CC BY 4.0, refs/macbook) scaled ×0.94 (between the 14"
+         and 16" footprints: 33.4 × 23.3 cm), open at its modelled ~112°, our Mac desktop on its display, its logo and engravings hidden,
          on the board's passenger end; the board is a shadow catcher, so its shadow lands on the carpet.
 swivel:  the car's screen as a real slab (the photo's own glass on its face, dark satin plastic sides and
          back, a stalk), turned 0→30° toward the passenger about its mount, in front of the photo projected
@@ -43,8 +43,8 @@ CROP = (150, 560, 2850, 2000)
 # The swivel's render window in model px (the screen's neighbourhood; prep_office.py maps it to the photo).
 SWIVEL_WIN = (1150, 680, 1830, 1190)
 
-BOARD = {'x0': -0.48, 'x1': 0.54, 'z0': 1.05, 'z1': 1.45, 'y': 0.44, 't': 0.012}
-MAC = {'x': 0.358, 'zf': 1.09, 'scale': 0.88}
+BOARD = {'x0': -0.58, 'x1': 0.64, 'z0': 1.00, 'z1': 1.39, 'y': 0.415, 't': 0.012}
+MAC = {'x': 0.447, 'zf': 1.04, 'scale': 0.94}
 # The screen (model space): outer glass centre, size, and the mount's pivot behind it.
 SCREEN = {'c': (-0.00535, 0.14686, 1.37462), 'w': 0.368, 'h': 0.24153, 'depth': 0.02, 'pivot': 0.035}
 TURN = 30.0
