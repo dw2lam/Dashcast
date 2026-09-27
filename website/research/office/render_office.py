@@ -9,12 +9,10 @@ looking straight down the car. Car frame (x → passenger, y ↓, z → forward,
 (X = x, Y = z, Z = -y). Renders are in this "model" camera; prep_office.py maps them onto the photo with the
 screen's correction homography (HC), grades and grains them.
 
-The steering wheel is in the scene as a holdout (rim torus, hub and lower spoke, fitted to the photo's rim
-through HC⁻¹): wherever it is in front, the renders are already cut out, so the photo's own wheel shows.
-
-board:   the trunk's subfloor cover, a bevelled carpeted slab 1.06 × 0.45 m × 12 mm at lap height (its top
-         41 cm below eye level, 8 cm below the rim's lowest point), reaching forward past the lower rim, which
-         (a holdout) stays in front of it, from the driver side to the passenger side.
+board:   the trunk's subfloor cover, a bevelled carpeted slab 1.02 × 0.40 m × 12 mm at lap height, entirely
+         below the steering wheel: its top 11 cm under the rim's lowest point (wheel fitted from the photo's rim
+         through HC⁻¹: centre (−0.41, 0.15, 1.23) m, 38 cm, tilted 20°), and its far edge ~40 px below the rim
+         in the image, so the two never overlap. Its driver end starts near the wheel's centre line.
 macbook: "MacBook Pro M3 16 Inch 2024" by jackbaeten (CC BY 4.0, refs/macbook) scaled to a 14" footprint
          (×0.88), open at its modelled ~112°, our Mac desktop on its display, its logo and engravings hidden,
          on the board's passenger end; the board is a shadow catcher, so its shadow lands on the carpet.
@@ -45,10 +43,8 @@ CROP = (150, 560, 2850, 2000)
 # The swivel's render window in model px (the screen's neighbourhood; prep_office.py maps it to the photo).
 SWIVEL_WIN = (1150, 680, 1830, 1190)
 
-BOARD = {'x0': -0.58, 'x1': 0.48, 'z0': 1.15, 'z1': 1.60, 'y': 0.41, 't': 0.012}
-# The wheel in model space: the photo's rim ellipse through HC⁻¹, as a 38 cm wheel tilted 20°.
-WHEEL = {'c': (-0.409, 0.153, 1.23), 'r': 0.19, 'tilt': 20.1}
-MAC = {'x': 0.30, 'zf': 1.19, 'scale': 0.88}
+BOARD = {'x0': -0.48, 'x1': 0.54, 'z0': 1.05, 'z1': 1.45, 'y': 0.44, 't': 0.012}
+MAC = {'x': 0.358, 'zf': 1.09, 'scale': 0.88}
 # The screen (model space): outer glass centre, size, and the mount's pivot behind it.
 SCREEN = {'c': (-0.00535, 0.14686, 1.37462), 'w': 0.368, 'h': 0.24153, 'depth': 0.02, 'pivot': 0.035}
 TURN = 30.0
@@ -166,32 +162,6 @@ def board(sc, catcher=False):
     ob.data.materials.append(carpet())
     ob.is_shadow_catcher = catcher
     return ob
-
-
-def wheel(sc, shadow=True):
-    """The steering wheel as a holdout (cut out of every render) that still casts its shadow: the rim, the
-    hub and the lower spoke. Slightly slimmer than the photo's rim, which is drawn back on top in the page."""
-    w = WHEEL
-    parent = bpy.data.objects.new('wheel', None)
-    sc.collection.objects.link(parent)
-    parent.location = car(*w['c'])
-    # Wheel plane: faces the driver (-Y world), top tilted forward by `tilt`.
-    parent.rotation_euler = (math.radians(90 - w['tilt']), 0, 0)
-    parts = []
-    bpy.ops.mesh.primitive_torus_add(major_radius=w['r'] - 0.016, minor_radius=0.013, major_segments=128, minor_segments=16)
-    parts.append(bpy.context.active_object)
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.075, depth=0.06, vertices=64)
-    parts.append(bpy.context.active_object)
-    bpy.ops.mesh.primitive_cube_add(size=1)
-    spoke = bpy.context.active_object
-    spoke.scale = (0.06, 0.12, 0.03)
-    spoke.location = (0, -0.11, 0)
-    parts.append(spoke)
-    for o in parts:
-        o.parent = parent
-        o.is_holdout = True
-        o.visible_shadow = shadow
-    return parent
 
 
 def display_material():
@@ -413,8 +383,6 @@ def main():
     sc = scene(ARG or 128, exposure=-1.6 if MODE == 'board' else -1.8)
     camera(sc)
     lights(sc)
-    # The rim's shadow belongs to the board's own render; in the MacBook's it would show up only in step 3.
-    wheel(sc, shadow=MODE == 'board')
     if MODE == 'board':
         board(sc)
     else:

@@ -133,17 +133,12 @@
   pointer-events: none;
 }
 
-.o-world > svg,
 .o-world > div,
 .o-world > img {
   position: absolute;
   top: 0;
   left: 0;
   transform-origin: 0 0;
-}
-
-.o-world > svg {
-  overflow: visible;
 }
 
 /* The swivel: a clip of the screen turning (only the pixels that change, blended into the photo), its last

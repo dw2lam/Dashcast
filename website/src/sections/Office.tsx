@@ -1,5 +1,5 @@
 import { ASSET_V } from '../lib/links';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { gsap, ease, prefersReducedMotion } from '../lib/motion';
 import { Band } from './Band';
 import './Office.css';
@@ -20,19 +20,13 @@ const STEPS = [
  * (the whole scene: the board, the MacBook and the screen's swivel as a real slab in front of the projected photo).
  */
 const W = 2700;
-const H = 1460;
 /** The swivel's window in the crop (x, y, w, h): the clip, its last frame and the desk still, from prep_office.py. */
 const SWIVEL = [1008, 132, 664, 488];
 /** The turn's clip length (s): 27 frames at 30 fps, from 0° to 30° toward the passenger. */
 const TURN_S = 0.9;
 /** The rendered sprites' places in the crop (x, y, w, h), from prep_office.py. */
-const BOARD_SPRITE = [308, 633, 1870, 362];
-const MAC_SPRITE = [1356, 398, 801, 456];
-/** The steering wheel in the photo (crop px): its rim and lower spoke are drawn back over the board. */
-const RIM = { cx: 670, cy: 370, rx: 312, ry: 291 };
-const RIM_T = 45;
-const ellipsePath = (cx: number, cy: number, rx: number, ry: number) => `M${cx - rx} ${cy} a${rx} ${ry} 0 1 0 ${2 * rx} 0 a${rx} ${ry} 0 1 0 ${-2 * rx} 0 Z`;
-const RIM_RING = ellipsePath(RIM.cx, RIM.cy, RIM.rx, RIM.ry) + ' ' + ellipsePath(RIM.cx, RIM.cy, RIM.rx - RIM_T, RIM.ry - RIM_T);
+const BOARD_SPRITE = [403, 727, 1966, 396];
+const MAC_SPRITE = [1391, 462, 968, 520];
 const BASE = '/demo/';
 
 interface Pose {
@@ -59,7 +53,7 @@ const STEP_MS = 2800;
 /**
  * "Your office, anywhere" as one dark passage in /powerwall's layout: the heading, then the composite across the
  * content column (a real Model 3 cabin by Bram Van Oost on Unsplash, with the setup drawn into it in the photo's
- * own perspective: the screen swivels toward the passenger, the trunk's subfloor cover slides in under the wheel,
+ * own perspective: the screen swivels toward the passenger, the trunk's subfloor cover slides in below the wheel,
  * and a MacBook sits on its passenger end with the car's screen as its second display), the three steps as
  * columns under it with the active one white, and the band's photo rising out of the same black with the story's
  * closing line. Each step animates in 0.7 s; the steps advance while the section is on screen, until someone
@@ -76,7 +70,7 @@ export function Office() {
   const pose = useRef<Pose>({ ...(reduced ? POSES[2] : OPENING) });
   const shown = useRef(reduced ? STEPS.length - 1 : -1);
 
-  /** Draws the current pose. The board slides in from the passenger side, under the rim. */
+  /** Draws the current pose. The board slides in from the passenger side, below the wheel. */
   const draw = useCallback(() => {
     const w = world.current;
     if (!w) return;
@@ -220,12 +214,6 @@ export function Office() {
     setActive(i);
   };
 
-  /** The rim is redrawn from the photo itself, so use whichever size the browser picked for the base. */
-  const onPhoto = (e: SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    world.current?.querySelectorAll('.o-rim').forEach((r) => r.setAttribute('href', img.currentSrc || img.src));
-  };
-
   return (
     <section id="office" className="office section on-dark" ref={root} aria-labelledby="office-title">
       <div className="wrap">
@@ -250,7 +238,6 @@ export function Office() {
               sizes="(max-width: 1247px) 100vw, 1200px"
               alt=""
               decoding="async"
-              onLoad={onPhoto}
             />
             <div className="o-world" ref={world} aria-hidden="true">
               <div className="o-swivel" style={{ transform: `translate(${SWIVEL[0]}px, ${SWIVEL[1]}px)`, width: SWIVEL[2], height: SWIVEL[3] }}>
@@ -264,20 +251,6 @@ export function Office() {
                 )}
               </div>
               <img className="o-board-img" src={BASE + 'office-board.webp' + ASSET_V} width={BOARD_SPRITE[2]} height={BOARD_SPRITE[3]} alt="" loading="lazy" decoding="async" />
-              <svg className="o-over" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-                <defs>
-                  {/* What of the wheel is in front of the board: the rim (an annulus) and the lower spoke, as two
-                      clips (one clip with both would even-odd away their overlap). */}
-                  <clipPath id="office-rim">
-                    <path clipRule="evenodd" d={RIM_RING} />
-                  </clipPath>
-                  <clipPath id="office-spoke">
-                    <polygon points="607,517 737,517 708,640 612,640" />
-                  </clipPath>
-                </defs>
-                <image className="o-rim" href={BASE + 'office-1400.webp' + ASSET_V} x="0" y="0" width={W} height={H} clipPath="url(#office-rim)" preserveAspectRatio="none" />
-                <image className="o-rim" href={BASE + 'office-1400.webp' + ASSET_V} x="0" y="0" width={W} height={H} clipPath="url(#office-spoke)" preserveAspectRatio="none" />
-              </svg>
               <img className="o-mac-img" src={BASE + 'office-macbook.webp' + ASSET_V} width={MAC_SPRITE[2]} height={MAC_SPRITE[3]} alt="" loading="lazy" decoding="async" />
             </div>
           </div>
