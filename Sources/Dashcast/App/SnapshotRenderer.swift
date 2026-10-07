@@ -78,8 +78,12 @@ enum SnapshotRenderer {
             Shot(name: "permission-panel-accessibility", width: 300,
                  content: { AnyView(PermissionPanelView(pane: .accessibility).padding(10)) }),
 
+            // Car hotspot setup: the wizard at every step, and the coach beside System Settings.
+            ] + hotspotShots + [
+
             // Menu bar panel.
             Shot(name: "menu-idle", width: 300, content: { AnyView(MenuBarPanel()) }),
+            Shot(name: "menu-needs-hotspot", scenario: .init(topology: .offline), width: 300, content: { AnyView(MenuBarPanel()) }),
             Shot(name: "menu-casting", scenario: .init(phase: .streaming), width: 300, content: { AnyView(MenuBarPanel()) }),
             Shot(name: "menu-disconnected", scenario: .init(certificate: false, disconnect: .leftWiFi), width: 300,
                  content: { AnyView(MenuBarPanel()) }),
@@ -135,6 +139,63 @@ enum SnapshotRenderer {
 
             Shot(name: "router-login", scenario: .init(topology: .router), size: CGSize(width: 440, height: 360),
                  content: { AnyView(RouterLoginSheet()) }),
+        ]
+    }
+
+    private static var hotspotShots: [Shot] {
+        let wizard = { AnyView(HotspotSetupView(polls: false)) }
+        let coach = { AnyView(HotspotCoachView().padding(10)) }
+        /// The Tesla joined half a minute ago and never checked in.
+        let joinedAWhileAgo: @MainActor (AppModel) -> Void = { $0.trackHotspotCar(now: Date().addingTimeInterval(-30)) }
+        /// "Do It for Me" couldn't type the password; Guide Me points at the field.
+        let guidingPassword: @MainActor (AppModel) -> Void = { model in
+            let plan = model.sharingPlan
+            model.sharingAssistant.pin(.guiding, plan: plan, step: .password,
+                                       handoff: "Couldn’t type the password: System Settings isn’t in front.",
+                                       guidance: SharingGuidance(step: .password, instruction: "Type this password:", copy: plan.password))
+        }
+        func shot(_ name: String, _ stage: HotspotStage, phase: PreviewService.Scenario.Phase = .idle,
+                  prepare: @escaping @MainActor (AppModel) -> Void = { _ in }) -> Shot {
+            Shot(name: "hotspot-\(name)", scenario: .init(phase: phase, hotspot: stage), size: HotspotSetupView.size,
+                 windowed: true, prepare: prepare, content: wizard)
+        }
+        return [
+            shot("1-phone-wifi", .phoneWiFi),
+            shot("1-no-internet", .unconfigured),
+            shot("1-without-internet", .unconfigured, prepare: { $0.hotspotWithoutInternet = true }),
+            shot("2-phone-without-internet", .phoneWiFi, prepare: { $0.hotspotWithoutInternet = true }),
+            shot("2-partial", .partial),
+            shot("2-configured-off", .configuredOff),
+            shot("2-starting", .starting),
+            shot("3-waiting", .on, phase: .waiting),
+            shot("3-other-device", .otherDevice, phase: .waiting),
+            shot("4-no-answer-idle", .carJoined, prepare: joinedAWhileAgo),
+            shot("4-no-answer-ready", .carJoined, phase: .waiting, prepare: joinedAWhileAgo),
+            shot("5-checked", .checked, phase: .waiting),
+            shot("6-connected", .connected),
+            // Step 2's two modes, and a run of each.
+            shot("2-auto-no-accessibility", .partial, prepare: { $0.permissions.pin(.denied, for: .accessibility) }),
+            shot("2-auto-no-cable", .unconfigured, prepare: { $0.hotspotWithoutInternet = true }),
+            shot("2-auto-running", .partial, prepare: { $0.sharingAssistant.pin(.automating, plan: $0.sharingPlan, step: .toWiFi) }),
+            shot("2-auto-touch-id", .partial, prepare: { $0.sharingAssistant.pin(.automating, plan: $0.sharingPlan, step: .shareFrom, waitingForYou: true) }),
+            shot("2-auto-late", .starting, prepare: { $0.sharingAssistant.pin(.finished(Date().addingTimeInterval(-60)), plan: $0.sharingPlan) }),
+            shot("2-guide-idle", .partial, prepare: { $0.sharingAssistant.preferredMode = .guided }),
+            shot("2-guide-no-accessibility", .partial, prepare: {
+                $0.sharingAssistant.preferredMode = .guided
+                $0.permissions.pin(.denied, for: .accessibility)
+            }),
+            shot("2-guide-handoff", .partial, prepare: guidingPassword),
+            shot("3-password", .on, phase: .waiting, prepare: { $0.sharingAssistant.onOptionsSaved?($0.sharingPlan) }),
+            Shot(name: "hotspot-coach-automating", scenario: .init(hotspot: .partial), width: 330,
+                 prepare: { $0.sharingAssistant.pin(.automating, plan: $0.sharingPlan, step: .channel) }, content: coach),
+            Shot(name: "hotspot-coach-guiding", scenario: .init(hotspot: .partial), width: 330, prepare: guidingPassword, content: coach),
+            Shot(name: "hotspot-overlay-share-from", size: GuideOverlaySample.size,
+                 content: { AnyView(GuideOverlaySample(password: false)) }),
+            Shot(name: "hotspot-overlay-password", size: GuideOverlaySample.size,
+                 content: { AnyView(GuideOverlaySample(password: true)) }),
+            Shot(name: "hotspot-coach-phone-wifi", scenario: .init(hotspot: .phoneWiFi), width: 330, content: coach),
+            Shot(name: "hotspot-coach-partial", scenario: .init(hotspot: .partial), width: 330, content: coach),
+            Shot(name: "hotspot-coach-starting", scenario: .init(hotspot: .starting), width: 330, content: coach),
         ]
     }
 
@@ -229,6 +290,64 @@ private struct DomainSectionsSnapshot: View {
     var body: some View {
         Form { OwnDomainSections() }
             .formStyle(.grouped)
+    }
+}
+
+/// Guide Me's ring and callout over a sketch of the Internet Sharing sheet (the real overlay is two
+/// click-through windows over System Settings).
+private struct GuideOverlaySample: View {
+    let password: Bool
+    static let size = CGSize(width: 640, height: 300)
+
+    private let callout = CalloutState()
+
+    var body: some View {
+        let field = password ? CGRect(x: 380, y: 170, width: 200, height: 24) : CGRect(x: 470, y: 120, width: 110, height: 24)
+        let ring = field.insetBy(dx: -SharingGuideOverlay.ringInset - SharingRingView.pulse,
+                                 dy: -SharingGuideOverlay.ringInset - SharingRingView.pulse)
+        // Placement works y-up (AppKit); this canvas is y-down.
+        let flip = { (r: CGRect) in CGRect(x: r.minX, y: Self.size.height - r.maxY, width: r.width, height: r.height) }
+        let state = callout
+        state.instruction = password ? "Type this password:" : "Choose iPhone USB"
+        state.copy = password ? "maplesky47" : nil
+        state.detail = password ? "You’ll type it in your Tesla too." : nil
+        let size = NSHostingView(rootView: SharingCalloutView(state: state)).fittingSize
+        let placement = CalloutPlacement.frame(size: size, target: flip(ring), visible: CGRect(origin: .zero, size: Self.size))
+        state.side = placement.side
+        state.arrow = placement.arrow
+        let bubble = flip(placement.frame)
+
+        return ZStack(alignment: .topLeading) {
+            Color(nsColor: .windowBackgroundColor)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.separator) }
+                .frame(width: 600, height: 260)
+                .offset(x: 20, y: 20)
+            sketchRow("Share your connection from", value: "Wi-Fi", popup: true, y: 120)
+            sketchRow("Password:", value: password ? "" : "••••••••", popup: false, y: 170)
+            SharingRingView()
+                .frame(width: ring.width, height: ring.height)
+                .offset(x: ring.minX, y: ring.minY)
+            SharingCalloutView(state: state)
+                .frame(width: bubble.width, height: bubble.height)
+                .offset(x: bubble.minX, y: bubble.minY)
+        }
+        .frame(width: Self.size.width, height: Self.size.height)
+    }
+
+    private func sketchRow(_ label: String, value: String, popup: Bool, y: CGFloat) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value + (popup ? "  ⌄" : ""))
+                .padding(.horizontal, 8)
+                .frame(width: popup ? 110 : 200, height: 24, alignment: popup ? .trailing : .leading)
+                .background(Color(nsColor: popup ? .controlColor : .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(.separator) }
+        }
+        .frame(width: 540, height: 24)
+        .offset(x: 40, y: y)
     }
 }
 

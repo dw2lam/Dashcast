@@ -380,7 +380,7 @@ struct Headline {
 
 /// One thing standing between the user and casting, with the single action that fixes it.
 struct ReadinessItem: Identifiable, Equatable {
-    enum Action: Equatable { case permission(PermissionPane), installHelper, openInternetSharing, recheckNetwork }
+    enum Action: Equatable { case permission(PermissionPane), installHelper, setUpHotspot, recheckNetwork }
 
     let id: String
     let symbol: String
@@ -412,17 +412,12 @@ struct ReadinessItem: Identifiable, Equatable {
                                title: "SideDisplay is using the same network. Quit it, then check again.",
                                actionTitle: "Check Again", action: .recheckNetwork))
         }
-        switch network.topology {
-        case .offline:
-            items.append(.init(id: "sharing", symbol: "personalhotspot", tint: .green,
-                               title: "Internet Sharing is off",
-                               actionTitle: "Turn On…", action: .openInternetSharing))
-        case .phoneHotspot:
-            items.append(.init(id: "phone", symbol: "iphone.radiowaves.left.and.right", tint: .orange,
-                               title: "A phone hotspot can’t reach your Tesla",
-                               actionTitle: "Turn On…", action: .openInternetSharing))
-        case .macHotspot, .router:
-            break
+        // No way for the car to reach the Mac yet (offline, or on a phone's hotspot): one guided fix.
+        if !network.topology.isUsable, !network.hotspot.sharingOn {
+            items.append(.init(id: "hotspot", symbol: "personalhotspot",
+                               tint: network.topology == .phoneHotspot ? .orange : .green,
+                               title: "Set up the car hotspot",
+                               actionTitle: "Set Up…", action: .setUpHotspot))
         }
         if !network.helperInstalled {
             items.append(.init(id: "helper", symbol: "wrench.and.screwdriver.fill", tint: .gray,

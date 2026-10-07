@@ -38,6 +38,9 @@ struct NetworkEnvironment {
     var nudgeNeighbour: (String) -> Void = { ARPTable.nudge($0) }
     /// How long a nudged neighbour gets to answer before the ARP table is read.
     var neighbourSettle: Duration = .milliseconds(1200)
+    /// bootpd's leases (who joined the Mac's hotspot). The NAT settings come from
+    /// `helperLayout.natPreferences` + ".plist".
+    var dhcpLeasesPath = HotspotProbe.leasesPath
 
     @MainActor
     static func live() -> NetworkEnvironment {
@@ -91,6 +94,8 @@ public final class NetworkManager: NetworkManaging {
 
     let env: NetworkEnvironment
     private let pathWatcher: PathWatcher?
+    private var systemWatcher: SystemNetworkWatcher?
+    private var changeObservers: [() -> Void] = []
     private var dnsCache: (checkedAt: Date, ok: Bool, lifetime: TimeInterval)?
     private var expiryCache: (modified: Date, size: Int, expiry: Date?)?
     private var provisioning: Task<Void, Error>?
@@ -161,25 +166,43 @@ public final class NetworkManager: NetworkManaging {
         pathWatcher?.setOnChange { [weak self] in
             Task { @MainActor in self?.networkDidChange() }
         }
+        // NWPathMonitor can miss Internet Sharing's bridge coming up (the default route doesn't
+        // change), so also watch the interfaces and the sharing settings directly.
+        if pathWatcher != nil {
+            systemWatcher = SystemNetworkWatcher(natPreferencesPath: natPreferencesPath) { [weak self] in
+                Task { @MainActor in self?.networkDidChange() }
+            }
+        }
     }
+
+    /// Internet Sharing's settings file.
+    var natPreferencesPath: String { env.helperLayout.natPreferences + ".plist" }
 
     /// The own domain's certificate files (nil without a domain).
     private var paths: CertificatePaths? {
         ownDomain.map { CertificatePaths(appSupport: env.appSupportDir, domain: $0.hostname) }
     }
 
-    private func networkDidChange() {
+    func networkDidChange() {
         if dnsCache?.ok == false { dnsCache = nil }
         if wantLocalServices, !localDNSRunning {
             Task { await attemptLocalDNSStart() }
         }
         onNetworkChange?()
+        for observer in changeObservers { observer() }
+    }
+
+    /// Calls `handler` on the main actor after the network changes (interfaces, addresses, Internet
+    /// Sharing's bridge or settings). Observers accumulate; `onNetworkChange` stays separate.
+    public func addNetworkChangeObserver(_ handler: @escaping @MainActor () -> Void) {
+        changeObservers.append(handler)
     }
 
     // MARK: - Status
 
     public func currentStatus() async -> NetworkStatus {
-        let topology = TopologyClassifier.classify(env.snapshot())
+        let snapshot = env.snapshot()
+        let topology = TopologyClassifier.classify(snapshot)
         var status = NetworkStatus()
         status.topology = topology.topology
         status.interfaceName = topology.interfaceName
@@ -193,6 +216,7 @@ public final class NetworkManager: NetworkManaging {
         status.dnsRecordOK = await dnsRecordOK(networkAvailable: status.internetReachable)
         status.certificateExpiry = certificateExpiry()
         status.serviceAddressConflict = topology.conflict.map { "\($0.interface) \($0.address)/\($0.netmask)" }
+        status.hotspot = hotspotStatus(snapshot: snapshot)
         status.summary = Self.summary(status, topology: topology, now: env.now(), context: SummaryContext(
             sideDisplayRunning: isSideDisplayRunning(),
             localDNS: localDNSEndpoint,
@@ -441,6 +465,29 @@ public final class NetworkManager: NetworkManaging {
     /// Nudges the helper (via its WatchPaths trigger) to re-evaluate the DNS redirect now.
     private func pokeHelper() {
         env.touchFile(env.helperLayout.triggerPath)
+    }
+
+    // MARK: - Hotspot (Internet Sharing)
+
+    /// Internet Sharing's settings and who is on the Mac's hotspot. Cheap enough to poll: two small
+    /// file reads and the ARP table. Leased addresses that haven't answered ARP yet get a nudge
+    /// (no waiting), so they show up on the next call if they're there.
+    public func hotspotStatus() -> HotspotStatus {
+        hotspotStatus(snapshot: env.snapshot())
+    }
+
+    func hotspotStatus(snapshot: InterfaceSnapshot) -> HotspotStatus {
+        let sharing = !HotspotProbe.sharingBridges(in: snapshot).isEmpty
+        var inputs = HotspotProbe.Inputs(snapshot: snapshot,
+                                         nat: env.readFile(natPreferencesPath).flatMap(NATPreferences.parse),
+                                         now: env.now())
+        // Leases and neighbours only matter while a sharing bridge is up.
+        if sharing {
+            inputs.leases = env.readFile(env.dhcpLeasesPath).map { DHCPLeases.parse(String(decoding: $0, as: UTF8.self)) } ?? []
+            inputs.neighbours = env.neighbours()
+            for address in HotspotProbe.addressesToNudge(inputs) { env.nudgeNeighbour(address) }
+        }
+        return HotspotProbe.status(inputs)
     }
 
     // MARK: - Car presence

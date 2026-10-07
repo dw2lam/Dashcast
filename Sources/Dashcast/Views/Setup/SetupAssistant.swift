@@ -240,6 +240,7 @@ private struct PermissionSetupRow: View {
 
 private struct ConnectPage: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let network = model.state.network
@@ -248,8 +249,8 @@ private struct ConnectPage: View {
                   subtitle: "Your Tesla joins this Mac’s Wi‑Fi, like a hotspot.") {
             VStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    NumberedStep(number: 1, text: "Plug your iPhone into this Mac with a USB cable.")
-                    NumberedStep(number: 2, text: "Turn on Internet Sharing from iPhone USB to Wi‑Fi.")
+                    NumberedStep(number: 1, text: "For internet in the car too, plug your iPhone in with a cable.")
+                    NumberedStep(number: 2, text: "Turn on Internet Sharing to Wi‑Fi.")
                     NumberedStep(number: 3, text: "On your Tesla, join this Mac’s Wi‑Fi network.")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -258,7 +259,7 @@ private struct ConnectPage: View {
                     SetupRow(symbol: "personalhotspot", title: "Internet Sharing",
                              detail: sharing ? "On — \(network.interfaceName ?? "bridge100") is up." : "Waiting for it to turn on…",
                              done: sharing, doneLabel: "On",
-                             actionTitle: "Open Settings…") { model.openInternetSharingSettings() }
+                             actionTitle: "Set Up…") { HotspotSetupView.open(openWindow) }
                     Divider().padding(.leading, 54)
                     SetupRow(symbol: "wrench.and.screwdriver.fill", title: "Network helper",
                              detail: "One-time install. Asks for your password.",

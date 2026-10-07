@@ -175,6 +175,19 @@ final class HTTPRoutingTests: XCTestCase {
         XCTAssertNil(r.headers["X-ConnMan-Status"])
     }
 
+    /// Only Tesla's own check counts as "the car asked" (it feeds ServiceState.lastConnectivityCheck).
+    func testTeslaProbesAreReported() throws {
+        var reported = 0
+        server.onConnectivityCheck = { reported += 1 }
+        _ = server.route(request("/", host: "connman.vn.tesla.services"), role: .plain, isTLS: false)
+        _ = server.route(request("/x", host: "connman.vn.cloud.tesla.cn:80"), role: .app, isTLS: false)
+        XCTAssertEqual(reported, 2)
+        _ = server.route(request("/hotspot-detect.html", host: "captive.apple.com"), role: .plain, isTLS: false)
+        _ = server.route(request("/", host: "connman.vn.tesla.services"), role: .app, isTLS: true)
+        _ = server.route(request("/", host: DashcastDefaults.serviceAddress), role: .plain, isTLS: false)
+        XCTAssertEqual(reported, 2, "Apple's check, TLS and the page itself aren't the car's check")
+    }
+
     func testProbesAreNotAnsweredOverTLS() throws {
         let (r, _) = try XCTUnwrap(response(server.route(request("/", host: "connman.vn.tesla.services"), role: .app, isTLS: true)))
         XCTAssertEqual(r.status, 403)

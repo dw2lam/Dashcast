@@ -58,6 +58,12 @@ public final class DashcastService: DashcastServicing {
     private var lastListenerProblem: [String: String] = [:]
     /// Last logged mode (true = HTTPS) so a refresh doesn't repeat it.
     private var loggedHTTPMode: Bool?
+    /// When the car's internet check was last logged (logged at most once per `connectivityLogInterval`).
+    private var loggedConnectivityCheck: Date?
+    static let connectivityLogInterval: TimeInterval = 60
+    /// A network-change refresh is running / another change arrived meanwhile.
+    private var networkRefresh: Task<Void, Never>?
+    private var networkRefreshPending = false
 
     private struct ActiveCar {
         var id: UInt64
@@ -88,9 +94,16 @@ public final class DashcastService: DashcastServicing {
         server.log = { [weak self] message in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.log(message) } }
         }
+        server.onConnectivityCheck = { [weak self] in
+            let date = Date()
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.connectivityCheckAnswered(at: date) } }
+        }
         hub.onEvent = { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
         }
+        // Keep `state.network` (the hotspot especially) current between the UI's own refreshes,
+        // whether or not the service is running.
+        network.addNetworkChangeObserver { [weak self] in self?.networkChanged() }
     }
 
     // MARK: DashcastServicing
@@ -144,6 +157,8 @@ public final class DashcastService: DashcastServicing {
         state.stats = LiveStats()
         state.phase = .idle
         state.lastDisconnect = nil
+        state.lastConnectivityCheck = nil
+        loggedConnectivityCheck = nil
         updateDisplayAwake()
         log("Stopped")
     }
@@ -164,9 +179,49 @@ public final class DashcastService: DashcastServicing {
     }
 
     public func refreshNetwork() async {
+        let previous = state.network.hotspot
         state.network = await network.currentStatus()
+        logHotspotChange(from: previous, to: state.network.hotspot)
         guard running else { return }
         await ensureServiceListeners()
+    }
+
+    /// The network layer saw a change: refresh once, and once more if another arrived meanwhile.
+    private func networkChanged() {
+        guard networkRefresh == nil else {
+            networkRefreshPending = true
+            return
+        }
+        networkRefresh = Task { @MainActor [weak self] in
+            while let self {
+                self.networkRefreshPending = false
+                await self.refreshNetwork()
+                guard self.networkRefreshPending else { break }
+            }
+            self?.networkRefresh = nil
+        }
+    }
+
+    private func logHotspotChange(from old: HotspotStatus, to new: HotspotStatus) {
+        if old.sharingOn != new.sharingOn {
+            log(new.sharingOn ? "Internet Sharing is on: the Mac is a hotspot" + (new.networkName.map { " (“\($0)”)" } ?? "")
+                              : "Internet Sharing is off")
+        }
+        if let car = new.car, car != old.car {
+            log("\(car.name ?? "A Tesla") joined the Mac's hotspot (\(car.address))")
+        } else if new.car == nil, let car = old.car {
+            log("\(car.name ?? "The Tesla") left the Mac's hotspot")
+        }
+    }
+
+    /// HTTPServer answered the car's connman check: its DNS reaches Dashcast, so it believes it's
+    /// online and stays on the hotspot.
+    private func connectivityCheckAnswered(at date: Date) {
+        guard running else { return }
+        state.lastConnectivityCheck = date
+        if let last = loggedConnectivityCheck, date.timeIntervalSince(last) < Self.connectivityLogInterval { return }
+        loggedConnectivityCheck = date
+        log("Answered the car's internet check")
     }
 
     public func refreshPermissions() {

@@ -28,6 +28,8 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
     var plainServesApp = true
     /// Diagnostic log sink (called on `queue`).
     var log: ((String) -> Void)?
+    /// A car's connectivity check (Tesla connman) was just answered. Called on `queue`.
+    var onConnectivityCheck: (() -> Void)?
 
     static let maxConnections = 64
     static let httpIdleTimeout: TimeInterval = 30
@@ -194,6 +196,7 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         let host = request.headers["Host"].flatMap(Self.hostName(fromHostHeader:))
 
         if !isTLS, let host, let probe = ConnectivityProbe.response(forHost: host) {
+            if ConnectivityProbe.teslaHosts.contains(host) { onConnectivityCheck?() }
             return .respond(probe, close: false)
         }
 

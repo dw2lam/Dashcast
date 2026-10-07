@@ -268,7 +268,7 @@ private struct ComparisonChips: View {
 // MARK: - Steps
 
 private enum StepAction {
-    case openSharing, installHelper, routerSetup, copyAddress
+    case installHelper, routerSetup, copyAddress
 }
 
 private struct Step: Identifiable {
@@ -284,17 +284,26 @@ private struct MethodSteps: View {
     let method: ConnectionMethod
     let showRouterSetup: () -> Void
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         switch method {
         case .macHotspot:
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    Button {
+                        HotspotSetupView.open(openWindow)
+                    } label: {
+                        Label(model.hotspotSetup().isComplete ? "Car Hotspot…" : "Set Up Car Hotspot…", systemImage: "personalhotspot")
+                    }
+                    .prominentButtonStyle()
+                    .controlSize(.large)
+                    Text("Walks you through it and ticks each step as it happens.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 StepList(steps: hotspotSteps, showRouterSetup: showRouterSetup)
-                Label("While sharing, your Mac’s Wi‑Fi is busy being the hotspot; its internet comes from the iPhone cable.",
-                      systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         case .travelRouter:
             StepList(steps: routerSteps, showRouterSetup: showRouterSetup)
@@ -311,20 +320,21 @@ private struct MethodSteps: View {
 
     private var address: String { model.connectionMode.addressToType }
 
+    /// The short version; the Car Hotspot window walks through each step live.
     private var hotspotSteps: [Step] {
         let network = model.state.network
-        let connected = model.state.car != nil
+        let setup = model.hotspotSetup()
         return [
-            Step(id: 1, text: "Plug your iPhone into the Mac with a USB cable and turn on **Personal Hotspot**, or share an Android phone’s internet over Bluetooth tethering. This only gives the Mac internet; Dashcast itself works offline.",
-                 optional: true),
-            Step(id: 2, text: "Open **System Settings → General → Sharing** and click ⓘ next to **Internet Sharing**. Share from **iPhone USB** to **Wi‑Fi**. In **Wi‑Fi Options**, set a name (like “Dashcast”), a 5 GHz channel (36 or 149) and a password, then turn Internet Sharing on.",
-                 done: network.topology == .macHotspot, action: .openSharing),
+            Step(id: 1, text: "For internet in the car too, plug your iPhone in with a cable.",
+                 done: setup.isDone(.internet) ? true : nil, optional: true),
+            Step(id: 2, text: "Turn on **Internet Sharing** to **Wi‑Fi**.",
+                 done: setup.isDone(.sharing)),
             Step(id: 3, text: "Install Dashcast’s network helper once. It asks for your admin password.",
                  done: network.helperInstalled, action: .installHelper),
-            Step(id: 4, text: "In your Tesla, tap **Controls → Wi‑Fi** and join your “Dashcast” network. The car remembers it.",
-                 done: connected ? true : nil),
-            Step(id: 5, text: "Open the **Browser**, go to **\(address)** and press **Tap to Start**. Bookmark it for next time.",
-                 done: connected, action: .copyAddress),
+            Step(id: 4, text: "In your Tesla, join **\(setup.displayName)** in **Controls → Wi‑Fi**.",
+                 done: setup.isDone(.join) ? true : nil),
+            Step(id: 5, text: "Open the **Browser** and go to **\(address)**.",
+                 done: setup.isDone(.browser), action: .copyAddress),
         ]
     }
 
@@ -382,8 +392,6 @@ private struct StepRow: View {
     private func actionButton(_ action: StepAction) -> some View {
         Group {
             switch action {
-            case .openSharing:
-                Button("Open Sharing Settings") { model.openInternetSharingSettings() }
             case .installHelper:
                 ActionButton("Install Helper", busy: model.networkActivity == .installingHelper) { model.installHelper() }
             case .routerSetup:
@@ -394,31 +402,6 @@ private struct StepRow: View {
         }
         .secondaryButtonStyle()
         .controlSize(.small)
-    }
-}
-
-/// A numbered circle that turns into a green check when the app sees the step is done.
-private struct StepMarker: View {
-    let number: Int
-    let done: Bool
-
-    var body: some View {
-        ZStack {
-            Circle().fill(done ? AnyShapeStyle(Color.green) : AnyShapeStyle(Color.dashAccent.opacity(0.14)))
-            if done {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-            } else {
-                Text("\(number)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.dashAccent)
-            }
-        }
-        .frame(width: 22, height: 22)
-        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-        .animation(.spring(duration: 0.35), value: done)
-        .accessibilityLabel(done ? "Step \(number), done" : "Step \(number)")
     }
 }
 

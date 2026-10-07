@@ -95,6 +95,8 @@ final class FakeWorld: @unchecked Sendable {
     var now = Date()
     var runningApps: [String] = []
     var upstreams: [NWEndpoint] = []
+    var neighbours: [ARPTable.Entry] = []
+    var nudged: [String] = []
 
     /// Pretend the current helper (plist + script) is installed.
     func installHelper(version: Int = LoopbackHelper.version, layout: HelperLayout = .fake) throws {
@@ -135,7 +137,7 @@ func makeEnvironment(world: FakeWorld, secrets: SecretStore = InMemorySecretStor
                      appSupport: URL = FileManager.default.temporaryDirectory
                         .appendingPathComponent("dashcast-tests-\(UUID().uuidString)"),
                      session: URLSession = StubURLProtocol.session()) -> NetworkEnvironment {
-    NetworkEnvironment(
+    var environment = NetworkEnvironment(
         appSupportDir: appSupport,
         helperLayout: .fake,
         secrets: secrets,
@@ -156,6 +158,10 @@ func makeEnvironment(world: FakeWorld, secrets: SecretStore = InMemorySecretStor
         localDNSHost: "127.0.0.1",
         localDNSPort: 0,
         dnsUpstreams: { world.upstreams })
+    environment.neighbours = { world.neighbours }
+    environment.nudgeNeighbour = { world.nudged.append($0) }
+    environment.dhcpLeasesPath = "/fake/dhcpd_leases"
+    return environment
 }
 
 /// Runs /bin/sh -n (parse only, executes nothing) over a script and returns stderr on failure.

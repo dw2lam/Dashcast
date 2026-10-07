@@ -463,6 +463,66 @@ final class ServiceIntegrationTests: XCTestCase {
         XCTAssertEqual(rtc?.peers.first?.options.bindAddress, "127.0.0.1")
     }
 
+    /// The car's connman check → state.lastConnectivityCheck, logged once a minute, cleared on stop.
+    func testConnectivityCheckIsRecorded() async throws {
+        _ = try await startService { options in
+            options.plainHTTPHost = "127.0.0.1"
+            options.plainHTTPPort = 0
+        }
+        let port = try XCTUnwrap(service.plainHTTPPort)
+        XCTAssertNil(service.state.lastConnectivityCheck)
+        let before = Date()
+        for _ in 0..<2 {
+            let reply = await rawHTTP(port: port, "GET / HTTP/1.1\r\nHost: connman.vn.tesla.services\r\nConnection: close\r\n\r\n")
+            XCTAssertTrue(reply.contains("X-ConnMan-Status: online"), reply)
+        }
+        let first = await waitUntil(timeout: 2) { self.service.state.lastConnectivityCheck != nil }
+        XCTAssertTrue(first)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(service.state.lastConnectivityCheck), before.addingTimeInterval(-0.01))
+        _ = await rawHTTP(port: port, "GET / HTTP/1.1\r\nHost: captive.apple.com\r\nConnection: close\r\n\r\n")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(service.state.log.filter { $0.message == "Answered the car's internet check" }.count, 1,
+                       "two checks a moment apart log once")
+
+        await service.stop()
+        XCTAssertNil(service.state.lastConnectivityCheck)
+    }
+
+    /// Auto-start (the app starts the service when the hotspot comes up) must cost nothing until a
+    /// car says hello: no capture, no virtual display, no display-awake hold.
+    func testStartWithoutACarIsIdle() async throws {
+        _ = try await startService()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(service.state.phase, .waitingForCar)
+        XCTAssertEqual(engine.starts.count, 0)
+        XCTAssertFalse(engine.isRunning)
+        XCTAssertFalse(awake.held)
+        XCTAssertEqual(network.localServicesStarts, 1, "the DNS responder runs so the car's check is answered")
+    }
+
+    /// A network change refreshes `state.network` even before Start, and hotspot changes are logged.
+    func testNetworkChangeRefreshesHotspotWhileIdle() async throws {
+        service = DashcastService(engine: engine, network: network, displayAwake: awake)
+        var hotspot = HotspotStatus()
+        hotspot.sharingOn = true
+        hotspot.networkName = "David's MacBook Pro"
+        network.status.hotspot = hotspot
+        network.simulateNetworkChange()
+        network.simulateNetworkChange()   // a burst coalesces
+        let on = await waitUntil(timeout: 2) { self.service.state.network.hotspot.sharingOn }
+        XCTAssertTrue(on)
+
+        hotspot.devices = [.init(name: "Tesla_Model_3", address: "192.168.2.3", isTesla: true)]
+        network.status.hotspot = hotspot
+        network.simulateNetworkChange()
+        let joined = await waitUntil(timeout: 2) { self.service.state.network.hotspot.car != nil }
+        XCTAssertTrue(joined)
+        let messages = service.state.log.map(\.message)
+        XCTAssertTrue(messages.contains("Internet Sharing is on: the Mac is a hotspot (“David's MacBook Pro”)"), "\(messages)")
+        XCTAssertTrue(messages.contains("Tesla_Model_3 joined the Mac's hotspot (192.168.2.3)"), "\(messages)")
+        XCTAssertEqual(service.state.phase, .idle, "refreshing never starts the service")
+    }
+
     /// Certificate present → HTTPS mode: :80 answers probes and redirects everything else to https.
     func testPlainListenerHTTPSModeRedirects() async throws {
         let pki = try TestPKI.make()

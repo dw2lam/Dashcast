@@ -39,17 +39,12 @@ final class PermissionGuide {
 
     private let check: (PermissionPane) async -> PermissionHealth
     private let relaunch: (PermissionPane) -> Void
+    private let companion = SettingsCompanion()
     private var checking = false
     private var pane: PermissionPane?
-    private var panel: GuidePanel?
-    private var timer: Timer?
     private var ticks = 0
-    private var shownAt = Date()
-    private var settingsLastSeen: Date?
-    private var settingsLastFront = Date()
     private var isDragging = false
 
-    static let tickInterval: TimeInterval = 1.0 / 20
     /// Polls for the grant every this many ticks (0.5 s).
     static let grantCheckTicks = 10
 
@@ -62,9 +57,6 @@ final class PermissionGuide {
     func present(_ pane: PermissionPane) {
         dismiss()
         self.pane = pane
-        shownAt = Date()
-        settingsLastSeen = nil
-        settingsLastFront = Date()
         SystemSettings.open(pane.settings)
 
         let view = PermissionPanelView(
@@ -72,21 +64,11 @@ final class PermissionGuide {
             onDragChange: { [weak self] dragging in self?.setDragging(dragging) },
             relaunch: pane.mayNeedRelaunch ? { [weak self] in self?.relaunch(pane) } : nil,
             close: { [weak self] in self?.dismiss() })
-        panel = GuidePanel(content: view)
-
-        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        companion.show(view, onTick: { [weak self] in self?.tick() }, onGiveUp: { [weak self] in self?.dismiss() })
     }
 
     func dismiss() {
-        timer?.invalidate()
-        timer = nil
-        panel?.orderOut(nil)
-        panel?.close()
-        panel = nil
+        companion.dismiss()
         pane = nil
         isDragging = false
         ticks = 0
@@ -94,107 +76,25 @@ final class PermissionGuide {
 
     private func setDragging(_ dragging: Bool) {
         isDragging = dragging
+        companion.holdsVisible = dragging
         // See-through while dragging, so the panel never sits on the drop target.
-        panel?.ignoresMouseEvents = dragging
-        panel?.alphaValue = dragging ? 0.55 : 1
+        companion.panel?.ignoresMouseEvents = dragging
+        companion.panel?.alphaValue = dragging ? 0.55 : 1
     }
 
     private func tick() {
-        guard let pane, let panel else { return }
+        guard let pane else { return }
         ticks += 1
-        if ticks % Self.grantCheckTicks == 0, !isDragging, !checking {
-            checking = true
-            Task { [weak self] in
-                guard let self else { return }
-                let health = await self.check(pane)
-                self.checking = false
-                guard self.pane == pane, health == .working else { return }
-                self.dismiss()
-                NSApp.activate()
-            }
+        guard ticks % Self.grantCheckTicks == 0, !isDragging, !checking else { return }
+        checking = true
+        Task { [weak self] in
+            guard let self else { return }
+            let health = await self.check(pane)
+            self.checking = false
+            guard self.pane == pane, health == .working else { return }
+            self.dismiss()
+            NSApp.activate()
         }
-
-        let now = Date()
-        guard let window = SettingsWindow.frame() else {
-            panel.orderOut(nil)
-            // Closed (or it never came up): give up.
-            let deadline: TimeInterval = settingsLastSeen == nil ? 10 : 1.5
-            if now.timeIntervalSince(settingsLastSeen ?? shownAt) > deadline { dismiss() }
-            return
-        }
-        settingsLastSeen = now
-        guard SettingsWindow.isFrontmost || isDragging else {
-            panel.orderOut(nil)
-            if now.timeIntervalSince(settingsLastFront) > 60 { dismiss() }
-            return
-        }
-        settingsLastFront = now
-
-        let visible = NSScreen.screens.first { $0.frame.contains(CGPoint(x: window.midX, y: window.midY)) }?.visibleFrame
-            ?? NSScreen.main?.visibleFrame ?? window
-        let frame = PanelPlacement.frame(size: panel.frame.size, beside: window, visible: visible)
-        if panel.frame != frame { panel.setFrame(frame, display: true) }
-        if !panel.isVisible { panel.orderFrontRegardless() }
-    }
-}
-
-// MARK: - Placement
-
-/// Where the panel sits beside the System Settings window. Frames are AppKit screen coordinates
-/// (origin bottom-left of the primary display, y up).
-enum PanelPlacement {
-    static let gap: CGFloat = 14
-    static let margin: CGFloat = 8
-    /// Down from the window's top edge, about where a privacy pane's app list starts.
-    static let topInset: CGFloat = 64
-
-    /// A window-server rect (origin top-left of the primary display, y down) in AppKit coordinates.
-    static func appKitRect(_ rect: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
-        CGRect(x: rect.minX, y: primaryScreenHeight - rect.maxY, width: rect.width, height: rect.height)
-    }
-
-    /// Right of the window when it fits, else left of it, else over its lower-right corner; always
-    /// inside `visible` (the screen's visible frame).
-    static func frame(size: CGSize, beside window: CGRect, visible: CGRect) -> CGRect {
-        var origin = CGPoint(x: window.maxX + gap, y: window.maxY - topInset - size.height)
-        if origin.x + size.width > visible.maxX - margin {
-            if window.minX - gap - size.width >= visible.minX + margin {
-                origin.x = window.minX - gap - size.width
-            } else {
-                origin = CGPoint(x: window.maxX - gap - size.width, y: window.minY + gap)
-            }
-        }
-        origin.x = max(visible.minX + margin, min(origin.x, visible.maxX - margin - size.width))
-        origin.y = max(visible.minY + margin, min(origin.y, visible.maxY - margin - size.height))
-        return CGRect(origin: origin, size: size)
-    }
-}
-
-/// System Settings' main window, read from the window server (needs no permission).
-enum SettingsWindow {
-    static let bundleIdentifier = "com.apple.systempreferences"
-
-    static var isFrontmost: Bool {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
-    }
-
-    /// Its largest on-screen window at the normal level, in AppKit coordinates.
-    @MainActor
-    static func frame() -> CGRect? {
-        let pids = Set(NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).map(\.processIdentifier))
-        guard !pids.isEmpty, let primary = NSScreen.screens.first,
-              let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        else { return nil }
-        let frames = windows.compactMap { info -> CGRect? in
-            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pids.contains(pid),
-                  (info[kCGWindowLayer as String] as? Int) == 0,
-                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
-                  let rect = CGRect(dictionaryRepresentation: bounds),
-                  rect.width > 320, rect.height > 240 else { return nil }
-            return rect
-        }
-        return frames.max { $0.width * $0.height < $1.width * $1.height }
-            .map { PanelPlacement.appKitRect($0, primaryScreenHeight: primary.frame.height) }
     }
 }
 
@@ -209,35 +109,6 @@ enum Relaunch {
         guard (try? process.run()) != nil else { return }
         NSApp.terminate(nil)
     }
-}
-
-// MARK: - Panel
-
-/// Floating and non-activating, and never key, so System Settings stays the active app underneath.
-final class GuidePanel: NSPanel {
-    init<Content: View>(content: Content) {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        isFloatingPanel = true
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = true
-        animationBehavior = .utilityWindow
-        let hosting = FirstMouseHostingView(rootView: content)
-        contentView = hosting
-        setContentSize(hosting.fittingSize)
-    }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
-/// Clicks land on the first try in a window that never becomes key.
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct PermissionPanelView: View {

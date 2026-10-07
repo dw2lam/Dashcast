@@ -310,7 +310,67 @@ public struct NetworkStatus: Equatable, Sendable {
     public var internetReachable: Bool = false
     /// Set when some interface's subnet contains serviceAddress (e.g. SideDisplay's 203.0.113.0/24 sharing).
     public var serviceAddressConflict: String?
+    /// Internet Sharing's configuration and who has joined the Mac's hotspot (for the setup wizard).
+    public var hotspot = HotspotStatus()
     public var summary: String = ""
+    public init() {}
+}
+
+/// The Mac's Internet Sharing as configured in System Settings, plus the devices on it. Read without
+/// root: /Library/Preferences/SystemConfiguration/com.apple.nat.plist, the interfaces, bootpd's
+/// leases (/var/db/dhcpd_leases) and the ARP table. The Wi-Fi password lives in the keychain and
+/// can't be read, so it isn't here.
+public struct HotspotStatus: Equatable, Sendable {
+    /// An interface that can bring the Mac its internet while the Wi-Fi is the hotspot.
+    public struct Uplink: Equatable, Sendable {
+        /// What System Settings calls it: "iPhone USB", "Ethernet", "Bluetooth PAN", "Thunderbolt Bridge"…
+        public var name: String
+        /// BSD name (en13).
+        public var interface: String
+        /// Has a usable IPv4 address right now (the cable is in and the phone is sharing).
+        public var connected: Bool
+        public init(name: String, interface: String, connected: Bool) {
+            self.name = name; self.interface = interface; self.connected = connected
+        }
+    }
+
+    /// Something that joined the hotspot.
+    public struct Device: Equatable, Sendable {
+        /// The DHCP host name it sent ("Tesla_Model_3"), if any.
+        public var name: String?
+        public var address: String
+        /// Host name says Tesla, or the hardware address has a Tesla OUI.
+        public var isTesla: Bool
+        public init(name: String?, address: String, isTesla: Bool) {
+            self.name = name; self.address = address; self.isTesla = isTesla
+        }
+    }
+
+    /// A sharing bridge (bridge100…) is up: the hotspot is broadcasting.
+    public var sharingOn = false
+    /// NAT.Enabled = 1 (the Internet Sharing switch is on, even if the bridge isn't up yet).
+    public var enabledInSettings = false
+    /// "Share your connection from" (NAT.PrimaryInterface), nil when never set.
+    public var shareFrom: Uplink?
+    /// "To devices using" includes Wi-Fi (NAT.SharingDevices has the Wi-Fi interface).
+    public var sharesToWiFi = false
+    /// Wi-Fi Options ▸ Network Name (NAT.AirPort.NetworkName).
+    public var networkName: String?
+    /// Wi-Fi Options ▸ Channel (NAT.AirPort.Channel). 0 = automatic.
+    public var channel: Int?
+    /// The Mac's own internet comes over Wi-Fi (it has joined a network), so turning on sharing to
+    /// Wi-Fi drops that connection.
+    public var wifiIsUplink = false
+    /// …and that Wi-Fi network is a phone's hotspot (iPhone 172.20.10.x, or Android).
+    public var wifiUplinkIsPhone = false
+    /// Interfaces that could feed the hotspot, connected ones first.
+    public var uplinks: [Uplink] = []
+    /// Devices on the hotspot now: leased by bootpd and answering ARP on the sharing bridge.
+    public var devices: [Device] = []
+
+    /// The Tesla on the hotspot, if one has joined.
+    public var car: Device? { devices.first { $0.isTesla } }
+
     public init() {}
 }
 
@@ -419,12 +479,17 @@ public protocol NetworkManaging: AnyObject {
     /// Whether `address` (a car that just dropped) is still on this Mac's link, judged from the ARP
     /// table. nil = can't tell.
     func isStillOnNetwork(_ address: String) async -> Bool?
+    /// Calls `handler` on the main actor soon after the Mac's network changes: an interface or an
+    /// address comes or goes, Internet Sharing's bridge comes up or down, or its settings are saved.
+    /// Observers accumulate (there is no removal; capture weakly).
+    func addNetworkChangeObserver(_ handler: @escaping @MainActor () -> Void)
 }
 
 public extension NetworkManaging {
     func startLocalServices() async {}
     func stopLocalServices() async {}
     func isStillOnNetwork(_ address: String) async -> Bool? { nil }
+    func addNetworkChangeObserver(_ handler: @escaping @MainActor () -> Void) {}
 }
 
 // MARK: - Service (implemented in DashcastServer, observed by the UI)
@@ -517,6 +582,9 @@ public final class ServiceState {
     public var lastDisconnect: CarDisconnect?
     /// Locked, display asleep or sleeping: the car sees a "paused" message.
     public var hostState: HostState = .active
+    /// The last time a car asked Tesla's "am I online?" check (connman) and Dashcast answered it.
+    /// Proof the car's DNS reaches Dashcast, so it stays on the hotspot without internet.
+    public var lastConnectivityCheck: Date?
 
     /// URL the car should open: the own domain once it has a valid certificate, else the service address.
     public var carURL: String {

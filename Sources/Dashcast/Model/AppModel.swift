@@ -30,6 +30,24 @@ final class AppModel {
     private(set) var menuBarNotice: CarDisconnect?
     /// Why the last Start didn't go ahead (a permission that doesn't work), until the next try.
     private(set) var startProblem: PermissionPane?
+    /// The car hotspot setup: the user chose to go without internet for the car (Dashcast needs none).
+    var hotspotWithoutInternet: Bool {
+        didSet {
+            guard !RenderMode.offscreen else { return }   // snapshots never touch preferences
+            UserDefaults.standard.set(hotspotWithoutInternet, forKey: DefaultsKey.hotspotWithoutInternet)
+        }
+    }
+    /// When the Tesla was first seen on the Mac's hotspot (nil while it isn't there).
+    private(set) var hotspotCarSeenAt: Date?
+    /// Turning on Internet Sharing for the user ("Do It for Me") or pointing the way ("Guide Me").
+    let sharingAssistant: SharingAssistant
+    /// The network name Dashcast's hotspot password was saved with (nil = never, or not by Dashcast).
+    private(set) var hotspotPasswordNetwork: String? {
+        didSet {
+            guard !RenderMode.offscreen else { return }
+            UserDefaults.standard.set(hotspotPasswordNetwork, forKey: DefaultsKey.hotspotPasswordNetwork)
+        }
+    }
 
     static let menuBarNoticeDuration: Duration = .seconds(6)
 
@@ -40,6 +58,12 @@ final class AppModel {
     @ObservationIgnored private var noticedDisconnect: CarDisconnect?
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    /// The Internet Sharing coach beside System Settings (created on the first Open Internet Sharing).
+    @ObservationIgnored private var hotspotCoach: HotspotCoach?
+    @ObservationIgnored private let hotspotPasswords: HotspotPasswordStoring
+    @ObservationIgnored private var cachedHotspotPassword: String?
+    /// Whether the Mac's hotspot was up at the last look (auto-ready acts on off → on only).
+    @ObservationIgnored private var hotspotWasUp = false
 
     enum NetworkActivity: Equatable {
         case refreshing, installingHelper, removingHelper, savingDomain, savingToken, provisioning,
@@ -51,13 +75,23 @@ final class AppModel {
         self.init(wired: Wiring.makeService(settings: settings), settings: settings)
     }
 
-    init(wired: Wiring.Wired, settings: ServiceSettings) {
+    /// `sharingEnvironment` / `hotspotPasswords`: the real System Settings and Keychain unless given
+    /// (tests); snapshots and the mock service never touch the Keychain.
+    init(wired: Wiring.Wired, settings: ServiceSettings, sharingEnvironment: SharingEnvironment? = nil,
+         hotspotPasswords: HotspotPasswordStoring? = nil) {
         service = wired.service
         networkActions = wired.networkActions
         backend = wired.backend
         permissions = PermissionMonitor(probe: wired.permissionProbe)
+        hotspotWithoutInternet = !RenderMode.offscreen && UserDefaults.standard.bool(forKey: DefaultsKey.hotspotWithoutInternet)
+        hotspotPasswordNetwork = RenderMode.offscreen ? nil : UserDefaults.standard.string(forKey: DefaultsKey.hotspotPasswordNetwork)
+        self.hotspotPasswords = hotspotPasswords
+            ?? (RenderMode.offscreen || wired.backend != .real ? MemoryHotspotPasswordStore("maplesky47") : KeychainHotspotPasswordStore())
+        let open = wired.networkActions.openInternetSharingSettings
+        sharingAssistant = SharingAssistant(environment: sharingEnvironment ?? LiveSharingEnvironment(open: open))
         self.settings = settings
         service.settings = settings
+        sharingAssistant.onOptionsSaved = { [weak self] plan in self?.hotspotPasswordNetwork = plan.networkName }
     }
 
     var state: ServiceState { service.state }
@@ -82,6 +116,8 @@ final class AppModel {
         hostMonitor = monitor
         monitor.start()
         watchDisconnects()
+        hotspotWasUp = AutoReady.isHotspotUp(state.network)
+        watchHotspot()
         Task { await permissions.refreshAll(.force) }
         // Coming back from System Settings: measure again.
         activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
@@ -124,6 +160,119 @@ final class AppModel {
             self?.menuBarNotice = nil
         }
         if notify { DisconnectNotifier.post(current) }
+    }
+
+    // MARK: - Car hotspot
+
+    /// Re-arms after every change of the network status (the service keeps it current).
+    private func watchHotspot() {
+        withObservationTracking {
+            _ = state.network
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.hotspotChanged()
+                self.watchHotspot()
+            }
+        }
+    }
+
+    /// Notes when the car turns up, and gets ready on its own when the hotspot comes up.
+    func hotspotChanged() {
+        trackHotspotCar()
+        if sharingAssistant.isGuiding { sharingAssistant.update(sharingPlan) }
+        let isUp = AutoReady.isHotspotUp(state.network)
+        defer { hotspotWasUp = isUp }
+        guard AutoReady.shouldStart(wasUp: hotspotWasUp, isUp: isUp, enabled: Self.autoReadyEnabled, phase: state.phase,
+                                    screenRecording: permissions[.screenRecording], transitioning: isTransitioning)
+        else { return }
+        transition {
+            // Measure first, quietly: a broken grant leaves it to the readiness list, not a "Can't Start" headline.
+            let screen = await self.permissions.refresh(.screenRecording, .stale)
+            guard !screen.isProblem, self.state.phase == .idle else { return }
+            self.state.append("The hotspot is on: getting ready for your Tesla")
+            await self.service.start()
+        }
+    }
+
+    /// Keeps `hotspotCarSeenAt` in step with the car on the hotspot.
+    func trackHotspotCar(now: Date = Date()) {
+        if state.network.hotspot.car == nil {
+            if hotspotCarSeenAt != nil { hotspotCarSeenAt = nil }
+        } else if hotspotCarSeenAt == nil {
+            hotspotCarSeenAt = now
+        }
+    }
+
+    /// Settings ▸ Network: "Get ready automatically when the hotspot turns on" (on unless turned off).
+    static var autoReadyEnabled: Bool {
+        UserDefaults.standard.object(forKey: DefaultsKey.autoReadyOnHotspot) as? Bool ?? true
+    }
+
+    /// The wizard's checklist, from what the Mac sees right now.
+    func hotspotSetup(now: Date = Date()) -> HotspotSetup {
+        HotspotSetup(.init(network: state.network, lastConnectivityCheck: state.lastConnectivityCheck,
+                           casting: state.car != nil, serviceRunning: isRunning,
+                           withoutInternet: hotspotWithoutInternet, carSeenAt: hotspotCarSeenAt,
+                           password: hotspotPassword, passwordSet: knownHotspotPassword != nil, now: now))
+    }
+
+    /// The hotspot password Dashcast suggests (and types, in "Do It for Me"): made once, kept in the Keychain.
+    var hotspotPassword: String {
+        if let cachedHotspotPassword { return cachedHotspotPassword }
+        let password = hotspotPasswords.load() ?? {
+            let made = HotspotPassword.generate()
+            hotspotPasswords.save(made)
+            return made
+        }()
+        cachedHotspotPassword = password
+        return password
+    }
+
+    /// The hotspot's password, when Dashcast set it and the network still has the name it was set with.
+    var knownHotspotPassword: String? {
+        guard let network = hotspotPasswordNetwork, network == state.network.hotspot.networkName else { return nil }
+        return hotspotPassword
+    }
+
+    /// What Internet Sharing should be set to, from the live network.
+    var sharingPlan: SharingPlan { SharingPlan(hotspot: state.network.hotspot, password: hotspotPassword) }
+
+    /// "Do It for Me" and Guide Me need Accessibility (measured; unknown yet counts as yes, the run checks again).
+    var canDriveSystemSettings: Bool { !permissions[.accessibility].isProblem }
+
+    /// Opens System Settings ▸ Internet Sharing with the coach panel beside it. The coach closes
+    /// itself once sharing is on and brings `bringBack` (the wizard) to the front.
+    func coachInternetSharing(bringBack: (() -> Void)? = nil) {
+        sharingAssistant.stop()
+        openInternetSharingSettings()
+        coach(bringBack: bringBack).present()
+    }
+
+    /// "Guide Me": System Settings, the coach panel, and a highlight on each control in turn.
+    func guideInternetSharing(bringBack: (() -> Void)? = nil) {
+        openInternetSharingSettings()
+        _ = coach(bringBack: bringBack)
+        sharingAssistant.guide(sharingPlan, optionsKnownSet: knownHotspotPassword != nil)
+    }
+
+    /// "Do It for Me": Dashcast sets up and turns on Internet Sharing (handing over to Guide Me if it can't).
+    func automateInternetSharing(bringBack: (() -> Void)? = nil) {
+        _ = coach(bringBack: bringBack)
+        sharingAssistant.automate(sharingPlan)
+    }
+
+    private func coach(bringBack: (() -> Void)?) -> HotspotCoach {
+        let coach = hotspotCoach ?? HotspotCoach(model: self)
+        hotspotCoach = coach
+        coach.returnToWizard = bringBack
+        sharingAssistant.presenter = coach
+        return coach
+    }
+
+    func dismissHotspotCoach() {
+        sharingAssistant.stop()
+        hotspotCoach?.dismiss()
     }
 
     func toggleStreaming() {
@@ -309,7 +458,7 @@ final class AppModel {
         switch action {
         case .permission(let pane): fixPermission(pane)
         case .installHelper: installHelper()
-        case .openInternetSharing: openInternetSharingSettings()
+        case .setUpHotspot: break   // opens a window: handled by the view (it has openWindow)
         case .recheckNetwork: Task { await refreshNetwork() }
         }
     }

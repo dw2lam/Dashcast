@@ -195,6 +195,10 @@ final class MockNetwork: NetworkManaging {
         presenceQueries.append(address)
         return stillOnNetwork
     }
+    private var changeObservers: [@MainActor () -> Void] = []
+    func addNetworkChangeObserver(_ handler: @escaping @MainActor () -> Void) { changeObservers.append(handler) }
+    /// What NetworkManager does when an interface, address or Internet Sharing changes.
+    func simulateNetworkChange() { for observer in changeObservers { observer() } }
 }
 
 /// Records the display-awake hold instead of creating a real power assertion.

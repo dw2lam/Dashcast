@@ -244,6 +244,7 @@ struct StatCapsule: View {
 struct ReadinessList: View {
     let items: [ReadinessItem]
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -258,7 +259,11 @@ struct ReadinessList: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     ActionButton(item.actionTitle, busy: item.action == .installHelper && model.networkActivity == .installingHelper) {
-                        model.perform(item.action)
+                        if item.action == .setUpHotspot {
+                            HotspotSetupView.open(openWindow)
+                        } else {
+                            model.perform(item.action)
+                        }
                     }
                     .secondaryButtonStyle()
                 }

@@ -6,6 +6,7 @@ struct NetworkSettings: View {
     @Environment(\.openWindow) private var openWindow
     @State private var routerExpanded: Bool
     @State private var showingRouterLogin = false
+    @AppStorage(DefaultsKey.autoReadyOnHotspot) private var autoReady = true
 
     init(routerExpanded: Bool = false) {
         _routerExpanded = State(initialValue: routerExpanded)
@@ -63,10 +64,18 @@ struct NetworkSettings: View {
                                detail: "iPhone keeps hotspot devices apart, and the Tesla browser won’t open private addresses. Share this Mac’s connection over Wi‑Fi instead, or use a travel router.")
                 }
                 LabeledContent {
-                    Button("Open…") { model.openInternetSharingSettings() }
+                    Button("Set Up…") { HotspotSetupView.open(openWindow) }
                 } label: {
-                    Text("Internet Sharing")
-                    Text("Share your iPhone’s USB connection over Wi‑Fi, then join that network from your Tesla.")
+                    Text("Car hotspot")
+                    Text("Turn on Internet Sharing so your Tesla can join this Mac’s Wi‑Fi.")
+                }
+                Toggle(isOn: guidanceMode) {
+                    Text("Guidance mode")
+                    Text("Setting up the car hotspot points at each control in System Settings instead of doing it for you.")
+                }
+                Toggle(isOn: $autoReady) {
+                    Text("Get ready automatically when the hotspot turns on")
+                    Text("Dashcast starts listening, so your Tesla stays connected even with no internet.")
                 }
             }
 
@@ -113,6 +122,15 @@ struct NetworkSettings: View {
         .frame(height: 560)
         .task { await model.refreshNetwork() }
         .sheet(isPresented: $showingRouterLogin) { RouterLoginSheet() }
+    }
+
+    /// The same choice as the Car Hotspot window's "Do It for Me | Guide Me".
+    private var guidanceMode: Binding<Bool> {
+        Binding {
+            model.sharingAssistant.preferredMode == .guided
+        } set: { guided in
+            model.sharingAssistant.preferredMode = guided ? .guided : .automatic
+        }
     }
 }
 

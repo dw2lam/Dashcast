@@ -127,3 +127,37 @@ enum PermissionPoller {
         }
     }
 }
+
+/// A numbered circle that turns into a green check when the app sees the step is done. The step
+/// being worked on (`active`) is filled with the accent colour.
+struct StepMarker: View {
+    let number: Int
+    let done: Bool
+    var active = false
+    var size: CGFloat = 22
+
+    var body: some View {
+        ZStack {
+            Circle().fill(fill)
+            if done {
+                Image(systemName: "checkmark")
+                    .font(.system(size: size * 0.5, weight: .bold))
+                    .foregroundStyle(.white)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Text("\(number)")
+                    .font(.system(size: size * 0.55, weight: .semibold))
+                    .foregroundStyle(active ? Color.white : Color.dashAccent)
+            }
+        }
+        .frame(width: size, height: size)
+        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + size * 0.18 }
+        .animation(.spring(duration: 0.35), value: done)
+        .accessibilityLabel(done ? "Step \(number), done" : "Step \(number)")
+    }
+
+    private var fill: AnyShapeStyle {
+        if done { return AnyShapeStyle(Color.green) }
+        return active ? AnyShapeStyle(Color.dashAccent) : AnyShapeStyle(Color.dashAccent.opacity(0.14))
+    }
+}

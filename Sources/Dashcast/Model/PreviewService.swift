@@ -13,6 +13,8 @@ import Foundation
 /// - `DASHCAST_MOCK_DOMAIN=cloudflare|manual` — an own domain (car.example.com) that still needs setup.
 /// - `DASHCAST_MOCK_DISCONNECT=leftWiFi|browserClosed|connectionLost` — waiting after that disconnect.
 /// - `DASHCAST_MOCK_HOST=locked|displayAsleep|sleeping` — the Mac is in that state.
+/// - `DASHCAST_MOCK_HOTSPOT=phoneWiFi|unconfigured|partial|configuredOff|starting|on|otherDevice|carJoined|checked|connected`
+///   — a point in the car hotspot setup (see `HotspotStage`).
 @MainActor
 final class PreviewService: DashcastServicing {
     let state = ServiceState()
@@ -48,6 +50,8 @@ final class PreviewService: DashcastServicing {
         /// The car just went away for this reason (waiting phase).
         var disconnect: DisconnectReason?
         var host: HostState = .active
+        /// A point in the car hotspot setup; nil = no Internet Sharing details (the topology alone).
+        var hotspot: HotspotStage?
 
         static let exampleHostname = "car.example.com"
 
@@ -62,7 +66,8 @@ final class PreviewService: DashcastServicing {
                 conflict: env["DASHCAST_MOCK_CONFLICT"] == "1",
                 domain: OwnDomain.Provider(rawValue: env["DASHCAST_MOCK_DOMAIN"] ?? ""),
                 disconnect: DisconnectReason(rawValue: env["DASHCAST_MOCK_DISCONNECT"] ?? ""),
-                host: HostState(rawValue: env["DASHCAST_MOCK_HOST"] ?? "") ?? .active
+                host: HostState(rawValue: env["DASHCAST_MOCK_HOST"] ?? "") ?? .active,
+                hotspot: HotspotStage(rawValue: env["DASHCAST_MOCK_HOTSPOT"] ?? "")
             )
         }
     }
@@ -73,10 +78,10 @@ final class PreviewService: DashcastServicing {
         accessibility = !scenario.fresh
         let certificate = scenario.domain == nil && (scenario.certificate ?? !scenario.fresh)
         let provider: OwnDomain.Provider? = certificate ? .cloudflare : scenario.domain
-        mockNetwork = MockNetworkManager(topology: scenario.topology, provisioned: !scenario.fresh,
+        mockNetwork = MockNetworkManager(topology: scenario.hotspot?.topology ?? scenario.topology, provisioned: !scenario.fresh,
                                          domain: provider.map { OwnDomain(hostname: Scenario.exampleHostname, provider: $0) },
                                          token: certificate || scenario.token, certificate: certificate,
-                                         conflict: scenario.conflict)
+                                         conflict: scenario.conflict, hotspot: scenario.hotspot?.status)
 
         state.displays = [
             DisplayInfo(id: 1, name: "Built-in Retina Display", width: 3024, height: 1964, isVirtual: false),
@@ -104,6 +109,10 @@ final class PreviewService: DashcastServicing {
             state.append("Car disconnected; keeping the stream for 5 s")
         }
         state.hostState = scenario.host
+        if let stage = scenario.hotspot {
+            if stage >= .checked { state.lastConnectivityCheck = Date().addingTimeInterval(-4) }
+            if stage == .connected, state.car == nil { carConnected() }
+        }
         if scenario.cycle { startCycling() }
     }
 
@@ -119,6 +128,10 @@ final class PreviewService: DashcastServicing {
         try? await Task.sleep(for: .milliseconds(300))
         state.phase = .waitingForCar
         state.append("Listening on \(state.localURL) and \(state.carURL)")
+        if state.network.hotspot.car != nil, state.lastConnectivityCheck == nil {
+            state.lastConnectivityCheck = Date()
+            state.append("Answered the car’s connectivity check")
+        }
         connectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(2.5))
             guard !Task.isCancelled else { return }
@@ -264,7 +277,8 @@ final class MockNetworkManager: NetworkManaging {
     private(set) var status: NetworkStatus
     private var token: String?
 
-    init(topology: Topology, provisioned: Bool, domain: OwnDomain?, token: Bool, certificate: Bool, conflict: Bool = false) {
+    init(topology: Topology, provisioned: Bool, domain: OwnDomain?, token: Bool, certificate: Bool, conflict: Bool = false,
+         hotspot: HotspotStatus? = nil) {
         var status = NetworkStatus()
         status.topology = topology
         switch topology {
@@ -291,6 +305,10 @@ final class MockNetworkManager: NetworkManaging {
         status.dnsRecordOK = certificate
         status.certificateExpiry = certificate ? Calendar.current.date(byAdding: .day, value: 71, to: Date()) : nil
         status.serviceAddressConflict = conflict ? "bridge100 203.0.113.1/24" : nil
+        if let hotspot {
+            status.hotspot = hotspot
+            status.internetReachable = hotspot.uplinks.contains { $0.connected } || hotspot.wifiIsUplink
+        }
         self.status = status
         self.token = token ? "mock-token" : nil
     }
@@ -400,4 +418,74 @@ extension Viewport {
 
 extension Comparable {
     func clamped(_ lower: Self, _ upper: Self) -> Self { min(max(self, lower), upper) }
+}
+
+// MARK: - Car hotspot stages
+
+/// Points along the car hotspot setup, in order, for the mock and screenshots.
+enum HotspotStage: String, CaseIterable, Comparable {
+    /// The Mac's internet is an iPhone's hotspot over Wi‑Fi; Internet Sharing never set up.
+    case phoneWiFi
+    /// No internet, no cable, never set up.
+    case unconfigured
+    /// iPhone USB plugged in; "Share from" set, the rest not yet.
+    case partial
+    /// Everything set, the switch still off.
+    case configuredOff
+    /// The switch is on; the bridge isn't up yet.
+    case starting
+    /// Sharing is on; nobody has joined.
+    case on
+    /// Something that isn't a Tesla joined.
+    case otherDevice
+    /// The Tesla joined; no connectivity check yet.
+    case carJoined
+    /// The Tesla checked and Dashcast answered.
+    case checked
+    /// The car's browser is connected.
+    case connected
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!
+    }
+
+    static let iPhoneUSB = HotspotStatus.Uplink(name: "iPhone USB", interface: "en9", connected: true)
+    static let tesla = HotspotStatus.Device(name: "Tesla_Model_3", address: "192.168.2.3", isTesla: true)
+    static let iPad = HotspotStatus.Device(name: "iPad", address: "192.168.2.4", isTesla: false)
+
+    var topology: Topology {
+        switch self {
+        case .phoneWiFi: .phoneHotspot
+        case .unconfigured, .partial, .configuredOff, .starting: .offline
+        case .on, .otherDevice, .carJoined, .checked, .connected: .macHotspot
+        }
+    }
+
+    var status: HotspotStatus {
+        var hotspot = HotspotStatus()
+        let cable = self >= .partial
+        hotspot.uplinks = [
+            HotspotStatus.Uplink(name: "iPhone USB", interface: "en9", connected: cable),
+            HotspotStatus.Uplink(name: "Thunderbolt Bridge", interface: "bridge0", connected: false),
+        ]
+        switch self {
+        case .phoneWiFi:
+            hotspot.wifiIsUplink = true
+            hotspot.wifiUplinkIsPhone = true
+        case .unconfigured:
+            break
+        case .partial:
+            hotspot.shareFrom = Self.iPhoneUSB
+        default:
+            hotspot.shareFrom = Self.iPhoneUSB
+            hotspot.sharesToWiFi = true
+            hotspot.networkName = HotspotSetup.suggestedName
+            hotspot.channel = 149
+        }
+        hotspot.enabledInSettings = self >= .starting
+        hotspot.sharingOn = self >= .on
+        if self == .otherDevice { hotspot.devices = [Self.iPad] }
+        if self >= .carJoined { hotspot.devices = [Self.iPad, Self.tesla] }
+        return hotspot
+    }
 }

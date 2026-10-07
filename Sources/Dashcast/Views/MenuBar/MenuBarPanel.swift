@@ -51,11 +51,11 @@ struct MenuBarPanel: View {
         @Bindable var model = model
         let state = model.state
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             GlassGroup(spacing: 8) {
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     CastTile()
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ForEach(DisplayMode.allCases, id: \.self) { mode in
                             ModeTile(mode: mode, selected: model.settings.displayMode == mode) {
                                 model.settings.displayMode = mode
@@ -77,7 +77,7 @@ struct MenuBarPanel: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            .padding(.top, 4)
+            .padding(.top, 2)
 
             if model.isStreaming, let car = state.car {
                 Text("\(Format.computer(car.computer)) · \(Format.resolution(car.tier.width, car.tier.height)) · \(Format.fps(state.stats.fps)) fps · \(Format.ms(state.stats.latencyMs)) ms · \(Format.transport(car.transport))")
@@ -89,9 +89,14 @@ struct MenuBarPanel: View {
             }
 
             Divider()
-                .padding(.top, 2)
 
             VStack(spacing: 0) {
+                if !state.network.topology.isUsable, !state.network.hotspot.sharingOn {
+                    PanelRow(title: "Set Up Car Hotspot…") {
+                        dismiss()
+                        HotspotSetupView.open(openWindow)
+                    }
+                }
                 PanelRow(title: "How to Connect…") {
                     dismiss()
                     openWindow(id: SceneID.guide)
@@ -107,11 +112,15 @@ struct MenuBarPanel: View {
                     openSettings()
                     NSApp.activate()
                 }
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, 3).padding(.horizontal, 4)
                 PanelRow(title: "Quit Dashcast") { NSApp.terminate(nil) }
             }
+            // Rows' hover highlight reaches closer to the edge than the tiles, like a menu.
+            .padding(.horizontal, -4)
         }
-        .padding(14)
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
         .frame(width: 300)
         .tint(.dashAccent)
         .animation(.spring(duration: 0.4), value: model.isStreaming)
