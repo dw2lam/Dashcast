@@ -43,7 +43,7 @@ Dashcast is a native macOS app that turns a Tesla's touchscreen into a wireless 
 
 ## Download
 
-Get **[Dashcast-0.0.1.dmg](https://github.com/dw2lam/Dashcast/releases/latest)** from Releases, open it, and drag Dashcast to Applications.
+Get **[Dashcast-0.0.2.dmg](https://github.com/dw2lam/Dashcast/releases/latest)** from Releases, open it, and drag Dashcast to Applications.
 
 Dashcast isn't notarized yet. On first launch, macOS will say it can't verify the app: go to **System Settings → Privacy & Security** and click **Open Anyway**. The setup assistant takes it from there.
 
@@ -67,7 +67,7 @@ The Connection Guide and the setup assistant link to the same settings.
 
 | Method | | |
 |---|---|---|
-| **Mac as Hotspot** | Recommended | Internet Sharing makes the Mac's own Wi-Fi and the car joins it. One hop, lowest latency. Plug your iPhone into the Mac over USB (or share an Android phone's internet over Bluetooth) if you want internet too. |
+| **Mac as Hotspot** | Recommended | Internet Sharing makes the Mac's own Wi-Fi and the car joins it. One hop, lowest latency. The **Car Hotspot** window sets it up for you (**Do It for Me**) or points at each control in System Settings (**Guide Me**), and ticks each step off live, up to the car joining. Plug your iPhone into the Mac over USB (or share an Android phone's internet over Bluetooth) if you want internet too. |
 | **Travel Router** | Most reliable | For example a GL.iNet router. Dashcast generates the router setup. |
 | **Phone hotspot for both** (iPhone or Android) | Not supported | The car sends everything to the phone, which can't pass it on to the Mac, and phone hotspots hand out private addresses the Tesla browser blocks. The phone can still supply internet: an iPhone over USB, an Android phone over Bluetooth tethering, or either one feeding a travel router. |
 
@@ -81,7 +81,7 @@ The Connection Guide and the setup assistant link to the same settings.
 ## Requirements
 
 - macOS 15 or later, on Apple silicon. On macOS 26 the app uses Liquid Glass.
-- Version 0.0.1 is an early build, not yet tested in a car.
+- Version 0.0.2 is an early build. A Tesla has joined the Mac's hotspot, but casting hasn't been tested in a car yet.
 - A Tesla with the in-car browser. Built on an MCU2 Model 3 and designed for MCU3.
 - Screen Recording and Accessibility permissions. The setup assistant walks you through them.
 
