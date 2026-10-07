@@ -124,6 +124,22 @@ final class VideoEncoderTests: XCTestCase {
     }
 
     /// Frames of the wrong size (in flight during a resize) are scaled to the session size.
+    /// After sleep or a GPU reset VideoToolbox rejects every frame on the old session: the encoder
+    /// rebuilds it and resumes with a keyframe instead of freezing the car.
+    func testRebuildsASessionVideoToolboxGaveUpOn() throws {
+        var run = try makeRun(.h264)
+        run.feed(5)
+        XCTAssertTrue(run.waitForFrames(5))
+        run.queue.sync { run.encoder.breakSessionForTesting() }
+        run.feed(10)
+        XCTAssertTrue(waitFor(5) { run.frames.items.dropFirst(5).contains(where: \.isKeyframe) },
+                      "no keyframe after the session broke (\(run.frames.count) frames)")
+        let before = run.frames.count
+        run.feed(10)
+        XCTAssertTrue(run.waitForFrames(before + 10), "frames stopped after the rebuild")
+        XCTAssertEqual(run.errors.items, [], "a rebuilt session isn't an error")
+    }
+
     func testMismatchedInputSizeIsScaled() throws {
         var run = try makeRun(.h264)
         run.feed(3, width: 1920, height: 1080)

@@ -41,26 +41,29 @@ struct NetworkEnvironment {
     /// bootpd's leases (who joined the Mac's hotspot). The NAT settings come from
     /// `helperLayout.natPreferences` + ".plist".
     var dhcpLeasesPath = HotspotProbe.leasesPath
+    /// Identity of a file's current contents (inode, size, mtime); nil = no such file. A parsed file
+    /// is reused while this stays the same.
+    var fileStamp: (String) -> String? = { SystemNetworkWatcher.stamp($0) }
 
     @MainActor
     static func live() -> NetworkEnvironment {
         let resolvers = SystemResolvers(excluding: [DashcastDefaults.serviceAddress])
+        let scanner = CachingInterfaceScanner()
+        let applications = RunningApplicationNames()
         return NetworkEnvironment(
             appSupportDir: DashcastDefaults.appSupportDir,
             helperLayout: .production,
             secrets: KeychainSecretStore(),
             session: URLSession(configuration: .ephemeral),
             privilegedRunner: AppleScriptPrivilegedRunner(),
-            snapshot: { InterfaceScanner.snapshot() },
+            snapshot: { scanner.snapshot() },
             fileExists: { FileManager.default.fileExists(atPath: $0) },
             isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
             bundleResourceURL: Bundle.main.resourceURL,
             defaults: .standard,
             now: { Date() },
             internetReachable: nil,
-            runningApplicationNames: {
-                NSWorkspace.shared.runningApplications.flatMap { [$0.localizedName, $0.bundleIdentifier].compactMap { $0 } }
-            },
+            runningApplicationNames: { applications.names() },
             openssl: PKCS12.opensslPath,
             readFile: { FileManager.default.contents(atPath: $0) },
             touchFile: { path in
@@ -97,8 +100,19 @@ public final class NetworkManager: NetworkManaging {
     private var systemWatcher: SystemNetworkWatcher?
     private var changeObservers: [() -> Void] = []
     private var dnsCache: (checkedAt: Date, ok: Bool, lifetime: TimeInterval)?
-    private var expiryCache: (modified: Date, size: Int, expiry: Date?)?
+    /// Per .p12 file version: its expiry and the passphrase that opened it (nil when it didn't).
+    private var expiryCache: (modified: Date, size: Int, expiry: Date?, passphrase: String?)?
+    private var tokenCache: (checkedAt: Date, exists: Bool)?
+    nonisolated static let tokenCacheLifetime: TimeInterval = 30
     private var provisioning: Task<Void, Error>?
+    /// Internet Sharing's settings and bootpd's leases, parsed, while their files are unchanged.
+    private var natCache: (stamp: String, value: NATPreferences?)?
+    private var leaseCache: (stamp: String, value: [DHCPLease])?
+    /// When each leased address was last nudged: once per `nudgeInterval` is plenty (an answer
+    /// stays in the ARP table for 20 minutes), however often the hotspot window refreshes.
+    private var lastNudged: [String: Date] = [:]
+    nonisolated static let nudgeInterval: TimeInterval = 10
+    private var sideDisplayCache: (names: [String], running: Bool)?
 
     /// Called on the main actor when the network path changes (interface up/down, new address).
     public var onNetworkChange: (() -> Void)?
@@ -238,8 +252,13 @@ public final class NetworkManager: NetworkManaging {
     }
 
     /// True when a SideDisplay process is running (it fights Dashcast over Internet Sharing).
+    /// Matching ~270 names costs ~200 µs, so the answer is kept until the list changes.
     public func isSideDisplayRunning() -> Bool {
-        env.runningApplicationNames().contains { $0.localizedCaseInsensitiveContains("sidedisplay") }
+        let names = env.runningApplicationNames()
+        if let cache = sideDisplayCache, cache.names == names { return cache.running }
+        let running = names.contains { $0.localizedCaseInsensitiveContains("sidedisplay") }
+        sideDisplayCache = (names, running)
+        return running
     }
 
     /// Default gateway of the primary interface (prefill for the router SSH host).
@@ -249,6 +268,8 @@ public final class NetworkManager: NetworkManaging {
 
     private func internetReachable() async -> Bool {
         if let probe = env.internetReachable { return await probe() }
+        // Known already (every call after the first): no hop off the main actor and back.
+        if let satisfied = pathWatcher?.satisfied { return satisfied }
         return await pathWatcher?.isSatisfied() ?? false
     }
 
@@ -479,15 +500,41 @@ public final class NetworkManager: NetworkManaging {
     func hotspotStatus(snapshot: InterfaceSnapshot) -> HotspotStatus {
         let sharing = !HotspotProbe.sharingBridges(in: snapshot).isEmpty
         var inputs = HotspotProbe.Inputs(snapshot: snapshot,
-                                         nat: env.readFile(natPreferencesPath).flatMap(NATPreferences.parse),
+                                         nat: readParsed(natPreferencesPath, cache: &natCache) { $0.flatMap(NATPreferences.parse) },
                                          now: env.now())
         // Leases and neighbours only matter while a sharing bridge is up.
         if sharing {
-            inputs.leases = env.readFile(env.dhcpLeasesPath).map { DHCPLeases.parse(String(decoding: $0, as: UTF8.self)) } ?? []
+            inputs.leases = readParsed(env.dhcpLeasesPath, cache: &leaseCache) { data in
+                data.map { DHCPLeases.parse(String(decoding: $0, as: UTF8.self)) } ?? []
+            }
             inputs.neighbours = env.neighbours()
-            for address in HotspotProbe.addressesToNudge(inputs) { env.nudgeNeighbour(address) }
+            for address in HotspotProbe.addressesToNudge(inputs) where shouldNudge(address, now: inputs.now) {
+                env.nudgeNeighbour(address)
+            }
         }
         return HotspotProbe.status(inputs)
+    }
+
+    /// `parse` of the file at `path`, re-read only when its stamp changes. A file without a stamp
+    /// (missing, or a test's in-memory one) is read every time.
+    private func readParsed<T>(_ path: String, cache: inout (stamp: String, value: T)?, parse: (Data?) -> T) -> T {
+        guard let stamp = env.fileStamp(path) else {
+            cache = nil
+            return parse(env.readFile(path))
+        }
+        if let cache, cache.stamp == stamp { return cache.value }
+        let value = parse(env.readFile(path))
+        cache = (stamp, value)
+        return value
+    }
+
+    private func shouldNudge(_ address: String, now: Date) -> Bool {
+        if let last = lastNudged[address], abs(now.timeIntervalSince(last)) < Self.nudgeInterval { return false }
+        if lastNudged.count > 64 {
+            lastNudged = lastNudged.filter { abs(now.timeIntervalSince($0.value)) < Self.nudgeInterval }
+        }
+        lastNudged[address] = now
+        return true
     }
 
     // MARK: - Car presence
@@ -577,16 +624,23 @@ public final class NetworkManager: NetworkManaging {
         if wantLocalServices { scheduleLocalDNSRetry() }
     }
 
+    /// 5 s, then backing off to 30 s: the alias appearing is also a network change (lo0's address),
+    /// which retries at once.
     private func scheduleLocalDNSRetry() {
         guard dnsRetryTask == nil else { return }
         dnsRetryTask = Task { [weak self] in
+            var delay = Self.dnsRetryInitialDelay
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(for: delay)
                 guard let self, self.wantLocalServices, !self.localDNSRunning else { return }
                 await self.attemptLocalDNSStart()
+                delay = min(delay * 2, Self.dnsRetryMaxDelay)
             }
         }
     }
+
+    nonisolated static let dnsRetryInitialDelay: Duration = .seconds(5)
+    nonisolated static let dnsRetryMaxDelay: Duration = .seconds(30)
 
     private func describeBindError(_ error: Error) -> String {
         if case NWError.posix(let code) = error {
@@ -638,6 +692,7 @@ public final class NetworkManager: NetworkManaging {
     // MARK: - Cloudflare
 
     public func setCloudflareToken(_ token: String) throws {
+        tokenCache = nil
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             try env.secrets.delete(SecretAccount.cloudflareToken)
@@ -646,8 +701,13 @@ public final class NetworkManager: NetworkManaging {
         }
     }
 
+    /// Cached for `tokenCacheLifetime` (a keychain round trip on every status refresh otherwise).
     public func hasCloudflareToken() -> Bool {
-        env.secrets.exists(SecretAccount.cloudflareToken)
+        let now = env.now()
+        if let cache = tokenCache, abs(now.timeIntervalSince(cache.checkedAt)) < Self.tokenCacheLifetime { return cache.exists }
+        let exists = env.secrets.exists(SecretAccount.cloudflareToken)
+        tokenCache = (now, exists)
+        return exists
     }
 
     private func cloudflareToken() throws -> String {
@@ -811,19 +871,23 @@ public final class NetworkManager: NetworkManaging {
         }
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
         if let cache = expiryCache, cache.modified == modified, cache.size == size { return cache.expiry }
-        guard let passphrase = try? env.secrets.read(SecretAccount.p12Passphrase),
-              let data = try? Data(contentsOf: url),
+        // No passphrase (keychain locked or unavailable): ask again next time.
+        guard let passphrase = try? env.secrets.read(SecretAccount.p12Passphrase) else { return nil }
+        guard let data = try? Data(contentsOf: url),
               let imported = try? PKCS12.importIdentity(data, passphrase: passphrase) else {
+            // A file this passphrase can't open stays that way until the file changes (a new
+            // certificate or passphrase always comes with a new file), so don't retry every refresh.
+            expiryCache = (modified, size, nil, nil)
             return nil
         }
-        expiryCache = (modified, size, imported.notAfter)
+        expiryCache = (modified, size, imported.notAfter, passphrase)
         return imported.notAfter
     }
 
     public func tlsMaterial() -> TLSMaterial? {
         guard let domain = ownDomain, let url = paths?.pkcs12,
               let expiry = certificateExpiry(), expiry > env.now(),
-              let passphrase = try? env.secrets.read(SecretAccount.p12Passphrase)
+              let passphrase = expiryCache?.passphrase ?? (try? env.secrets.read(SecretAccount.p12Passphrase))
         else { return nil }
         return TLSMaterial(pkcs12URL: url, passphrase: passphrase, hostname: domain.hostname)
     }
@@ -872,6 +936,33 @@ public final class NetworkManager: NetworkManaging {
     /// System Settings → General → Sharing (Internet Sharing lives there).
     public func openInternetSharingSettings() {
         NSWorkspace.shared.open(Self.internetSharingSettingsURL)
+    }
+}
+
+/// Names and bundle IDs of the running apps. Asking every NSRunningApplication for its bundle ID
+/// costs ~200 µs per refresh, so each app's answer is kept for as long as it runs, and while no app
+/// launches or quits the same array comes back (so a caller can keep what it concluded from it).
+@MainActor
+final class RunningApplicationNames {
+    private var known: [pid_t: (app: NSRunningApplication, names: [String])] = [:]
+    private var all: [String] = []
+
+    func names() -> [String] {
+        let apps = NSWorkspace.shared.runningApplications
+        var changed = apps.count != known.count
+        var next: [pid_t: (app: NSRunningApplication, names: [String])] = [:]
+        for app in apps {
+            let pid = app.processIdentifier
+            if let entry = known[pid], entry.app === app {
+                next[pid] = entry
+            } else {
+                next[pid] = (app, [app.localizedName, app.bundleIdentifier].compactMap { $0 })
+                changed = true
+            }
+        }
+        known = next
+        if changed { all = next.values.flatMap(\.names) }
+        return all
     }
 }
 

@@ -80,12 +80,13 @@ struct MenuBarPanel: View {
             .padding(.top, 2)
 
             if model.isStreaming, let car = state.car {
-                Text("\(Format.computer(car.computer)) · \(Format.resolution(car.tier.width, car.tier.height)) · \(Format.fps(state.stats.fps)) fps · \(Format.ms(state.stats.latencyMs)) ms · \(Format.transport(car.transport))")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-                    .frame(maxWidth: .infinity, alignment: .center)
+                LiveStatsText { stats in
+                    "\(Format.computer(car.computer)) · \(Format.resolution(car.tier.width, car.tier.height)) · \(Format.fps(stats.fps)) fps · \(Format.ms(stats.latencyMs)) ms · \(Format.transport(car.transport))"
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
+                .frame(maxWidth: .infinity, alignment: .center)
             }
 
             Divider()
@@ -124,6 +125,18 @@ struct MenuBarPanel: View {
         .frame(width: 300)
         .tint(.dashAccent)
         .animation(.spring(duration: 0.4), value: model.isStreaming)
+    }
+}
+
+/// A line of live numbers. Its own view, so only it redraws as the stats tick (twice a second while
+/// casting), not the panel or form around it.
+struct LiveStatsText: View {
+    let text: (LiveStats) -> String
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Text(text(model.state.stats))
+            .monospacedDigit()
     }
 }
 

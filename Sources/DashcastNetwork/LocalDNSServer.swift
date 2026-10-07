@@ -29,6 +29,14 @@ final class LocalDNSServer: @unchecked Sendable {
         var upstreamTimeout: TimeInterval = 1.5
         var maxParallelUpstreams = 2
         var upstreams: @Sendable () -> [NWEndpoint]
+        /// A UDP flow is one source port of one client; resolvers pick a fresh port per query, so
+        /// they're dropped soon after their answer. TCP clients get longer to send the next query.
+        var udpIdleTimeout: TimeInterval = 10
+        var tcpIdleTimeout: TimeInterval = 30
+        var sweepInterval: TimeInterval = 10
+        /// Flows beyond this are refused, so a flood of source ports can't pile up connections. Every
+        /// device on the hotspot has its DNS redirected here, so it's well above a browsing burst.
+        var maxFlows = 1024
     }
 
     struct Stats: Equatable, Sendable {
@@ -57,10 +65,11 @@ final class LocalDNSServer: @unchecked Sendable {
 
     private final class Flow {
         let connection: NWConnection
+        let udp: Bool
         var lastActive = Date()
         var pending = 0
         var closing = false
-        init(_ connection: NWConnection) { self.connection = connection }
+        init(_ connection: NWConnection, udp: Bool) { self.connection = connection; self.udp = udp }
     }
 
     init(_ configuration: Configuration) {
@@ -74,6 +83,9 @@ final class LocalDNSServer: @unchecked Sendable {
     var port: UInt16? { queue.sync { _port } }
     var isRunning: Bool { queue.sync { _port != nil } }
     var stats: Stats { queue.sync { _stats } }
+    /// Open client flows, and whether the idle sweep is armed (tests).
+    var flowCount: Int { queue.sync { flows.count } }
+    var sweeperArmed: Bool { queue.sync { sweepTimer != nil } }
 
     /// Replaces the names answered locally (the own domain changed). Lowercased.
     func setLocalNames(_ names: Set<String>) {
@@ -98,7 +110,6 @@ final class LocalDNSServer: @unchecked Sendable {
             udpListener = udp
             tcpListener = tcp
             _port = port
-            startSweeper()
         }
         return port
     }
@@ -151,25 +162,38 @@ final class LocalDNSServer: @unchecked Sendable {
         onUnexpectedStop?(error)
     }
 
+    /// Runs only while there are flows to sweep: an idle responder has no timer.
     private func startSweeper() {
+        guard sweepTimer == nil else { return }
+        let interval = configuration.sweepInterval
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 10, repeating: 10)
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            let cutoff = Date().addingTimeInterval(-30)
-            for flow in self.flows.values where flow.pending == 0 && flow.lastActive < cutoff {
-                flow.connection.cancel()
-            }
-        }
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(Int(interval * 250)))
+        timer.setEventHandler { [weak self] in self?.sweep() }
         timer.resume()
         sweepTimer = timer
+    }
+
+    private func sweep() {
+        let now = Date()
+        for flow in flows.values where flow.pending == 0 {
+            let idle = flow.udp ? configuration.udpIdleTimeout : configuration.tcpIdleTimeout
+            if now.timeIntervalSince(flow.lastActive) > idle { flow.connection.cancel() }
+        }
+        if flows.isEmpty {
+            sweepTimer?.cancel()
+            sweepTimer = nil
+        }
     }
 
     // MARK: Client flows
 
     private func accept(_ connection: NWConnection, udp: Bool) {
+        guard flows.count < configuration.maxFlows else {
+            connection.cancel()
+            return
+        }
         let key = ObjectIdentifier(connection)
-        let flow = Flow(connection)
+        let flow = Flow(connection, udp: udp)
         flows[key] = flow
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
@@ -178,6 +202,7 @@ final class LocalDNSServer: @unchecked Sendable {
             }
         }
         connection.start(queue: queue)
+        startSweeper()
         if udp { receiveUDP(flow) } else { receiveTCP(flow, buffer: Data()) }
     }
 
@@ -186,7 +211,10 @@ final class LocalDNSServer: @unchecked Sendable {
             guard let self else { return }
             if let data, !data.isEmpty {
                 flow.lastActive = Date()
+                flow.pending += 1
                 self.process(data, overTCP: false) { reply in
+                    flow.pending -= 1
+                    flow.lastActive = Date()
                     guard let reply else { return }
                     flow.connection.send(content: reply, completion: .contentProcessed { _ in })
                 }

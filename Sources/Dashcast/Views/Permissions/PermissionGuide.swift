@@ -42,11 +42,11 @@ final class PermissionGuide {
     private let companion = SettingsCompanion()
     private var checking = false
     private var pane: PermissionPane?
-    private var ticks = 0
+    private var lastCheck = Date.distantPast
     private var isDragging = false
 
-    /// Polls for the grant every this many ticks (0.5 s).
-    static let grantCheckTicks = 10
+    /// Polls for the grant this often (the companion ticks faster while System Settings is in front).
+    static let grantCheckInterval: TimeInterval = 0.5
 
     /// `check` measures the permission (list + functional check); the panel closes on `.working`.
     init(check: @escaping (PermissionPane) async -> PermissionHealth, relaunch: @escaping (PermissionPane) -> Void) {
@@ -57,6 +57,7 @@ final class PermissionGuide {
     func present(_ pane: PermissionPane) {
         dismiss()
         self.pane = pane
+        lastCheck = Date()
         SystemSettings.open(pane.settings)
 
         let view = PermissionPanelView(
@@ -71,7 +72,7 @@ final class PermissionGuide {
         companion.dismiss()
         pane = nil
         isDragging = false
-        ticks = 0
+        lastCheck = .distantPast
     }
 
     private func setDragging(_ dragging: Bool) {
@@ -83,9 +84,8 @@ final class PermissionGuide {
     }
 
     private func tick() {
-        guard let pane else { return }
-        ticks += 1
-        guard ticks % Self.grantCheckTicks == 0, !isDragging, !checking else { return }
+        guard let pane, !isDragging, !checking, Date().timeIntervalSince(lastCheck) >= Self.grantCheckInterval - 0.01 else { return }
+        lastCheck = Date()
         checking = true
         Task { [weak self] in
             guard let self else { return }

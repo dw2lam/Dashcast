@@ -222,6 +222,7 @@ final class LoopbackReceiver: @unchecked Sendable {
     private var retained: Unmanaged<LoopbackReceiver>?
 
     init() {
+        LibDataChannel.retain()   // counted like a peer, so an idle cleanup can't delete it
         var config = rtcConfiguration()
         config.disableAutoNegotiation = false
         pc = "127.0.0.1".withCString { address in
@@ -285,6 +286,7 @@ final class LoopbackReceiver: @unchecked Sendable {
         Thread.sleep(forTimeInterval: 0.1)   // let in-flight callbacks finish before the release
         retained?.release()
         retained = nil
+        LibDataChannel.release()
     }
 
     private func inspect(_ bytes: UnsafeRawBufferPointer) {

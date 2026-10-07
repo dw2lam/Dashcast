@@ -7,6 +7,10 @@
 //                            [--delay ms] [--jitter ms] [--verbose] [--hevc] [--webrtc [--rtc-fail]]
 //
 // --hevc: send videoHEVC (type 2, libx265, AUD-delimited) to clients with caps.hevc.
+// --codec <string>: announce this codec string in config (e.g. one the decoder rejects, to test
+//   the client's error path). --rtc-badsdp: offer an SDP the browser can't apply (needs no wrtc).
+// --fast-idr: answer {"t":"keyframe"} with an IDR at once, like the real server (by default the
+//   mock skips ahead to the clip's next IDR on its timeline).
 //
 // --webrtc: plain-HTTP "HTTP mode" transport selection per PROTOCOL.md — a client without
 // (secure && webcodecs && h264) but with caps.webrtc gets config.transport = "webrtc" and
@@ -25,7 +29,8 @@
 //   r = resend config, k = jump to the next IDR, b = bye + close, q = quit.
 // Same over HTTP for scripted tests: GET /control?mode=cinema|interactive|auto,
 //   GET /control?cmd=config|idr|bye|drop (drop = the socket dies with no close frame, like a Mac
-//   going to sleep), GET /control?host=active|locked|displayAsleep|sleeping
+//   going to sleep), GET /control?host=active|locked|displayAsleep|sleeping, and with --webrtc
+//   GET /control?cmd=reconfig (a new config on the same peer, like a tier change)
 import { createServer } from 'node:http';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
@@ -53,6 +58,9 @@ const JITTER = +opt('jitter', 0);
 const VERBOSE = flag('verbose');
 const WEBRTC = flag('webrtc');
 const HEVC = flag('hevc');
+const CODEC = opt('codec', '');
+const BADSDP = flag('rtc-badsdp');
+const FAST_IDR = flag('fast-idr');
 let modePref = opt('mode', 'interactive');
 const FF = process.env.FFMPEG || '/opt/homebrew/bin/ffmpeg';
 const LOOP_S = 10;
@@ -315,6 +323,12 @@ class Session {
       case 'keyframe':
         log(`[${this.id}] keyframe requested`);
         this.waitIDR = true;
+        if (FAST_IDR && this.clip) {
+          const k = this.clip.frames.find((f) => f.key);
+          const type = this.clip.type || (this.clip.codec === 'jpeg' ? 3 : 1);
+          this.send(Buffer.concat([header(type, true, this.vseq++, nowUs()), k.data]), true);
+          this.waitIDR = false;
+        }
         break;
       case 'setLatencyMode':
         log(`[${this.id}] setLatencyMode ${m.latencyMode}`);
@@ -331,7 +345,7 @@ class Session {
     const c = hello.caps || {};
     const canH264 = c.webcodecs && c.h264 && (c.h264.main || c.h264.baseline || c.h264.high);
     // PROTOCOL.md transport selection: secure+webcodecs+h264 -> ws, else webrtc, else ws JPEG.
-    if (WEBRTC && wrtc && c.webrtc && !(c.secure !== false && canH264 && !FORCE_JPEG)) return this.startRtc();
+    if (WEBRTC && (wrtc || BADSDP) && c.webrtc && !(c.secure !== false && canH264 && !FORCE_JPEG)) return this.startRtc();
     this.clip = !FORCE_JPEG && HEVC && c.webcodecs && c.hevc ? hevc : !FORCE_JPEG && canH264 && h264 ? h264 : jpeg;
     this.ptsOf = new Map();
     this.sendConfig();
@@ -339,11 +353,13 @@ class Session {
 
   async startRtc() {
     this.mode = this.pref === 'cinema' ? 'cinema' : 'interactive';
-    this.json({
+    this.rtcConfig = () => ({
       t: 'config', transport: 'webrtc', codec: 'vp8', width: W, height: H, fps: FPS, bitrateKbps: 3000,
       tier: `mock-rtc-${H}p${FPS}`, latencyMode: this.mode, audio: AUDIO ? { sampleRate: 48000, channels: 2 } : null,
       inputEnabled: INPUT, serverTime: nowUs(),
     });
+    this.json(this.rtcConfig());
+    if (BADSDP) return this.json({ t: 'rtcOffer', sdp: 'v=0\r\nthis is not an offer\r\n' });
     log(`[${this.id}] config transport=webrtc ${W}x${H}@${FPS} mode=${this.mode}`);
     const { RTCPeerConnection, MediaStream, nonstandard } = wrtc;
     const pc = (this.pc = new RTCPeerConnection({ iceServers: [] }));
@@ -426,7 +442,7 @@ class Session {
     this.json({
       t: 'config',
       transport: 'ws',
-      codec: this.clip.codec,
+      codec: CODEC || this.clip.codec,
       width: W,
       height: H,
       fps: FPS,
@@ -523,6 +539,7 @@ function control(s, c) {
   if (c === 'cinema' || c === 'interactive') (s.pref = c), s.setMode(c);
   else if (c === 'auto') (s.pref = 'auto'), s.applyAuto();
   else if (c === 'config' && s.pc) s.stopRtc(), s.startRtc();
+  else if (c === 'reconfig' && s.pc) s.json(s.rtcConfig()); // like the real server's tier change: same peer
   else if (c === 'config' && s.clip) s.sendConfig();
   else if (c === 'idr') s.waitIDR = true;
   else if (c === 'bye') s.json({ t: 'bye', reason: 'stopped' }), setTimeout(() => s.ws.close(), 50);

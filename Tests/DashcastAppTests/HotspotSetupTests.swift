@@ -1,4 +1,5 @@
 import DashcastContracts
+import Security
 import XCTest
 @testable import Dashcast
 
@@ -220,6 +221,68 @@ final class HotspotSetupTests: XCTestCase {
         XCTAssertFalse(ready.readiness.contains { $0.action == .setUpHotspot })
     }
 
+    // MARK: The hotspot password
+
+    @MainActor
+    func testThePasswordIsMadeOnceAndKept() {
+        RenderMode.offscreen = true   // no preferences written
+        defer { RenderMode.offscreen = false }
+        let store = ScriptedPasswordStore()
+        let first = model(store).hotspotPassword
+        XCTAssertTrue(HotspotPassword.isEasyToType(first))
+        XCTAssertEqual(store.saved, [first])
+        XCTAssertEqual(model(store).hotspotPassword, first, "the next launch reads it back, never a new one")
+        XCTAssertEqual(store.saved, [first])
+    }
+
+    /// A locked or refused Keychain read is not "no password yet": the saved one is never replaced.
+    @MainActor
+    func testAnUnreadablePasswordIsNeverReplaced() {
+        RenderMode.offscreen = true
+        defer { RenderMode.offscreen = false }
+        let store = ScriptedPasswordStore()
+        store.unreadable = true
+        let model = model(store)
+        let suggested = model.hotspotPassword
+        XCTAssertTrue(HotspotPassword.isEasyToType(suggested))
+        XCTAssertEqual(model.hotspotPassword, suggested, "one suggestion per launch")
+        XCTAssertEqual(store.saved, [], "the saved one stays")
+        XCTAssertNil(model.knownHotspotPassword, "Dashcast can't say what it is")
+
+        // Do It for Me (or the user's OK) sets the suggestion: it's the hotspot's now, and kept.
+        model.sharingAssistant.onOptionsSaved?(model.sharingPlan)
+        XCTAssertEqual(store.saved, [suggested])
+        XCTAssertEqual(model.knownHotspotPassword, suggested)
+    }
+
+    @MainActor
+    private func model(_ store: HotspotPasswordStoring) -> AppModel {
+        AppModel(wired: Wiring.mock(settings: ServiceSettings(), scenario: .init(hotspot: .on)), settings: ServiceSettings(),
+                 hotspotPasswords: store)
+    }
+
+    // MARK: Polling
+
+    func testTheWindowPollsOnlyWhatNothingReports() {
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.unconfigured), assistant: .idle), 10, "cables and sharing are watched")
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.configuredOff), assistant: .guiding), 2, "setting it up")
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.configuredOff), assistant: .finished(now)), 2, "“hasn’t started” ticks on time")
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.on, running: true), assistant: .idle), 2, "a car joining is only seen by looking")
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.carJoined, carSeen: 5), assistant: .idle), 2)
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.connected, check: 5, casting: true), assistant: .idle), 10, "all done")
+        XCTAssertEqual(HotspotSetup.pollInterval(setup(.connected, check: 5, casting: true), assistant: .finished(now)), 10,
+                       "a finished Do It for Me doesn't keep it fast")
+    }
+
+    /// The coach closes when sharing comes on, also after Guide Me had it turned off to change it.
+    func testTheCoachClosesWhenSharingComesOnAgain() {
+        var wasOn = true   // opened with sharing on
+        XCTAssertFalse(HotspotCoach.sharingCameOn(true, wasOn: &wasOn, automating: false))
+        XCTAssertFalse(HotspotCoach.sharingCameOn(false, wasOn: &wasOn, automating: false), "turned off to edit")
+        XCTAssertFalse(HotspotCoach.sharingCameOn(true, wasOn: &wasOn, automating: true), "Do It for Me finishes itself")
+        XCTAssertTrue(HotspotCoach.sharingCameOn(true, wasOn: &wasOn, automating: false), "on again")
+    }
+
     @MainActor
     func testCarSeenAtFollowsTheHotspot() {
         let model = AppModel(wired: Wiring.mock(settings: ServiceSettings(), scenario: .init(hotspot: .carJoined)),
@@ -231,5 +294,21 @@ final class HotspotSetupTests: XCTestCase {
         model.state.network.hotspot.devices = []
         model.trackHotspotCar()
         XCTAssertNil(model.hotspotCarSeenAt)
+    }
+}
+
+/// The Keychain as the tests need it: empty, or there but unreadable (locked, or access refused).
+final class ScriptedPasswordStore: HotspotPasswordStoring {
+    var unreadable = false
+    private(set) var saved: [String] = []
+
+    func load() throws -> String? {
+        if unreadable { throw HotspotPasswordUnreadable(status: errSecInteractionNotAllowed) }
+        return saved.last
+    }
+
+    func save(_ password: String) -> Bool {
+        saved.append(password)
+        return true
     }
 }

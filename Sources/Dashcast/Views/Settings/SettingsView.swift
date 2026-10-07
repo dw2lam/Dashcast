@@ -243,7 +243,7 @@ struct AdvancedSettings: View {
                 HStack {
                     Text("Log")
                     Spacer()
-                    CopyButton(text: logText, label: "Copy Log")
+                    CopyButton(label: "Copy Log") { logText }
                         .buttonStyle(.borderless)
                         .disabled(state.log.isEmpty)
                 }
@@ -265,8 +265,9 @@ struct AdvancedSettings: View {
                 LabeledContent("Engine", value: engineDescription)
                 if let car = state.car {
                     LabeledContent("Current stream") {
-                        Text("\(Format.carSummary(car)) · \(Format.fps(state.stats.fps)) fps · \(Format.ms(state.stats.latencyMs)) ms")
-                            .monospacedDigit()
+                        LiveStatsText { stats in
+                            "\(Format.carSummary(car)) · \(Format.fps(stats.fps)) fps · \(Format.ms(stats.latencyMs)) ms"
+                        }
                     }
                 }
             }

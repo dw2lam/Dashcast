@@ -15,8 +15,9 @@ protocol SharingPresenting: AnyObject {
 }
 
 /// Step 2 of the Car Hotspot setup, both ways: "Do It for Me" runs `SharingAutomation`; "Guide Me"
-/// reads System Settings every 0.3 s and points at the next control. A failed automation hands over
-/// to Guide Me at the step it stopped on, with one line saying why.
+/// reads System Settings every 0.3 s while the user is at it (every 1.5 s while they're reading) and
+/// points at the next control. A failed automation hands over to Guide Me at the step it stopped
+/// on, with one line saying why.
 @MainActor
 @Observable
 final class SharingAssistant {
@@ -70,8 +71,13 @@ final class SharingAssistant {
 
     /// How long after "Do It for Me" finishes before saying the hotspot hasn't started.
     static let startGrace: TimeInterval = 15
-    /// Between looks at System Settings while guiding.
+    /// Between looks at System Settings while guiding and the user is at it: clicking, typing or
+    /// scrolling, or the screen just changed. Each look walks System Settings' Accessibility tree.
     static let guideInterval: TimeInterval = 0.3
+    /// Between looks while nothing's happening (the user is reading the callout).
+    static let guideIdleInterval: TimeInterval = 1.5
+    /// How long after input or a change the looks stay at `guideInterval`.
+    static let guideBusySpan: TimeInterval = 2
 
     @ObservationIgnored let environment: SharingEnvironment
     @ObservationIgnored weak var presenter: SharingPresenting?
@@ -98,16 +104,22 @@ final class SharingAssistant {
         step = .openPane
         waitingForYou = false
         memory = SharingGuide.Memory()
+        presenter?.point(at: nil)
         presenter?.showCoach()
         phase = .automating
+        // A stopped (or replaced) run is cancelled: from then on nothing it reports or ends with
+        // touches the assistant, which may already be running the next one.
         let automation = SharingAutomation(environment: environment, plan: plan, timing: timing) { [weak self] event in
+            guard !Task.isCancelled else { return }
             self?.handle(event)
         }
         task = Task { [weak self] in
             do {
                 try await automation.run()
+                guard !Task.isCancelled else { return }
                 self?.finished()
             } catch let error as SharingAutomationError {
+                guard !Task.isCancelled else { return }
                 self?.handOff(error)
             } catch {
                 // Cancelled (Stop): System Settings stays as it is.
@@ -195,25 +207,45 @@ final class SharingAssistant {
         phase = .guiding
         lookAgain()
         task = Task { [weak self] in
+            var sinceLook: TimeInterval = 0
+            var sinceChange: TimeInterval = 0
             while !Task.isCancelled {
                 try? await self?.environment.sleep(Self.guideInterval)
                 guard let self, !Task.isCancelled, self.phase == .guiding else { return }
-                self.lookAgain()
+                sinceLook += Self.guideInterval
+                sinceChange += Self.guideInterval
+                guard Self.looksNow(sinceLook: sinceLook, sinceChange: sinceChange,
+                                    sinceInput: self.environment.secondsSinceInput,
+                                    waitingForTouchID: self.guidance?.step == .authorize) else { continue }
+                sinceLook = 0
+                if self.lookAgain() { sinceChange = 0 }
             }
         }
     }
 
-    /// Reads System Settings and points at what's next.
-    func lookAgain() {
-        guard phase == .guiding, let plan else { return }
+    /// Whether the guidance loop walks System Settings this time round: always while the user is
+    /// clicking or typing, the screen is changing, or Touch ID is up (it goes away without a click);
+    /// otherwise only every `guideIdleInterval`.
+    static func looksNow(sinceLook: TimeInterval, sinceChange: TimeInterval, sinceInput: TimeInterval?,
+                         waitingForTouchID: Bool) -> Bool {
+        let busy = min(sinceChange, sinceInput ?? 0) < guideBusySpan
+        return busy || waitingForTouchID || sinceLook >= guideIdleInterval - 0.001
+    }
+
+    /// Reads System Settings and points at what's next. Returns whether the guidance changed.
+    @discardableResult
+    func lookAgain() -> Bool {
+        guard phase == .guiding, let plan else { return false }
         let screen = SharingScreen(app: environment.settingsApp())
         let submitted = memory.optionsSubmitted
         SharingGuide.remember(screen, plan: plan, memory: &memory)
         if memory.optionsSubmitted, !submitted { onOptionsSaved?(plan) }
         let next = environment.isTrusted ? SharingGuide.next(screen, plan: plan, memory: memory) : nil
-        if next != guidance { guidance = next }
+        let changed = next != guidance
+        if changed { guidance = next }
         if let next, next.step != step { step = next.step }
         presenter?.point(at: next)
+        return changed
     }
 
     /// Snapshots: a fixed moment, with nothing running.

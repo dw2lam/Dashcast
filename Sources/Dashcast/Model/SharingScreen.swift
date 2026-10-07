@@ -11,7 +11,7 @@ import Foundation
 struct SharingScreen {
     /// System Settings' main window (nil: not running, or no window).
     var window: UINode?
-    /// The Internet Sharing row on the Sharing pane.
+    /// The Internet Sharing row on the Sharing pane (nil while a sheet covers it).
     var infoButton: UINode?
     var rowSwitch: UINode?
     var details: Details?
@@ -107,9 +107,13 @@ struct SharingScreen {
             }
         }
 
-        let row = Self.internetSharingRow(in: window)
-        infoButton = row.info
-        rowSwitch = row.toggle
+        // The pane's row only matters with no sheet over it, and finding it walks the whole pane:
+        // skipped while a sheet is up (every look while guiding or automating reads a fresh tree).
+        if details == nil, options == nil, alert == nil {
+            let row = Self.internetSharingRow(in: window)
+            infoButton = row.info
+            rowSwitch = row.toggle
+        }
 
         // An open menu belongs to the popup that opened it; else it's the app's.
         let popups = [details?.shareFrom, options?.channel, options?.security].compactMap { $0 }

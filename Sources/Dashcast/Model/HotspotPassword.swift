@@ -37,8 +37,15 @@ enum HotspotPassword {
 
 /// Where the hotspot password lives.
 protocol HotspotPasswordStoring: AnyObject {
-    func load() -> String?
-    func save(_ password: String)
+    /// nil = none saved yet. Throws when there may be one that can't be read right now (the
+    /// keychain is locked, or access was denied): that one must never be replaced.
+    func load() throws -> String?
+    /// false = not saved.
+    @discardableResult func save(_ password: String) -> Bool
+}
+
+struct HotspotPasswordUnreadable: Error {
+    let status: OSStatus
 }
 
 /// The login Keychain (a generic password; the hotspot's own copy is in the System keychain, which
@@ -53,24 +60,27 @@ final class KeychainHotspotPasswordStore: HotspotPasswordStoring {
          kSecAttrAccount as String: Self.account]
     }
 
-    func load() -> String? {
+    func load() throws -> String? {
         var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data, let password = String(data: data, encoding: .utf8) else {
+            throw HotspotPasswordUnreadable(status: status)
+        }
+        return password
     }
 
-    func save(_ password: String) {
+    func save(_ password: String) -> Bool {
         let data = Data(password.utf8)
         let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = query
-            item[kSecValueData as String] = data
-            item[kSecAttrLabel as String] = "Dashcast hotspot"
-            SecItemAdd(item as CFDictionary, nil)
-        }
+        guard status == errSecItemNotFound else { return status == errSecSuccess }
+        var item = query
+        item[kSecValueData as String] = data
+        item[kSecAttrLabel as String] = "Dashcast hotspot"
+        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
     }
 }
 
@@ -79,5 +89,5 @@ final class MemoryHotspotPasswordStore: HotspotPasswordStoring {
     private var password: String?
     init(_ password: String? = nil) { self.password = password }
     func load() -> String? { password }
-    func save(_ password: String) { self.password = password }
+    func save(_ password: String) -> Bool { self.password = password; return true }
 }

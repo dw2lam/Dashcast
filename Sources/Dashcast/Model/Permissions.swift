@@ -216,6 +216,8 @@ final class PermissionMonitor {
     @ObservationIgnored private var grantedWhileRunning: Set<PermissionPane> = []
     @ObservationIgnored private var lastProbe: [PermissionPane: (result: PermissionProbeResult, at: ContinuousClock.Instant)] = [:]
     @ObservationIgnored private var probing: Set<PermissionPane> = []
+    /// Callers waiting for a functional check someone else started.
+    @ObservationIgnored private var probeWaiters: [PermissionPane: [CheckedContinuation<Void, Never>]] = [:]
     @ObservationIgnored private var pinned: [PermissionPane: PermissionHealth] = [:]
 
     /// A failed or locked result is re-checked at most this often (a screenshot per check).
@@ -277,13 +279,19 @@ final class PermissionMonitor {
         }
 
         var result = lastProbe[pane]?.result
-        if preflight, !probing.contains(pane), needsProbe(pane, depth, listChanged: previous != preflight) {
+        if preflight, probing.contains(pane), depth != .listOnly {
+            // A check is already running (launch's, activation's): its answer is this one's, not
+            // "checking", which Start and getting ready would take for "fine".
+            await withCheckedContinuation { probeWaiters[pane, default: []].append($0) }
+            result = lastProbe[pane]?.result
+        } else if preflight, !probing.contains(pane), needsProbe(pane, depth, listChanged: previous != preflight) {
             probing.insert(pane)
             if result == nil { set(pane, classify(pane, preflight: true, probe: nil)) }
             let measured = await probe.probe(pane)
             probing.remove(pane)
             lastProbe[pane] = (measured, .now)
             result = measured
+            probeWaiters.removeValue(forKey: pane)?.forEach { $0.resume() }
         }
         if result == .working { defaults.removeObject(forKey: Self.key("relaunched", pane)) }
         let state = classify(pane, preflight: preflight, probe: preflight ? result : nil)

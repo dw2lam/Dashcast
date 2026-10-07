@@ -225,7 +225,9 @@ final class StreamEngineTests: XCTestCase {
         engine.inject(InputEvent(kind: .down, x: 0.5, y: 0.5))
         await sleep(0.1)
         XCTAssertTrue(sink.events.items.isEmpty)
-        XCTAssertFalse(engine.availableDisplays().isEmpty)
+        var active: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &active)
+        if active > 0 { XCTAssertFalse(engine.availableDisplays().isEmpty) } // none while the displays sleep
         XCTAssertTrue(engine.availableDisplays().allSatisfy { !$0.isVirtual })
     }
 

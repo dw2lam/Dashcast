@@ -33,6 +33,11 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
 
     static let maxConnections = 64
     static let httpIdleTimeout: TimeInterval = 30
+    /// A request still incomplete after this long is a stalled (or slowloris) client, however
+    /// steadily it trickles bytes.
+    static let httpRequestTimeout: TimeInterval = 15
+    var requestTimeout = HTTPServer.httpRequestTimeout
+    var sweepInterval: TimeInterval = 2
 
     private var listeners: [String: NWListener] = [:]
     private var connections: [UInt64: ServerConnection] = [:]
@@ -59,6 +64,7 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
     // MARK: Listeners
 
     func isListening(_ name: String) -> Bool { listeners[name] != nil }
+    var listenerNames: Dictionary<String, NWListener>.Keys { listeners.keys }
 
     /// Starts a listener bound to `host:port` (port 0 = ephemeral). Completion runs on `queue` with the
     /// bound port once ready, or the error (address not available, in use, timeout).
@@ -113,7 +119,6 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
             }
             finish(.failure(ListenerError(description: "timed out binding \(host):\(port)")))
         }
-        startSweeper()
     }
 
     func stopListener(_ name: String) {
@@ -127,8 +132,7 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         for connection in Array(connections.values) {
             connection.close(code: WebSocketCloseCode.goingAway, reason: "server stopping")
         }
-        sweepTimer?.cancel()
-        sweepTimer = nil
+        if connections.isEmpty { stopSweeper() }
     }
 
     // MARK: Connections
@@ -144,28 +148,41 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         let connection = ServerConnection(id: id, connection: nw, role: role, listenerName: listenerName, isTLS: isTLS,
                                           localHost: localHost, queue: queue, server: self)
         connections[id] = connection
+        startSweeper()
         connection.start()
     }
 
     func connectionDidTerminate(_ connection: ServerConnection) {
         connections[connection.id] = nil
+        if connections.isEmpty { stopSweeper() }
     }
 
     var connectionCount: Int { connections.count }
+    var sweepTimerArmed: Bool { sweepTimer != nil }
 
+    /// Runs only while there are connections: an idle hotspot with no car costs no wakeups.
     private func startSweeper() {
         guard sweepTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 2, repeating: 2)
+        timer.schedule(deadline: .now() + sweepInterval, repeating: sweepInterval, leeway: .milliseconds(Int(sweepInterval * 250)))
         timer.setEventHandler { [weak self] in self?.sweep() }
         timer.resume()
         sweepTimer = timer
     }
 
+    private func stopSweeper() {
+        sweepTimer?.cancel()
+        sweepTimer = nil
+    }
+
     private func sweep() {
         let now = ServerConnection.now()
         for connection in connections.values where connection.mode == .http {
-            if now - connection.lastActivity > Self.httpIdleTimeout { connection.terminate(reason: "idle") }
+            if now - connection.lastActivity > Self.httpIdleTimeout {
+                connection.terminate(reason: "idle")
+            } else if let started = connection.requestStartedAt, now - started > requestTimeout {
+                connection.terminate(reason: "request too slow")
+            }
         }
     }
 
@@ -267,9 +284,10 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         }
     }
 
-    /// `example.com:8080` → `example.com`, `[::1]:8080` → `::1`.
+    /// `example.com:8080` → `example.com`, `[::1]:8080` → `::1`, `example.com.` → `example.com`
+    /// (a fully qualified name is the same host; connectivity checks must still match).
     static func hostName(fromHostHeader header: String) -> String? {
-        let value = header.trimmingCharacters(in: .whitespaces).lowercased()
+        var value = header.trimmingCharacters(in: .whitespaces).lowercased()
         guard !value.isEmpty else { return nil }
         if value.hasPrefix("[") {
             guard let close = value.firstIndex(of: "]") else { return nil }
@@ -278,8 +296,9 @@ final class HTTPServer: @unchecked Sendable {   // confined to `queue`
         if let colon = value.lastIndex(of: ":") {
             let port = value[value.index(after: colon)...]
             guard port.allSatisfy(\.isNumber) else { return nil }
-            return String(value[..<colon])
+            value = String(value[..<colon])
         }
+        if value.count > 1, value.hasSuffix(".") { value.removeLast() }
         return value
     }
 

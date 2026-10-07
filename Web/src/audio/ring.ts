@@ -18,9 +18,15 @@ export class Ring {
   /** Write `n` s16le stereo frames resampled to `count` output frames at frame `at`. */
   write(at: number, count: number, pcm: Int16Array, n: number): void {
     const fresh = at !== this.e;
-    if (fresh) this.s = at; // discontinuity: new region (gap filled with silence)
     const L = this.L;
     const R = this.R;
+    if (fresh) {
+      // Discontinuity (re-anchor). Audio already buffered before `at` still plays; only the gap
+      // after it is silent. Nothing buffered (or a gap longer than the ring): start a new region.
+      if (at > this.e && this.e > this.s && at - this.e < N) {
+        for (let f = this.e; f < at; f++) L[f & M] = R[f & M] = 0;
+      } else if (at < this.s || at > this.e) this.s = at;
+    }
     const step = n / count;
     let idx = at % N;
     for (let i = 0; i < count; i++) {

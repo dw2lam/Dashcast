@@ -19,6 +19,13 @@ protocol SharingEnvironment: AnyObject {
     /// Escape, to System Settings (closes an open menu).
     func pressEscape()
     func sleep(_ seconds: TimeInterval) async throws
+    /// Seconds since the user last clicked, typed or scrolled anywhere. nil = can't tell (Guide Me
+    /// then looks at System Settings every time).
+    var secondsSinceInput: TimeInterval? { get }
+}
+
+extension SharingEnvironment {
+    var secondsSinceInput: TimeInterval? { nil }
 }
 
 /// Why "Do It for Me" stopped, and at which step (Guide Me picks up there).
@@ -156,7 +163,7 @@ final class SharingAutomation {
         // Wi‑Fi joins the list once the share-from change is saved; it can be below the fold.
         var screen = read()
         if screen.details?.wifiToggle == nil {
-            screen = (try? await wait(.toWiFi, missing, timeout: timing.element / 2) { $0.details?.wifiToggle != nil }) ?? read()
+            screen = try await waitIfPossible(.toWiFi, missing, timeout: timing.element / 2) { $0.details?.wifiToggle != nil } ?? read()
         }
         if screen.details?.wifiToggle == nil, let details = screen.details {
             for area in [details.list, details.sheet.first { $0.role == "AXScrollArea" }].compactMap({ $0 }) {
@@ -232,8 +239,21 @@ final class SharingAutomation {
 
     // MARK: - Pieces
 
+    /// Never acts for a run that's been stopped.
     private func press(_ node: UINode?, _ step: SharingStep, _ failure: String) throws {
+        try Task.checkCancellation()
         guard let node, node.isEnabled, node.press() else { throw fail(step, failure) }
+    }
+
+    /// `wait` that gives up quietly (nil) instead of failing. Stop still stops: unlike `try?`, it
+    /// doesn't swallow the cancellation.
+    private func waitIfPossible(_ step: SharingStep, _ failure: String, timeout: TimeInterval? = nil,
+                                until condition: (SharingScreen) -> Bool) async throws -> SharingScreen? {
+        do {
+            return try await wait(step, failure, timeout: timeout, until: condition)
+        } catch is SharingAutomationError {
+            return nil
+        }
     }
 
     /// Polls until `condition` holds. The clock stops while macOS asks for Touch ID or the password.
@@ -272,15 +292,17 @@ final class SharingAutomation {
                         pick: ([String]) -> String?) async throws -> String? {
         guard let popup = locate(read()) else { throw fail(step, "Couldn’t find the menu.") }
         guard popup.isEnabled else { throw fail(step, "The menu is greyed out.") }
+        try Task.checkCancellation()
         guard popup.press() else { throw fail(step, "Couldn’t open the menu.") }
         let screen = try await wait(step, "The menu didn’t open.") { $0.menu != nil }
         guard let menu = screen.menu else { return nil }
         let items = SharingScreen.menuItems(menu)
         guard let choice = pick(items.compactMap(\.title)), let item = items.first(where: { $0.title == choice }) else {
             closeMenu(menu)
-            _ = try? await wait(step, "The menu didn’t close.") { $0.menu == nil }
+            _ = try await waitIfPossible(step, "The menu didn’t close.") { $0.menu == nil }
             return nil
         }
+        try Task.checkCancellation()
         guard item.press() else {
             closeMenu(menu)
             throw fail(step, "Couldn’t choose \(choice).")
@@ -305,6 +327,7 @@ final class SharingAutomation {
         }
         if !secure, matches(field) { return }
 
+        try Task.checkCancellation()
         _ = field.setFocused()
         if field.setValue(text) {
             try await environment.sleep(timing.settle)
@@ -321,6 +344,7 @@ final class SharingAutomation {
         _ = locate(read())?.setFocused()
         try await environment.sleep(timing.poll)
         guard locate(read())?.isFocused == true else { throw fail(step, "Couldn’t click into the field for \(what).") }
+        try Task.checkCancellation()
         guard environment.type(text) else { throw fail(step, "Couldn’t type \(what).") }
         try await environment.sleep(timing.settle)
         guard matches(locate(read())) else { throw fail(step, "Couldn’t enter \(what).") }
@@ -381,5 +405,12 @@ final class LiveSharingEnvironment: SharingEnvironment {
 
     func sleep(_ seconds: TimeInterval) async throws {
         try await Task.sleep(for: .seconds(seconds))
+    }
+
+    /// The HID system's own counters: no event tap, no permission, nearly free.
+    var secondsSinceInput: TimeInterval? {
+        [CGEventType.leftMouseUp, .keyUp, .scrollWheel]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }
+            .min()
     }
 }

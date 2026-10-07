@@ -61,9 +61,14 @@ public final class DashcastService: DashcastServicing {
     /// When the car's internet check was last logged (logged at most once per `connectivityLogInterval`).
     private var loggedConnectivityCheck: Date?
     static let connectivityLogInterval: TimeInterval = 60
-    /// A network-change refresh is running / another change arrived meanwhile.
+    /// A network refresh is running (or waiting out a burst) / another was asked for meanwhile.
     private var networkRefresh: Task<Void, Never>?
     private var networkRefreshPending = false
+    /// Network changes come in bursts (Internet Sharing coming up is a dozen of them over a second or
+    /// two); one refresh after the burst settles stands for all of them.
+    static let networkChangeDebounce: Duration = .milliseconds(250)
+    /// start() and stop() run one at a time, in call order.
+    private var lifecycleTail: Task<Void, Never>?
 
     private struct ActiveCar {
         var id: UInt64
@@ -109,6 +114,26 @@ public final class DashcastService: DashcastServicing {
     // MARK: DashcastServicing
 
     public func start() async {
+        await serializedLifecycle { await self.startNow() }
+    }
+
+    public func stop() async {
+        await serializedLifecycle { await self.stopNow() }
+    }
+
+    /// Without this a stop() that lands while start() awaits the DNS responder tears everything
+    /// down, and start() then binds its listener anyway: a stopped service still serving the car.
+    private func serializedLifecycle(_ body: @escaping @MainActor () async -> Void) async {
+        let previous = lifecycleTail
+        let task = Task { @MainActor in
+            await previous?.value
+            await body()
+        }
+        lifecycleTail = task
+        await task.value
+    }
+
+    private func startNow() async {
         guard !running else { return }
         running = true
         installEngineCallbacks()
@@ -127,7 +152,7 @@ public final class DashcastService: DashcastServicing {
         await refreshNetwork()
     }
 
-    public func stop() async {
+    private func stopNow() async {
         guard running else { return }
         running = false
         graceTask?.cancel()
@@ -178,28 +203,47 @@ public final class DashcastService: DashcastServicing {
         await enqueue { [self] in await configure(sessionID: car.id, tier: tier, isNewCar: false) }.value
     }
 
+    /// Callers that overlap share one refresh: a call made while one runs waits for it and for one
+    /// more after it, so it always sees a status read after it was made.
     public func refreshNetwork() async {
+        networkRefreshPending = true
+        if let inFlight = networkRefresh {
+            await inFlight.value
+            return
+        }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.drainNetworkRefreshes()
+        }
+        networkRefresh = task
+        await task.value
+    }
+
+    /// The network layer saw a change: refresh once the burst settles.
+    private func networkChanged() {
+        networkRefreshPending = true
+        guard networkRefresh == nil else { return }
+        networkRefresh = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.networkChangeDebounce)
+            guard let self else { return }
+            await self.drainNetworkRefreshes()
+        }
+    }
+
+    private func drainNetworkRefreshes() async {
+        while networkRefreshPending {
+            networkRefreshPending = false
+            await refreshNetworkNow()
+        }
+        networkRefresh = nil
+    }
+
+    private func refreshNetworkNow() async {
         let previous = state.network.hotspot
         state.network = await network.currentStatus()
         logHotspotChange(from: previous, to: state.network.hotspot)
         guard running else { return }
         await ensureServiceListeners()
-    }
-
-    /// The network layer saw a change: refresh once, and once more if another arrived meanwhile.
-    private func networkChanged() {
-        guard networkRefresh == nil else {
-            networkRefreshPending = true
-            return
-        }
-        networkRefresh = Task { @MainActor [weak self] in
-            while let self {
-                self.networkRefreshPending = false
-                await self.refreshNetwork()
-                guard self.networkRefreshPending else { break }
-            }
-            self?.networkRefresh = nil
-        }
     }
 
     private func logHotspotChange(from old: HotspotStatus, to new: HotspotStatus) {
@@ -272,14 +316,20 @@ public final class DashcastService: DashcastServicing {
 
     // MARK: Listeners
 
+    /// A listener that comes up after stop() (a network refresh was mid-way) is closed again.
     private func startListener(name: String, role: ServerConnection.Role, host: String, port: UInt16,
                                tls: TLSIdentity?) async -> Result<UInt16, Error> {
-        await withCheckedContinuation { (done: CheckedContinuation<Result<UInt16, Error>, Never>) in
+        let result = await withCheckedContinuation { (done: CheckedContinuation<Result<UInt16, Error>, Never>) in
             let server = self.server
             queue.async {
                 server.startListener(name: name, role: role, host: host, port: port, tls: tls) { done.resume(returning: $0) }
             }
         }
+        guard running else {
+            if case .success = result { await onQueue { $0.stopListener(name) } }
+            return .failure(ListenerError(description: "service stopped"))
+        }
+        return result
     }
 
     private func onQueue<T>(_ body: @escaping (HTTPServer) -> T) async -> T {
@@ -294,7 +344,9 @@ public final class DashcastService: DashcastServicing {
     /// refresh.
     private func ensureServiceListeners() async {
         await ensurePlainListener()
+        guard running else { return }
         await ensureTLSListener()
+        guard running else { return }
         await updateHTTPMode()
         if state.phase == .error("Port \(options.devPort) is unavailable"), tlsPort != nil || plainHTTPPort != nil {
             state.phase = .waitingForCar
@@ -302,8 +354,10 @@ public final class DashcastService: DashcastServicing {
     }
 
     private func ensurePlainListener() async {
-        guard let port = options.plainHTTPPort, !(await onQueue { $0.isListening("http") }) else { return }
-        switch await startListener(name: "http", role: .plain, host: options.plainHTTPHost, port: port, tls: nil) {
+        guard let port = options.plainHTTPPort, !(await onQueue { $0.isListening("http") }), running else { return }
+        let result = await startListener(name: "http", role: .plain, host: options.plainHTTPHost, port: port, tls: nil)
+        guard running else { return }
+        switch result {
         case .success(let bound):
             plainHTTPPort = bound
             lastListenerProblem["http"] = nil
@@ -328,6 +382,7 @@ public final class DashcastService: DashcastServicing {
         }
         let stamp = TLSIdentity.fileStamp(for: material.pkcs12URL)
         let listening = await onQueue { $0.isListening("tls") }
+        guard running else { return }
         if listening, stamp == tlsFileStamp, material.hostname == tlsHostname { return }
 
         let identity: TLSIdentity
@@ -337,7 +392,9 @@ public final class DashcastService: DashcastServicing {
             noteListenerProblem("tls", "TLS certificate unusable: \(error)")
             return
         }
-        switch await startListener(name: "tls", role: .app, host: options.tlsHost, port: options.tlsPort, tls: identity) {
+        let result = await startListener(name: "tls", role: .app, host: options.tlsHost, port: options.tlsPort, tls: identity)
+        guard running else { return }
+        switch result {
         case .success(let bound):
             tlsPort = bound
             tlsFileStamp = stamp
@@ -358,6 +415,7 @@ public final class DashcastService: DashcastServicing {
     /// HTTPS mode: :80 redirects to https. Connectivity probes are answered either way.
     private func updateHTTPMode() async {
         let hostname = await onQueue { $0.isListening("tls") } ? tlsHostname : nil
+        guard running else { return }
         await onQueue { server in
             server.publicHostname = hostname
             server.plainServesApp = hostname == nil
@@ -584,5 +642,11 @@ public final class DashcastService: DashcastServicing {
     /// Test hook: transport, bitrate target, effective latency mode, server-side drops.
     func debugSessionSnapshot() -> SessionHub.DebugSnapshot {
         hub.debugSnapshot()
+    }
+
+    /// Test hook: open listeners, and whether the hub's 4 Hz timer / the HTTP idle sweep are armed.
+    func debugIdleState() async -> (listeners: [String], hubTimer: Bool, sweepTimer: Bool) {
+        let hubTimer = hub.debugSnapshot().timerArmed
+        return await onQueue { (Array($0.listenerNames).sorted(), hubTimer, $0.sweepTimerArmed) }
     }
 }

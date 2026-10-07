@@ -66,15 +66,28 @@ extension UINode {
 /// once: a tree is a snapshot, so read a fresh one from the app after every change.
 final class AXNode: UINode {
     let element: AXUIElement
+    private let snapshot: Snapshot
+
+    /// Shared by every node read from one root. The messaging timeout is per element (a child
+    /// doesn't inherit its parent's), so each node sets it; and once a read times out (the app is
+    /// busy or hung) the rest of the snapshot reads as empty, instead of every remaining element
+    /// waiting out its own timeout on the caller's (main) thread.
+    private final class Snapshot {
+        let timeout: Float
+        var timedOut = false
+        init(timeout: Float) { self.timeout = timeout }
+    }
 
     private static let batch: [String] = [
         kAXRoleAttribute, kAXSubroleAttribute, kAXIdentifierAttribute, kAXTitleAttribute, kAXDescriptionAttribute,
         kAXValueAttribute, kAXEnabledAttribute, kAXFocusedAttribute, kAXPositionAttribute, kAXSizeAttribute,
     ]
     private lazy var attributes: [String: AnyObject] = {
+        guard !snapshot.timedOut else { return [:] }
         var values: CFArray?
-        guard AXUIElementCopyMultipleAttributeValues(element, Self.batch as CFArray, [], &values) == .success,
-              let list = values as? [AnyObject], list.count == Self.batch.count else { return [:] }
+        let error = AXUIElementCopyMultipleAttributeValues(element, Self.batch as CFArray, [], &values)
+        if error == .cannotComplete { snapshot.timedOut = true }
+        guard error == .success, let list = values as? [AnyObject], list.count == Self.batch.count else { return [:] }
         var result: [String: AnyObject] = [:]
         for (name, value) in zip(Self.batch, list) {
             // Missing attributes come back as an AXValue wrapping an AXError.
@@ -84,15 +97,15 @@ final class AXNode: UINode {
         return result
     }()
 
-    init(_ element: AXUIElement) {
+    private init(_ element: AXUIElement, snapshot: Snapshot) {
         self.element = element
+        self.snapshot = snapshot
+        AXUIElementSetMessagingTimeout(element, snapshot.timeout)
     }
 
     /// The app's root element, with a short messaging timeout so a busy app can't hang the caller.
     static func application(pid: pid_t, timeout: Float = 1) -> AXNode {
-        let element = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(element, timeout)
-        return AXNode(element)
+        AXNode(AXUIElementCreateApplication(pid), snapshot: Snapshot(timeout: timeout))
     }
 
     private func string(_ name: String) -> String? {
@@ -124,10 +137,12 @@ final class AXNode: UINode {
     }
 
     lazy var children: [UINode] = {
+        guard !snapshot.timedOut else { return [] }
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success,
-              let elements = value as? [AXUIElement] else { return [] }
-        return elements.map(AXNode.init)
+        let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
+        if result == .cannotComplete { snapshot.timedOut = true }
+        guard result == .success, let elements = value as? [AXUIElement] else { return [] }
+        return elements.map { AXNode($0, snapshot: snapshot) }
     }()
 
     func perform(_ action: String) -> Bool {

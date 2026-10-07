@@ -20,6 +20,7 @@ final class HelperScriptTests: XCTestCase {
             "ifconfig": """
             #!/bin/sh
             echo "ifconfig $*" >> "$STATE/log"
+            if [ "$1" = -l ]; then ls "$STATE" | sed -n 's/^iface-//p' | tr '\\n' ' '; echo; exit 0; fi
             if [ "$1" = lo0 ]; then
               if [ "$2" = alias ]; then printf '\\tinet %s netmask 0xffffffff\\n' "${3%/32}" >> "$STATE/lo0"; exit 0; fi
               cat "$STATE/lo0" 2>/dev/null; exit 0
@@ -83,6 +84,14 @@ final class HelperScriptTests: XCTestCase {
 
     private func remove(_ name: String) { try? FileManager.default.removeItem(at: state.appendingPathComponent(name)) }
 
+    /// Internet Sharing's preferences as the real plist, last changed `age` seconds ago.
+    private func writeNAT(_ nat: [String: Any], age: TimeInterval = 0) throws {
+        let path = layout.natPreferences + ".plist"
+        let data = try PropertyListSerialization.data(fromPropertyList: ["NAT": nat], format: .binary, options: 0)
+        try data.write(to: URL(fileURLWithPath: path))
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: path)
+    }
+
     private var status: LoopbackHelper.RuntimeStatus? {
         (try? String(contentsOfFile: layout.statusPath, encoding: .utf8)).map(LoopbackHelper.RuntimeStatus.parse)
     }
@@ -109,7 +118,7 @@ final class HelperScriptTests: XCTestCase {
         let log = try runScript()
         XCTAssertTrue(log.contains("ifconfig lo0 alias \(svc)/32"), "\(log)")
         XCTAssertFalse(log.contains("pfctl -E"))
-        XCTAssertEqual(status, .init(version: 2, redirectActive: false, reason: "no-hotspot", anchorPointPresent: true))
+        XCTAssertEqual(status, .init(version: 3, redirectActive: false, reason: "no-hotspot", anchorPointPresent: true))
 
         // Alias already present → not re-added.
         let again = try runScript()
@@ -124,7 +133,7 @@ final class HelperScriptTests: XCTestCase {
         XCTAssertEqual(read("anchor"), LoopbackHelper.pfRules())
         XCTAssertTrue(log.contains("pfctl -E"))
         XCTAssertEqual(try String(contentsOfFile: layout.tokenPath, encoding: .utf8), "424242\n")
-        XCTAssertEqual(status, .init(version: 2, redirectActive: true, reason: nil, anchorPointPresent: true))
+        XCTAssertEqual(status, .init(version: 3, redirectActive: true, reason: nil, anchorPointPresent: true))
 
         // Idempotent: the rules are there and the token is still referenced → nothing to do.
         let again = try runScript()
@@ -140,7 +149,7 @@ final class HelperScriptTests: XCTestCase {
         XCTAssertNil(read("anchor"))
         XCTAssertEqual(read("refs"), "")
         XCTAssertFalse(FileManager.default.fileExists(atPath: layout.tokenPath))
-        XCTAssertEqual(status, .init(version: 2, redirectActive: false, reason: "dns-not-listening", anchorPointPresent: true))
+        XCTAssertEqual(status, .init(version: 3, redirectActive: false, reason: "dns-not-listening", anchorPointPresent: true))
     }
 
     func testResponderOnOtherPortOrAddressDoesNotCount() throws {
@@ -161,7 +170,7 @@ final class HelperScriptTests: XCTestCase {
     }
 
     func testWaitsForBridgeWhenSharingJustTurnedOn() throws {
-        try write("nat", "{\n    NAT = {\n        Enabled = 1;\n    };\n}\n")
+        try writeNAT(["Enabled": 1])
         try write("bridge-after-sleep", "")
         try write("netstat", listeningLine)
         let log = try runScript()
@@ -170,10 +179,47 @@ final class HelperScriptTests: XCTestCase {
     }
 
     func testGivesUpWaitingAfterTwentySeconds() throws {
-        try write("nat", "{ NAT = { Enabled = 1; }; }\n")
+        try writeNAT(["Enabled": true])
         let log = try runScript()
         XCTAssertEqual(log.filter { $0 == "sleep 1" }.count, 20)
         XCTAssertEqual(status?.reason, "no-hotspot")
+    }
+
+    /// Sharing on with its "from" port unplugged never gets a bridge: don't wait 20 s on every run.
+    func testDoesNotWaitWhenSharingWasTurnedOnLongAgo() throws {
+        try writeNAT(["Enabled": 1], age: 600)
+        let log = try runScript()
+        XCTAssertFalse(log.contains("sleep 1"), "\(log)")
+        XCTAssertEqual(status?.reason, "no-hotspot")
+    }
+
+    /// Only NAT.Enabled counts, not the nested AirPort/PrimaryInterface "Enabled" keys.
+    func testNestedEnabledKeysDontCount() throws {
+        try writeNAT(["Enabled": 0, "AirPort": ["Enabled": 1], "PrimaryInterface": ["Enabled": 1]])
+        let log = try runScript()
+        XCTAssertFalse(log.contains("sleep 1"), "\(log)")
+    }
+
+    func testRedirectsOnASecondSharingBridge() throws {
+        try write("iface-bridge101", "")
+        try write("iface-bridge0", "")  // Thunderbolt Bridge: never redirected
+        try write("netstat", listeningLine)
+        try runScript()
+        XCTAssertEqual(read("anchor"), LoopbackHelper.pfRules(interface: "bridge101"))
+        XCTAssertEqual(status?.redirectActive, true)
+    }
+
+    func testReloadsRulesWhenTheBridgeChanges() throws {
+        try write("iface-bridge100", "")
+        try write("netstat", listeningLine)
+        try runScript()
+        remove("iface-bridge100")
+        try write("iface-bridge101", "")
+        let log = try runScript()
+        XCTAssertTrue(log.contains("pfctl -a com.apple/250.DashcastDNS -f -"), "\(log)")
+        XCTAssertEqual(read("anchor"), LoopbackHelper.pfRules(interface: "bridge101"))
+        // Unchanged: not reloaded.
+        XCTAssertFalse(try runScript().contains("pfctl -a com.apple/250.DashcastDNS -f -"))
     }
 
     func testReportsMissingAnchorPoint() throws {

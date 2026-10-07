@@ -11,6 +11,10 @@ final class SharingGuideOverlay {
     private var bubble: OverlayPanel?
     private let callout = CalloutState()
     private var guidance: SharingGuidance?
+    /// The System Settings window the overlay was last placed beside, once the callout's size has
+    /// settled: `follow` runs 20 times a second, and a window that hasn't moved needs no new layout.
+    private var placedBeside: CGRect?
+    private var bubbleSize: CGSize?
 
     /// Above an open popup menu, so a ring around a menu item shows.
     static let level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
@@ -18,7 +22,10 @@ final class SharingGuideOverlay {
     static let ringInset: CGFloat = 6
 
     func show(_ guidance: SharingGuidance?) {
+        guard guidance != self.guidance else { return }
         self.guidance = guidance
+        placedBeside = nil
+        bubbleSize = nil
         guard let guidance, guidance.target != nil else { return hide() }
         callout.instruction = guidance.instruction
         callout.detail = guidance.detail
@@ -29,6 +36,8 @@ final class SharingGuideOverlay {
     /// Repositions on System Settings' window (AppKit coordinates); nil or `visible` false hides.
     func follow(window: CGRect?, visible: Bool) {
         guard visible, let window, let guidance, let target = Self.target(guidance, window: window) else { return hide() }
+        guard window != placedBeside else { return }
+        placedBeside = window
         let screen = NSScreen.screens.first { $0.frame.intersects(target) }?.visibleFrame ?? NSScreen.main?.visibleFrame ?? window
 
         let ring = self.ring ?? OverlayPanel(content: SharingRingView())
@@ -41,14 +50,20 @@ final class SharingGuideOverlay {
         self.bubble = bubble
         let size = bubble.fittingSize
         let placement = CalloutPlacement.frame(size: size, target: ringFrame, visible: screen)
-        if callout.side != placement.side { callout.side = placement.side }
+        let sideChanged = callout.side != placement.side
+        if sideChanged { callout.side = placement.side }
         let arrow = placement.arrow
         if abs(callout.arrow - arrow) > 0.5 { callout.arrow = arrow }
         if bubble.frame != placement.frame { bubble.setFrame(placement.frame, display: true) }
         if !bubble.isVisible { bubble.orderFrontRegardless() }
+        // New text or a new side (the arrow moves) changes the size once SwiftUI has updated: placed
+        // for good only when two measurements in a row agree.
+        placedBeside = !sideChanged && size == bubbleSize ? window : nil
+        bubbleSize = size
     }
 
     func hide() {
+        placedBeside = nil
         ring?.orderOut(nil)
         bubble?.orderOut(nil)
     }

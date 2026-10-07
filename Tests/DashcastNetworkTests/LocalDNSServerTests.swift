@@ -274,6 +274,41 @@ final class LocalDNSServerTests: XCTestCase {
         XCTAssertNil(ignored, "never answer a response (reflection loops)")
     }
 
+    /// No client, no sweep timer. A resolver's UDP flow (one per source port) is dropped soon after
+    /// its answer, and the sweep stops with the last flow.
+    func testFlowsAreSweptAndAnIdleResponderHasNoTimer() async throws {
+        server = LocalDNSServer(.init(bindHost: "127.0.0.1", port: 0, localNames: Set(localNames),
+                                      answerAddress: DashcastDefaults.serviceAddress, upstreams: { [] },
+                                      udpIdleTimeout: 0.3, sweepInterval: 0.2))
+        port = try await server.start()
+        XCTAssertFalse(server.sweeperArmed)
+
+        let output = try await dig(["+short", "captive.apple.com"])
+        XCTAssertEqual(output.trimmingCharacters(in: .whitespacesAndNewlines), svc)
+        XCTAssertEqual(server.flowCount, 1)
+        XCTAssertTrue(server.sweeperArmed)
+
+        let deadline = Date().addingTimeInterval(3)
+        while server.flowCount > 0 || server.sweeperArmed, Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertEqual(server.flowCount, 0)
+        XCTAssertFalse(server.sweeperArmed)
+    }
+
+    /// A flood of source ports can't pile up connections past `maxFlows`.
+    func testFlowsBeyondTheCapAreRefused() async throws {
+        server = LocalDNSServer(.init(bindHost: "127.0.0.1", port: 0, localNames: Set(localNames),
+                                      answerAddress: DashcastDefaults.serviceAddress, upstreams: { [] }, maxFlows: 1))
+        port = try await server.start()
+        let first = try await dig(["+short", "captive.apple.com"])
+        XCTAssertEqual(first.trimmingCharacters(in: .whitespacesAndNewlines), svc)
+        let refused = try await ProcessRunner.run("/usr/bin/dig", ["@127.0.0.1", "-p", String(port), "+time=1", "+tries=1",
+                                                                   "+short", "car.example.com"], timeout: 10)
+        XCTAssertFalse(refused.stdout.contains(svc), refused.stdout)
+        XCTAssertEqual(server.flowCount, 1)
+    }
+
     func testStopReleasesThePort() async throws {
         try await startServer(upstreams: { [] })
         let first = port

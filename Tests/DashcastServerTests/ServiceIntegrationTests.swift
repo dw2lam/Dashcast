@@ -184,11 +184,18 @@ final class ServiceIntegrationTests: XCTestCase {
         XCTAssertTrue(injected)
         XCTAssertEqual(engine.injected.first, InputEvent(kind: .down, x: 0.5, y: 0.25, dx: 0, dy: 0))
 
-        // keyframe request → engine
+        // keyframe request → engine (past the hub's own forced one at configure, 0.25 s limit)
+        try await Task.sleep(for: .milliseconds(300))
         let before = engine.keyframeRequests
         try await client.send(["t": "keyframe"])
         let keyframeAsked = await waitUntil(timeout: 3) { self.engine.keyframeRequests > before }
         XCTAssertTrue(keyframeAsked)
+
+        // …but a burst (a decoder failing on every frame) is rate-limited, not forced each time.
+        let beforeBurst = engine.keyframeRequests
+        for _ in 0..<20 { try await client.send(["t": "keyframe"]) }
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertLessThanOrEqual(engine.keyframeRequests - beforeBurst, 2)
 
         // acks feed congestion control without disturbing a healthy stream
         for h in video.prefix(10) {

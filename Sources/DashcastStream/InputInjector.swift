@@ -23,6 +23,7 @@ final class InputInjector {
     private var lastPoint = CGPoint.zero
     private var lastDown: (time: TimeInterval, point: CGPoint)?
     private var clickCount: Int64 = 1
+    private var scrollRemainder = (x: 0.0, y: 0.0)
     private var trusted = false
     private var trustCheckedAt: TimeInterval = -.infinity
     private var reportedMissingPermission = false
@@ -30,7 +31,10 @@ final class InputInjector {
 
     func setTarget(_ target: Target?) {
         queue.async { [self] in
-            if target?.displayID != self.target?.displayID { releaseButton() }
+            if target?.displayID != self.target?.displayID {
+                releaseButton()
+                scrollRemainder = (0, 0)
+            }
             self.target = target
             reportedMissingPermission = false
         }
@@ -140,10 +144,14 @@ final class InputInjector {
     }
 
     /// `dx`/`dy` follow WheelEvent semantics (positive dy = scroll down), in CSS px ≈ points.
+    /// Sub-pixel deltas carry over to the next event instead of being rounded away.
     private func scroll(dx: Double, dy: Double, at point: CGPoint) {
         if !buttonDown { mouse(.mouseMoved, at: point, button: .left) }
-        let wheelY = Int32(clamping: Int((-dy).rounded()))
-        let wheelX = Int32(clamping: Int((-dx).rounded()))
+        let y = Self.finite(-dy) + scrollRemainder.y
+        let x = Self.finite(-dx) + scrollRemainder.x
+        let wheelY = Self.wheelDelta(y)
+        let wheelX = Self.wheelDelta(x)
+        scrollRemainder = (abs(x) < 1e6 ? x - Double(wheelX) : 0, abs(y) < 1e6 ? y - Double(wheelY) : 0)
         guard wheelX != 0 || wheelY != 0,
               let event = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
                                   wheel1: wheelY, wheel2: wheelX, wheel3: 0) else { return }
@@ -151,13 +159,31 @@ final class InputInjector {
         event.post(tap: .cghidEventTap)
     }
 
-    private func type(_ text: String) {
-        // CGEvent carries at most 20 UTF-16 units per event.
+    /// Rounded and clamped to Int32 (a huge or non-finite delta must not trap the conversion).
+    static func wheelDelta(_ value: Double) -> Int32 {
+        guard value.isFinite else { return 0 }
+        return Int32(min(max(value.rounded(), Double(Int32.min)), Double(Int32.max)))
+    }
+
+    private static func finite(_ value: Double) -> Double { value.isFinite ? value : 0 }
+
+    /// Splits UTF-16 text into CGEvent-sized chunks (at most `limit` units) without breaking a surrogate pair.
+    static func chunks(_ text: String, limit: Int = 20) -> [[UInt16]] {
         let units = Array(text.utf16)
+        var result: [[UInt16]] = []
         var index = 0
         while index < units.count {
-            let chunk = Array(units[index..<min(index + 20, units.count)])
-            index += chunk.count
+            var end = min(index + limit, units.count)
+            if end < units.count, end - index > 1, UTF16.isLeadSurrogate(units[end - 1]) { end -= 1 }
+            result.append(Array(units[index..<end]))
+            index = end
+        }
+        return result
+    }
+
+    private func type(_ text: String) {
+        // CGEvent carries at most 20 UTF-16 units per event.
+        for chunk in Self.chunks(text) {
             for keyDown in [true, false] {
                 guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: keyDown) else { continue }
                 event.flags = []

@@ -57,6 +57,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     private var waiting: [UInt64: (connection: ServerConnection, openedAt: TimeInterval)] = [:]
     private var session: CarSession?
+    /// Between start() and shutdown(). The timer itself only runs while there's a socket to watch.
+    private var started = false
     private var timer: DispatchSourceTimer?
     private var tickCount = 0
     private var postedIdleStats = false
@@ -82,12 +84,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     func start() {
         queue.async { [self] in
-            guard timer == nil else { return }
-            let t = DispatchSource.makeTimerSource(queue: queue)
-            t.schedule(deadline: .now() + 0.25, repeating: 0.25, leeway: .milliseconds(20))
-            t.setEventHandler { [weak self] in self?.tick() }
-            t.resume()
-            timer = t
+            started = true
+            if session != nil || !waiting.isEmpty { armTimer() }
         }
     }
 
@@ -97,8 +95,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             if let s = session { end(s, bye: reason, code: WebSocketCloseCode.goingAway) }
             for entry in waiting.values { entry.connection.close(code: WebSocketCloseCode.goingAway, reason: reason) }
             waiting.removeAll()
-            timer?.cancel()
-            timer = nil
+            started = false
+            disarmTimer()
             postedIdleStats = false
             completion?()
         }
@@ -334,6 +332,7 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     func webSocketDidOpen(_ connection: ServerConnection) {
         waiting[connection.id] = (connection, Self.now())
+        armTimer()
     }
 
     func webSocket(_ connection: ServerConnection, didReceiveText text: String) {
@@ -358,6 +357,7 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             session = CarSession(connection: connection, hello: hello,
                                  latency: LatencyModePolicy(setting: latencySetting), now: now)
             postedIdleStats = false
+            armTimer()
             let context = HelloContext(transportCaps: transportCaps, secureFallback: connection.impliesSecureContext,
                                        localHost: connection.localHost)
             post(.hello(sessionID: connection.id, hello: hello, context: context))
@@ -393,7 +393,9 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             engine.inject(event)
         case .keyframe:
             s.awaitingKeyframe = true
-            requestKeyframe(s, force: true)
+            // Rate-limited like the hub's own requests: a car whose decoder keeps failing must not
+            // turn every error into a forced keyframe.
+            requestKeyframe(s, force: false)
         case .setLatencyMode(let mode):
             s.latencyOverride = mode
             if let change = s.latency.setSetting(mode, now: now), s.configured { sendMode(change, to: s) }
@@ -440,6 +442,22 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
     // MARK: Timer
 
+    /// 4 Hz while a socket is open (hello timeouts, liveness, pings, stats); nothing while idle, which
+    /// is most of the time the hotspot is up.
+    private func armTimer() {
+        guard started, timer == nil else { return }
+        let t = DispatchSource.makeTimerSource(queue: queue)
+        t.schedule(deadline: .now() + 0.25, repeating: 0.25, leeway: .milliseconds(20))
+        t.setEventHandler { [weak self] in self?.tick() }
+        t.resume()
+        timer = t
+    }
+
+    private func disarmTimer() {
+        timer?.cancel()
+        timer = nil
+    }
+
     private func tick() {
         tickCount &+= 1
         let now = Self.now()
@@ -450,6 +468,7 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
 
         guard let s = session else {
             if !postedIdleStats { postedIdleStats = true; post(.stats(LiveStats())) }
+            if waiting.isEmpty { disarmTimer() }
             return
         }
         if now - s.lastInboundAt > livenessTimeout {
@@ -500,6 +519,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
         var latency: LatencyMode?
         var serverDropped: Int
         var hasPeer: Bool
+        var timerArmed = false
+        var ticks = 0
     }
 
     func debugSnapshot() -> DebugSnapshot {
@@ -507,7 +528,8 @@ final class SessionHub: WebSocketDelegate, @unchecked Sendable {   // state conf
             let s = session
             let bitrate = s?.params?.transport == .webrtc ? (s?.rtcBitrateKbps ?? s?.params?.tier.bitrateKbps) : s?.congestion?.currentKbps
             return DebugSnapshot(sessionID: s?.id, transport: s?.params?.transport, bitrateKbps: bitrate,
-                                 latency: s?.latency.effective, serverDropped: s?.serverDropped ?? 0, hasPeer: s?.peer != nil)
+                                 latency: s?.latency.effective, serverDropped: s?.serverDropped ?? 0, hasPeer: s?.peer != nil,
+                                 timerArmed: timer != nil, ticks: tickCount)
         }
     }
 }

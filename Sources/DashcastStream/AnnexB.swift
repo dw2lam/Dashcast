@@ -37,16 +37,28 @@ enum AnnexB {
         avcc.withUnsafeBytes { convert($0, nalLengthSize: nalLengthSize, parameterSets: parameterSets) }
     }
 
-    /// SPS+PPS (H.264) or VPS+SPS+PPS (HEVC) in format-description order, plus the NAL length-prefix size.
-    static func parameterSets(of format: CMFormatDescription, codec: VideoCodec) -> (sets: [Data], nalLengthSize: Int)? {
-        typealias Getter = (CMFormatDescription, Int, UnsafeMutablePointer<UnsafePointer<UInt8>?>?,
-                            UnsafeMutablePointer<Int>?, UnsafeMutablePointer<Int>?, UnsafeMutablePointer<Int32>?) -> OSStatus
-        let get: Getter
+    private typealias ParameterSetGetter = (CMFormatDescription, Int, UnsafeMutablePointer<UnsafePointer<UInt8>?>?,
+                                            UnsafeMutablePointer<Int>?, UnsafeMutablePointer<Int>?, UnsafeMutablePointer<Int32>?) -> OSStatus
+
+    private static func parameterSetGetter(_ codec: VideoCodec) -> ParameterSetGetter? {
         switch codec {
-        case .h264: get = CMVideoFormatDescriptionGetH264ParameterSetAtIndex
-        case .hevc: get = CMVideoFormatDescriptionGetHEVCParameterSetAtIndex
+        case .h264: return CMVideoFormatDescriptionGetH264ParameterSetAtIndex
+        case .hevc: return CMVideoFormatDescriptionGetHEVCParameterSetAtIndex
         case .jpeg: return nil
         }
+    }
+
+    /// The NAL length-prefix size alone (delta frames need nothing else from the format description).
+    static func nalLengthSize(of format: CMFormatDescription, codec: VideoCodec) -> Int? {
+        guard let get = parameterSetGetter(codec) else { return nil }
+        var nalLength: Int32 = 0
+        guard get(format, 0, nil, nil, nil, &nalLength) == noErr else { return nil }
+        return Int(nalLength)
+    }
+
+    /// SPS+PPS (H.264) or VPS+SPS+PPS (HEVC) in format-description order, plus the NAL length-prefix size.
+    static func parameterSets(of format: CMFormatDescription, codec: VideoCodec) -> (sets: [Data], nalLengthSize: Int)? {
+        guard let get = parameterSetGetter(codec) else { return nil }
         var count = 0
         var nalLength: Int32 = 0
         guard get(format, 0, nil, nil, &count, &nalLength) == noErr else { return nil }
@@ -62,10 +74,19 @@ enum AnnexB {
 
     /// One Annex B access unit for an encoded sample; parameter sets are inlined on keyframes.
     static func accessUnit(from sample: CMSampleBuffer, codec: VideoCodec, isKeyframe: Bool) -> Data? {
-        guard let block = sample.dataBuffer, let format = sample.formatDescription,
-              let info = parameterSets(of: format, codec: codec) else { return nil }
-        var sets = isKeyframe ? info.sets : []
-        if codec == .h264 { sets = sets.map(H264SPS.withExtendedCompatibility) }
+        guard let block = sample.dataBuffer, let format = sample.formatDescription else { return nil }
+        // Parameter sets are copied (and the SPS patched) for keyframes only.
+        let sets: [Data]
+        let nalLengthSize: Int
+        if isKeyframe {
+            guard let info = parameterSets(of: format, codec: codec) else { return nil }
+            sets = codec == .h264 ? info.sets.map(H264SPS.withExtendedCompatibility) : info.sets
+            nalLengthSize = info.nalLengthSize
+        } else {
+            guard let size = Self.nalLengthSize(of: format, codec: codec) else { return nil }
+            sets = []
+            nalLengthSize = size
+        }
 
         var lengthAtOffset = 0
         var total = 0
@@ -74,7 +95,7 @@ enum AnnexB {
                                        totalLengthOut: &total, dataPointerOut: &pointer) == kCMBlockBufferNoErr,
            let pointer, lengthAtOffset == total {
             return convert(UnsafeRawBufferPointer(start: pointer, count: total),
-                           nalLengthSize: info.nalLengthSize, parameterSets: sets)
+                           nalLengthSize: nalLengthSize, parameterSets: sets)
         }
         // Non-contiguous block buffer: flatten first.
         total = CMBlockBufferGetDataLength(block)
@@ -83,14 +104,20 @@ enum AnnexB {
             CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: total, destination: $0.baseAddress!)
         }
         guard status == kCMBlockBufferNoErr else { return nil }
-        return convert(bytes, nalLengthSize: info.nalLengthSize, parameterSets: sets)
+        return convert(bytes, nalLengthSize: nalLengthSize, parameterSets: sets)
     }
 
     /// True unless the sample is marked NotSync.
     static func isKeyframe(_ sample: CMSampleBuffer) -> Bool {
-        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[CFString: Any]],
-              let first = attachments.first else { return true }
-        return !((first[kCMSampleAttachmentKey_NotSync] as? Bool) ?? false)
+        // Plain CF lookups: bridging the attachments to Swift dictionaries costs more than the rest
+        // of the per-frame conversion.
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false),
+              CFArrayGetCount(attachments) > 0,
+              let first = CFArrayGetValueAtIndex(attachments, 0) else { return true }
+        let dictionary = unsafeBitCast(first, to: CFDictionary.self)
+        let key = Unmanaged.passUnretained(kCMSampleAttachmentKey_NotSync).toOpaque()
+        guard let value = CFDictionaryGetValue(dictionary, key) else { return true }
+        return !CFBooleanGetValue(unsafeBitCast(value, to: CFBoolean.self))
     }
 
     /// Splits an Annex B stream into NAL units (without start codes). Accepts 3- and 4-byte start codes.

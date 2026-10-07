@@ -226,7 +226,13 @@ function connect() {
   }
   ws = s;
   s.binaryType = 'arraybuffer';
+  // A connect nobody answers (the Mac asleep, the car between networks) can take minutes to fail
+  // on its own; give up and retry instead.
+  const opening = setTimeout(() => {
+    if (ws === s && s.readyState === 0) lost(s);
+  }, 6000);
   s.onopen = () => {
+    clearTimeout(opening);
     everOpen = true;
     lastRx = performance.now();
     clock.reset();
@@ -340,6 +346,8 @@ function applyConfig(m: Config) {
     audio.enabled = false;
     audio.reset();
     rtc.setAudible(tapped && !flags.mute && !!m.audio);
+    // A reconfigure on the same peer (tier change) keeps playing: no new `playing` event will come.
+    if (rtc.playing) status(null);
   } else {
     rtc.close();
     canvas.style.visibility = '';
@@ -585,6 +593,7 @@ let pxWait: ((m: any) => void) | null = null;
       audioBufferMs: v.ab,
       dropped: v.drop,
       framesPresented: v.n,
+      held: vstats ? vstats.held : null, // decoded/decoding frames the pipeline holds (ws transport)
       path: v.path,
       frame: [vidW, vidH],
       canvas: [bw, bh],

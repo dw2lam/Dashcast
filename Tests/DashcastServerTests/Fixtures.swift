@@ -178,8 +178,15 @@ final class MockNetwork: NetworkManaging {
     /// What `isStillOnNetwork` answers, and who asked.
     var stillOnNetwork: Bool?
     var presenceQueries: [String] = []
+    /// How many times the service asked for the status.
+    var statusReads = 0
+    /// How long `startLocalServices` takes (the real one binds the DNS responder).
+    var localServicesDelay: Duration = .zero
 
-    func currentStatus() async -> NetworkStatus { status }
+    func currentStatus() async -> NetworkStatus {
+        statusReads += 1
+        return status
+    }
     func installLoopbackHelper() async throws {}
     func uninstallLoopbackHelper() async throws {}
     func setOwnDomain(_ domain: OwnDomain?) throws { status.domain = domain }
@@ -189,7 +196,10 @@ final class MockNetwork: NetworkManaging {
     func importCertificate(_ certificate: CertificateImport) async throws {}
     func tlsMaterial() -> TLSMaterial? { material }
     func routerSetupScript(macLANAddress: String) -> String { "" }
-    func startLocalServices() async { localServicesStarts += 1 }
+    func startLocalServices() async {
+        localServicesStarts += 1
+        if localServicesDelay > .zero { try? await Task.sleep(for: localServicesDelay) }
+    }
     func stopLocalServices() async { localServicesStops += 1 }
     func isStillOnNetwork(_ address: String) async -> Bool? {
         presenceQueries.append(address)

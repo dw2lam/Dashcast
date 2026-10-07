@@ -5,8 +5,11 @@
 // JPEG: createImageBitmap(Blob); only one decode in flight, newest frame wins.
 //
 // interactive: present as soon as a frame is decoded.
-// cinema:      queue decoded frames and present each when pts <= audio clock
-//              (server µs, supplied by the main thread); drop >1 frame late.
+// cinema:      present each frame when pts <= audio clock (server µs, supplied by the main
+//              thread); drop >1 frame late. Received frames wait *encoded* and are decoded just
+//              ahead of the clock, so only a few decoded frames are ever held: decoded frames are
+//              large (1.4-3.5 MB each), and a hardware decoder's output pool is small enough that
+//              holding a whole 250 ms buffer of them can stall it.
 import { createRenderer, fit, Renderer, Source } from './render';
 
 type Out = (m: any) => void;
@@ -36,6 +39,10 @@ export interface FrameMsg {
 }
 
 const HDR = 16;
+/** cinema: frames decoding or decoded-and-waiting (H.264/HEVC); JPEG keeps one fewer. */
+const HOLD = 3;
+/** cinema: an encoded backlog longer than this (s) means we can't keep up: skip to the next IDR. */
+const MAX_PEND_S = 2;
 
 export class Pipeline {
   private r: Renderer | null;
@@ -46,7 +53,11 @@ export class Pipeline {
   private off = 0; // server µs = performance.now()*1000 + off (this thread's clock)
   private clockA: number | null = null; // audio clock (server µs) = performance.now()*1000 + clockA
   private dec: VideoDecoder | null = null;
-  private waitKey = true;
+  private waitKey = true; // incoming stream: drop until a keyframe (gap, overload)
+  private decWait = true; // decoder: needs a keyframe next (new decoder, error, overload)
+  private pend: FrameMsg[] = []; // cinema: received, not yet decoding (in order)
+  private decFails = 0; // decoder errors since the last decoded frame
+  private decHold = 0; // frames the decoder still had in when it output the last one
   private expect = -1;
   private metas: Meta[] = [];
   private q: Decoded[] = [];
@@ -79,7 +90,7 @@ export class Pipeline {
     private delta: number, // ms: main-thread perf = this thread's perf + delta
     private out: Out,
   ) {
-    this.r = createRenderer(canvas, pref);
+    this.r = createRenderer(canvas, pref, () => this.reqKey(true));
     out(this.r ? { k: 'ready', r: this.r.kind } : { k: 'fatal', msg: 'no WebGL or 2D context' });
     setInterval(() => this.stats(), 1000);
   }
@@ -99,7 +110,10 @@ export class Pipeline {
       case 'clock':
         this.off = m.off + this.delta * 1000;
         this.clockA = m.a == null ? null : m.a + this.delta * 1000;
-        if (this.cinema && this.q.length) this.tick();
+        if (this.cinema) {
+          if (this.q.length) this.tick();
+          else this.feed();
+        }
         break;
       case 'mode':
         this.setMode(!!m.cinema);
@@ -132,8 +146,9 @@ export class Pipeline {
     this.metas.length = 0;
     for (const f of this.q) f.src.close();
     this.q.length = 0;
+    this.pend.length = 0;
     this.jNext = null;
-    this.waitKey = true;
+    this.waitKey = this.decWait = true;
     this.expect = -1;
     clearTimeout(this.timer);
     this.timer = 0;
@@ -159,14 +174,28 @@ export class Pipeline {
   }
 
   private setMode(cinema: boolean) {
+    if (cinema === this.cinema) return;
     this.cinema = cinema;
-    if (!cinema && this.q.length) {
+    if (cinema) {
+      if (this.jNext) this.pend.push(this.jNext);
+      this.jNext = null;
+      return;
+    }
+    if (this.q.length) {
       // Leaving cinema: show the newest decoded frame now, drop the rest.
       const last = this.q.pop()!;
       for (const f of this.q) this.dropDecoded(f);
       this.q.length = 0;
       this.present(last);
     }
+    // Staged frames: H.264/HEVC still need decoding in order (each is shown as it comes out);
+    // for JPEG only the newest matters.
+    const p = this.pend;
+    this.pend = [];
+    if (this.kind === 'jpeg') {
+      for (let i = 0; i + 1 < p.length; i++) this.drop(p[i]);
+      if (p.length) this.jpeg(p[p.length - 1]);
+    } else for (const m of p) this.submit(m);
   }
 
   // ---- H.264 / HEVC ------------------------------------------------------------
@@ -179,7 +208,8 @@ export class Pipeline {
       });
       d.configure({ codec: this.codec, optimizeForLatency: true });
       this.dec = d;
-      this.waitKey = true;
+      this.decWait = true;
+      this.decHold = 0;
     } catch (e) {
       this.dec = null;
       this.out({ k: 'log', msg: 'decoder configure failed: ' + e });
@@ -189,21 +219,66 @@ export class Pipeline {
   private coded(m: FrameMsg) {
     if (this.expect >= 0 && m.seq !== this.expect && !m.key) this.waitKey = true; // gap
     this.expect = m.seq + 1;
+    if (this.waitKey && !m.key) {
+      this.drop(m);
+      this.reqKey(false);
+      return;
+    }
+    this.waitKey = false;
+    if (!this.cinema) {
+      this.submit(m);
+      return;
+    }
+    if (!m.key && this.pend.length > (MAX_PEND_S * 1e6) / this.fd) {
+      // Video is seconds behind the clock: skip to the next IDR.
+      this.dropPend();
+      this.waitKey = true;
+      this.drop(m);
+      this.reqKey(false);
+      return;
+    }
+    this.pend.push(m);
+    this.feed();
+    // HOLD frames are in and none has come out: the decoder may keep output back until it gets
+    // more input. Give it one more per arrival (onOut then learns how many it keeps: decHold).
+    if (this.pend.length && !this.q.length && this.metas.length < HOLD + 8) this.submit(this.pend.shift()!);
+  }
+
+  /**
+   * cinema: hand staged frames to the decoder while fewer than HOLD are decoding or decoded and
+   * waiting, plus however many the decoder itself keeps back before it outputs one.
+   */
+  private feed() {
+    if (this.kind === 'jpeg') {
+      this.jFeed();
+      return;
+    }
+    while (this.pend.length && this.q.length + this.metas.length < HOLD + this.decHold) this.submit(this.pend.shift()!);
+  }
+
+  private dropPend() {
+    for (const m of this.pend) this.drop(m);
+    this.pend.length = 0;
+  }
+
+  /** Decode now (in stream order). */
+  private submit(m: FrameMsg) {
     if (!this.dec) this.mkDec();
     const d = this.dec;
-    if (!d || (this.waitKey && !m.key)) {
+    if (!d || (this.decWait && !m.key)) {
       this.drop(m);
       this.reqKey(false);
       return;
     }
     if (!m.key && d.decodeQueueSize > 3) {
       // Decoder is falling behind: skip to the next IDR rather than build latency.
-      this.waitKey = true;
+      this.waitKey = this.decWait = true;
+      this.dropPend();
       this.drop(m);
       this.reqKey(false);
       return;
     }
-    this.waitKey = false;
+    this.decWait = false;
     this.metas.push({ seq: m.seq, pts: m.pts, recv: m.recv, t: performance.now() });
     try {
       d.decode(
@@ -229,22 +304,31 @@ export class Pipeline {
       f.close();
       return;
     }
+    this.decFails = 0;
+    this.decHold = Math.min(8, this.metas.length);
     this.decoded(f, f.displayWidth, f.displayHeight, m, performance.now() - m.t);
   }
 
   private decErr(e: unknown, d: VideoDecoder) {
     if (d !== this.dec) return;
-    this.out({ k: 'log', msg: 'decode error: ' + e });
+    if (++this.decFails <= 3) this.out({ k: 'log', msg: 'decode error: ' + e });
     this.closeDec();
     for (const m of this.metas) this.drop(m);
     this.metas.length = 0;
-    this.waitKey = true;
+    this.dropPend();
+    this.waitKey = this.decWait = true;
     this.reqKey(true);
   }
 
+  /**
+   * Asks the server for an IDR. Forced requests (decoder error, nothing to repaint) are honoured by
+   * the server at once, so they are still spaced out, more so while the decoder keeps failing: a
+   * broken decoder must not turn the stream into all keyframes.
+   */
   private reqKey(force: boolean) {
     const now = performance.now();
-    if (!force && now - this.lastKeyReq < 1000) return;
+    const gap = force ? Math.min(4000, 250 << Math.min(4, Math.max(0, this.decFails - 1))) : 1000;
+    if (now - this.lastKeyReq < gap) return;
     this.lastKeyReq = now;
     this.out({ k: 'keyframe' });
   }
@@ -253,11 +337,34 @@ export class Pipeline {
 
   private jpeg(m: FrameMsg) {
     if (this.kind !== 'jpeg') return;
+    if (this.cinema) {
+      this.pend.push(m);
+      if (this.pend.length > (MAX_PEND_S * 1e6) / this.fd) this.drop(this.pend.shift()!);
+      this.jFeed();
+      return;
+    }
     if (this.jBusy) {
       if (this.jNext) this.drop(this.jNext); // superseded while waiting
       this.jNext = m;
       return;
     }
+    this.jDecode(m);
+  }
+
+  /** cinema: decode the newest staged JPEG that is due within a frame (older ones are never shown). */
+  private jFeed() {
+    const p = this.pend;
+    if (this.jBusy || !p.length || this.q.length >= HOLD - 1) return;
+    const clock = this.clockNow();
+    let i = 0;
+    while (i + 1 < p.length && p[i + 1].pts <= clock + this.fd) i++;
+    for (let j = 0; j < i; j++) this.drop(p[j]);
+    const m = p[i];
+    p.splice(0, i + 1);
+    this.jDecode(m);
+  }
+
+  private jDecode(m: FrameMsg) {
     this.jBusy = true;
     const gen = this.gen;
     const t = performance.now();
@@ -277,10 +384,14 @@ export class Pipeline {
   }
 
   private jPump() {
+    if (this.cinema) {
+      this.jFeed();
+      return;
+    }
     const n = this.jNext;
     if (n) {
       this.jNext = null;
-      this.jpeg(n);
+      this.jDecode(n);
     }
   }
 
@@ -289,7 +400,9 @@ export class Pipeline {
   private decoded(src: Source, w: number, h: number, m: Meta, dms: number) {
     this.sDec += dms;
     this.sDecN++;
-    const lag = this.srvNow() - m.pts;
+    // Time the video path needs before a frame can be shown (capture → received → decoded); time a
+    // frame spent staged on purpose (cinema) doesn't count, or the audio delay would chase it.
+    const lag = m.recv - m.pts + dms * 1000;
     if (lag > this.sLag) this.sLag = lag;
     const f: Decoded = { src, w, h, dms, seq: m.seq, pts: m.pts, recv: m.recv, t: m.t };
     if (!this.cinema) {
@@ -299,6 +412,7 @@ export class Pipeline {
     this.q.push(f);
     if (this.q.length > 45) this.dropDecoded(this.q.shift()!);
     this.tick();
+    this.feed();
   }
 
   /** cinema: present the newest frame whose pts has become audible. */
@@ -308,7 +422,7 @@ export class Pipeline {
     const q = this.q;
     if (!q.length) return;
     const now = performance.now();
-    const clock = now * 1000 + (this.clockA == null ? this.off - 250000 : this.clockA);
+    const clock = this.clockNow(now);
     let i = -1;
     while (i + 1 < q.length && q[i + 1].pts <= clock) i++;
     if (i < 0) {
@@ -325,7 +439,13 @@ export class Pipeline {
     // More than one frame late: drop, unless that would freeze the picture.
     if (clock - f.pts > this.fd && now - this.lastPresent < 200) this.dropDecoded(f);
     else this.present(f);
+    this.feed();
     if (q.length) this.tick();
+  }
+
+  /** cinema: the server-µs pts being heard now (virtual clock 250 ms behind when there's no audio). */
+  private clockNow(now = performance.now()) {
+    return now * 1000 + (this.clockA == null ? this.off - 250000 : this.clockA);
   }
 
   private present(f: Decoded) {
@@ -407,6 +527,7 @@ export class Pipeline {
       r: this.r ? this.r.kind : '',
       dc: this.kind === 'jpeg' ? 'image' : this.kind ? 'webcodecs' : '',
       n: this.total,
+      held: this.q.length + this.metas.length,
     });
     this.sN = this.sDec = this.sDecN = this.sDrop = this.sLat = this.sLatN = this.sLag = 0;
   }

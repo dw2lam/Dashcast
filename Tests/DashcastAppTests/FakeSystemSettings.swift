@@ -179,10 +179,22 @@ final class FakeSystemSettings: SharingEnvironment {
     var frontmost = true
     var trusted = true
     var locked = false
+    /// Wi‑Fi joins "To devices using" only this many looks after the share-from change is saved.
+    var wifiHiddenLooks = 0
+    /// Runs as the automation (or guidance) starts each wait: e.g. the user pressing Stop then.
+    var onSleep: (() -> Void)?
 
     // What happened.
     private(set) var typed: [String] = []
     private(set) var looks = 0
+    private var wifiHidden = false
+
+    /// Everything a press, a value or a keystroke can change.
+    var settings: String {
+        "\(detailsOpen) \(optionsOpen) \(confirmOpen) \(String(describing: menu)) \(sharingOn) \(shareFrom) \(savedShareFrom) "
+            + "\(toggles.sorted { $0.key < $1.key }) \(networkName) \(channel) \(password) \(nameField) \(passwordField) "
+            + "\(String(describing: focused)) \(typed)"
+    }
 
     static let window = CGRect(x: 380, y: 276, width: 740, height: 625)
 
@@ -197,6 +209,8 @@ final class FakeSystemSettings: SharingEnvironment {
                 if authCancels { shareFrom = savedShareFrom } else { savedShareFrom = shareFrom }
             }
         }
+        wifiHidden = !SharingText.isWiFi(savedShareFrom) && wifiHiddenLooks > 0
+        if wifiHidden { wifiHiddenLooks -= 1 }
         return tree()
     }
 
@@ -207,6 +221,7 @@ final class FakeSystemSettings: SharingEnvironment {
     func activateSettings() {}
     func pressEscape() { menu = nil }
     func sleep(_ seconds: TimeInterval) async throws {
+        onSleep?()
         try await Task.sleep(nanoseconds: 500_000)
     }
 
@@ -290,7 +305,7 @@ final class FakeSystemSettings: SharingEnvironment {
         }
         if menu == .shareFrom { popup.kids.append(menuNode(ports, below: popup.frame, which: .shareFrom)) }
 
-        let listed = ports.filter { $0 != savedShareFrom }
+        let listed = ports.filter { $0 != savedShareFrom && !(wifiHidden && SharingText.isWiFi($0)) }
         let rows = listed.enumerated().map { index, port in
             let y = 525.0 + Double(index) * 24
             return FakeNode("AXRow", subrole: "AXOutlineRow", frame: r(535, y, 430, 24), children: [

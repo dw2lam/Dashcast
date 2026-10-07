@@ -97,6 +97,9 @@ final class HTTPParserTests: XCTestCase {
         XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "127.0.0.1"), "127.0.0.1")
         XCTAssertNil(HTTPServer.hostName(fromHostHeader: "evil.com:80x"))
         XCTAssertNil(HTTPServer.hostName(fromHostHeader: ""))
+        // A fully qualified name is the same host (a connectivity check sent that way must still match).
+        XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "connman.vn.tesla.services."), "connman.vn.tesla.services")
+        XCTAssertEqual(HTTPServer.hostName(fromHostHeader: "Car.Example.com.:443"), "car.example.com")
     }
 }
 
@@ -146,7 +149,8 @@ final class HTTPRoutingTests: XCTestCase {
     // MARK: Connectivity probes
 
     func testTeslaConnManProbe() throws {
-        for host in ["connman.vn.tesla.services", "CONNMAN.vn.tesla.services:80", "connman.vn.cloud.tesla.cn"] {
+        for host in ["connman.vn.tesla.services", "CONNMAN.vn.tesla.services:80", "connman.vn.cloud.tesla.cn",
+                     "connman.vn.tesla.services."] {
             for role in [ServerConnection.Role.plain, .app] {
                 let (r, _) = try XCTUnwrap(response(server.route(request("/", host: host), role: role, isTLS: false)))
                 XCTAssertEqual(r.status, 200, host)

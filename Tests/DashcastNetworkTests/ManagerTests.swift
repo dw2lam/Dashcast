@@ -170,7 +170,7 @@ final class ManagerTests: XCTestCase {
                        "Mac hotspot. Quit SideDisplay before using Dashcast; both reconfigure Internet Sharing. "
                        + "Local DNS off. Ready: open https://car.example.com in the car.")
         let redirected = NetworkManager.SummaryContext(
-            localDNS: "\(svc):53530", helperVersion: 2,
+            localDNS: "\(svc):53530", helperVersion: LoopbackHelper.version,
             redirect: .init(version: 2, redirectActive: true, reason: nil, anchorPointPresent: true))
         XCTAssertTrue(NetworkManager.summary(status, topology: topology, now: now, context: redirected)
             .contains("Local DNS running on \(svc):53530; the car's DNS is redirected to it."))

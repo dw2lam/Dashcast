@@ -74,13 +74,24 @@ struct ActionButton: View {
 }
 
 struct CopyButton: View {
-    let text: String
+    let text: () -> String
     var label = "Copy"
     @State private var copied = false
 
+    init(text: String, label: String = "Copy") {
+        self.text = { text }
+        self.label = label
+    }
+
+    /// `text` is only worked out when clicked (a long log, rebuilt on every redraw otherwise).
+    init(label: String = "Copy", text: @escaping () -> String) {
+        self.text = text
+        self.label = label
+    }
+
     var body: some View {
         Button {
-            Pasteboard.copy(text)
+            Pasteboard.copy(text())
             copied = true
             Task {
                 try? await Task.sleep(for: .seconds(1.4))

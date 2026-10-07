@@ -64,11 +64,33 @@ export class RtcOut {
     return !!this.pc;
   }
 
+  /** The <video> is showing the stream (a reconfigure on the same peer doesn't fire `playing` again). */
+  get playing(): boolean {
+    return !!this.pc && !this.el.paused && this.el.readyState >= 2;
+  }
+
+  /** Answers an offer. Any failure ends in onFail (the caller reconnects), never in a silent stall. */
   async offer(sdp: string): Promise<void> {
     this.close();
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    let pc: RTCPeerConnection;
+    try {
+      pc = new RTCPeerConnection({ iceServers: [] });
+    } catch (e) {
+      this.state = 'failed';
+      this.onFail('no RTCPeerConnection: ' + e);
+      return;
+    }
     this.pc = pc;
     this.state = 'negotiating';
+    try {
+      await this.negotiate(pc, sdp);
+    } catch (e) {
+      if (pc === this.pc) this.fail('negotiation failed: ' + e);
+      throw e;
+    }
+  }
+
+  private async negotiate(pc: RTCPeerConnection, sdp: string): Promise<void> {
     pc.ontrack = (e) => {
       const el = this.el;
       const s = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);

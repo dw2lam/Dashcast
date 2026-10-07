@@ -26,14 +26,18 @@ struct HelperLayout: Equatable, Sendable {
 ///     and Dashcast's DNS responder is listening, pf-redirects the car's DNS (port 53, any server)
 ///     to the responder. Re-run at boot, on SystemConfiguration changes, when the app touches the
 ///     trigger file, and every 60 s.
+/// v3: redirects on every Internet Sharing bridge (bridge100, bridge101…), reads exactly
+///     NAT.Enabled, and waits for a bridge only right after the sharing settings change (a share
+///     whose "from" port is missing never gets one, and v2 waited 20 s on every run for it).
 enum LoopbackHelper {
     /// Bump whenever the plist or script changes; the app offers a reinstall for older helpers.
-    static let version = 2
+    static let version = 3
     static let versionKey = "DASHCAST_HELPER_VERSION"
     static let label = "online.davidlam.dashcast.alias"
     static let plistPath = HelperLayout.production.plistPath
     static let pfAnchor = "com.apple/250.DashcastDNS"
-    static let redirectInterface = "bridge100"
+    /// The shell pattern for Internet Sharing's bridges (bridge0 is Thunderbolt Bridge).
+    static let sharingBridgePattern = "bridge1[0-9][0-9]"
     static var address: String { DashcastDefaults.serviceAddress }
 
     /// Non-root processes can't bind port 53 on a specific address, so the responder listens here
@@ -41,7 +45,7 @@ enum LoopbackHelper {
     static let dnsPort: UInt16 = 53530
 
     /// Rules for the pf anchor (the default /etc/pf.conf has `rdr-anchor "com.apple/*"`).
-    static func pfRules(address: String = address, port: UInt16 = dnsPort, interface: String = redirectInterface) -> String {
+    static func pfRules(address: String = address, port: UInt16 = dnsPort, interface: String = "bridge100") -> String {
         "rdr pass on \(interface) inet proto { udp tcp } from any to any port 53 -> \(address) port \(port)\n"
     }
 
@@ -75,7 +79,7 @@ enum LoopbackHelper {
         # dashcast-helper-version: \(version)
         #
         # 1. Keeps the service address \(address) on lo0.
-        # 2. While Internet Sharing's \(redirectInterface) exists AND Dashcast's DNS responder listens on
+        # 2. While an Internet Sharing bridge exists AND Dashcast's DNS responder listens on
         #    \(address):\(port), pf-redirects every DNS packet the car sends (to any server, port 53)
         #    to it (anchor \(pfAnchor)). Otherwise the redirect is removed, so the hotspot's
         #    normal DNS keeps working whenever Dashcast isn't running.
@@ -86,35 +90,56 @@ enum LoopbackHelper {
         export PATH
         umask 022
         ADDR=\(q(address))
-        IFACE=\(q(redirectInterface))
+        PORT=\(port)
         ANCHOR=\(q(pfAnchor))
+        NAT_PLIST=\(q(layout.natPreferences + ".plist"))
         TOKEN_FILE=\(q(layout.tokenPath))
         STATUS_FILE=\(q(layout.statusPath))
-        RULES=\(q(pfRules(address: address, port: port).trimmingCharacters(in: .newlines)))
 
         # 1. lo0 alias
         if ! ifconfig lo0 | grep -q "inet $ADDR "; then
           ifconfig lo0 alias "$ADDR/32"
         fi
 
-        bridge_up() { ifconfig "$IFACE" >/dev/null 2>&1; }
-        sharing_on() { defaults read \(q(layout.natPreferences)) NAT 2>/dev/null | grep -q 'Enabled = 1'; }
+        bridges() { for i in $(ifconfig -l 2>/dev/null); do case "$i" in \(sharingBridgePattern)) echo "$i" ;; esac; done; }
+        sharing_on() {
+          v=$(plutil -extract NAT.Enabled raw -o - "$NAT_PLIST" 2>/dev/null)
+          [ "$v" = 1 ] || [ "$v" = true ]
+        }
+        just_changed() {
+          m=$(stat -f %m "$NAT_PLIST" 2>/dev/null) || return 1
+          [ $(( $(date +%s) - m )) -lt 30 ]
+        }
         dns_listening() { netstat -an -p udp 2>/dev/null | grep -q \(q(listening)); }
+        rules() {
+          for b in $BRIDGES; do
+            printf 'rdr pass on %s inet proto { udp tcp } from any to any port 53 -> %s port %s\\n' "$b" "$ADDR" "$PORT"
+          done
+        }
 
-        # Internet Sharing writes its preferences a moment before the bridge appears.
-        if ! bridge_up && sharing_on; then
+        # Internet Sharing writes its preferences a moment before the bridge appears. Wait only right
+        # after they change: a share whose "from" port is missing never gets a bridge.
+        if [ -z "$(bridges)" ] && sharing_on && just_changed; then
           n=0
-          while [ "$n" -lt 20 ] && ! bridge_up; do sleep 1; n=$((n + 1)); done
+          while [ "$n" -lt 20 ] && [ -z "$(bridges)" ]; do sleep 1; n=$((n + 1)); done
         fi
+        BRIDGES=$(bridges)
 
         anchor_point=missing
         if pfctl -s nat 2>/dev/null | grep -q 'rdr-anchor "com.apple/\\*"'; then anchor_point=ok; fi
 
         # 2. DNS redirect
-        if bridge_up && dns_listening; then
-          if ! pfctl -a "$ANCHOR" -s nat 2>/dev/null | grep -q 'port \(port)'; then
-            printf '%s\\n' "$RULES" | pfctl -a "$ANCHOR" -f - >/dev/null 2>&1
-          fi
+        if [ -n "$BRIDGES" ] && dns_listening; then
+          # Reload when a bridge lacks its rule or a rule names a bridge that's gone.
+          have=$(pfctl -a "$ANCHOR" -s nat 2>/dev/null)
+          stale=
+          for b in $BRIDGES; do
+            printf '%s\\n' "$have" | grep -q "on $b .*port $PORT" || stale=1
+          done
+          for b in $(printf '%s\\n' "$have" | sed -n 's/.* on \\(bridge[0-9]*\\) .*/\\1/p' | sort -u); do
+            case " $(echo $BRIDGES) " in *" $b "*) ;; *) stale=1 ;; esac
+          done
+          if [ -n "$stale" ]; then rules | pfctl -a "$ANCHOR" -f - >/dev/null 2>&1; fi
           token=$(cat "$TOKEN_FILE" 2>/dev/null)
           if [ -z "$token" ] || ! pfctl -s References 2>/dev/null | grep -qw "$token"; then
             token=$(pfctl -E 2>&1 | sed -n 's/^Token : *\\([0-9][0-9]*\\).*/\\1/p')
@@ -130,7 +155,7 @@ enum LoopbackHelper {
           if [ -n "$token" ]; then pfctl -X "$token" >/dev/null 2>&1; fi
           rm -f "$TOKEN_FILE"
           redirect=off
-          if bridge_up; then reason=dns-not-listening; else reason=no-hotspot; fi
+          if [ -n "$BRIDGES" ]; then reason=dns-not-listening; else reason=no-hotspot; fi
         fi
 
         printf 'version=\(version)\\nredirect=%s\\nreason=%s\\nanchor=%s\\n' "$redirect" "$reason" "$anchor_point" > "$STATUS_FILE.tmp" \\

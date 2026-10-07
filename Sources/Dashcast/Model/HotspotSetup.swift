@@ -160,6 +160,19 @@ struct HotspotSetup: Equatable {
 
     func isDone(_ step: Step) -> Bool { done.contains(step) }
 
+    /// How often the open Car Hotspot window re-reads the network. Every 2 s while the hotspot is up
+    /// and the car steps aren't done (a car joining shows only in bootpd's leases and the ARP table,
+    /// which nothing reports), while System Settings is being set up, or while "Do It for Me" waits
+    /// for the hotspot to start ("it hasn't started" ticks on `now`); otherwise every 10 s, as a
+    /// safety net: Internet Sharing and the cables are watched and pushed as they change.
+    static func pollInterval(_ setup: HotspotSetup, assistant: SharingAssistant.Phase) -> TimeInterval {
+        switch assistant {
+        case .automating, .guiding: return 2
+        case .finished where setup.sharing != .on: return 2
+        case .idle, .finished: return setup.sharing != .off && !setup.isComplete ? 2 : 10
+        }
+    }
+
     var isComplete: Bool { current == nil }
 
     /// What to type in the car's Wi‑Fi list.

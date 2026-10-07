@@ -52,9 +52,10 @@ struct SetupAssistant: View {
         .tint(.dashAccent)
         .task { await PermissionPoller.poll(model) }
         .task {
+            // The service hears about network changes as they happen; this is the safety net.
             while !Task.isCancelled {
                 await model.refreshNetwork()
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(10))
             }
         }
     }

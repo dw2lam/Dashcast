@@ -246,40 +246,52 @@ enum TopologyClassifier {
 enum InterfaceScanner {
     static func snapshot() -> InterfaceSnapshot {
         var snapshot = InterfaceSnapshot(addresses: ipv4Addresses())
-        (snapshot.primaryInterface, snapshot.gateway) = primaryInterfaceAndGateway()
+        let primary = primaryService(store: nil)
+        (snapshot.primaryInterface, snapshot.gateway) = (primary.interface, primary.gateway)
+        snapshot.androidMetered = primary.androidMetered
         (snapshot.kinds, snapshot.displayNames) = hardwareKinds()
-        snapshot.androidMetered = primaryLeaseIsAndroidMetered()
         return snapshot
     }
 
-    /// DHCP option 43 on the primary service's lease. Android's tethering DHCP server sends the
-    /// ASCII string "ANDROID_METERED" there when the hotspot shares mobile data.
-    static func primaryLeaseIsAndroidMetered() -> Bool {
-        guard let store = SCDynamicStoreCreate(nil, "online.davidlam.dashcast" as CFString, nil, nil),
-              let global = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
-              let service = global["PrimaryService"] as? String,
-              let dhcp = SCDynamicStoreCopyValue(store, "State:/Network/Service/\(service)/DHCP" as CFString) as? [String: Any],
-              let data = dhcp["Option_43"] as? Data
-        else { return false }
-        return data.range(of: Data("ANDROID_METERED".utf8)) != nil
+    /// The primary interface and its router (State:/Network/Global/IPv4), and whether the primary
+    /// service's DHCP lease carries option 43 "ANDROID_METERED", which Android's tethering DHCP server
+    /// sends when the hotspot shares mobile data. `store` nil = a throwaway session.
+    static func primaryService(store: SCDynamicStore?) -> (interface: String?, gateway: String?, androidMetered: Bool) {
+        guard let store = store ?? SCDynamicStoreCreate(nil, "online.davidlam.dashcast" as CFString, nil, nil),
+              let global = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any]
+        else { return (nil, nil, false) }
+        var metered = false
+        if let service = global["PrimaryService"] as? String,
+           let dhcp = SCDynamicStoreCopyValue(store, "State:/Network/Service/\(service)/DHCP" as CFString) as? [String: Any],
+           let data = dhcp["Option_43"] as? Data {
+            metered = data.range(of: Data("ANDROID_METERED".utf8)) != nil
+        }
+        return (global["PrimaryInterface"] as? String, global["Router"] as? String, metered)
     }
 
-    static func ipv4Addresses() -> [InterfaceAddress] {
+    static func ipv4Addresses() -> [InterfaceAddress] { scan().addresses }
+
+    /// Every IPv4 address, plus the name of every interface (link-level entries included, so an
+    /// adapter that has no address yet still counts).
+    static func scan() -> (addresses: [InterfaceAddress], names: Set<String>) {
         var head: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&head) == 0, let first = head else { return [] }
+        guard getifaddrs(&head) == 0, let first = head else { return ([], []) }
         defer { freeifaddrs(head) }
         var result: [InterfaceAddress] = []
+        var names: Set<String> = []
         for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
             let entry = pointer.pointee
+            let name = String(cString: entry.ifa_name)
+            names.insert(name)
             guard let sa = entry.ifa_addr, sa.pointee.sa_family == sa_family_t(AF_INET) else { continue }
             let flags = Int32(entry.ifa_flags)
             result.append(InterfaceAddress(
-                name: String(cString: entry.ifa_name),
+                name: name,
                 address: ipv4String(sa),
                 netmask: entry.ifa_netmask.map(ipv4String),
                 isUp: flags & IFF_UP != 0 && flags & IFF_RUNNING != 0))
         }
-        return result
+        return (result, names)
     }
 
     private static func ipv4String(_ sa: UnsafeMutablePointer<sockaddr>) -> String {
@@ -287,13 +299,6 @@ enum InterfaceScanner {
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         guard inet_ntop(AF_INET, &addr, &buffer, socklen_t(INET_ADDRSTRLEN)) != nil else { return "" }
         return buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
-    }
-
-    static func primaryInterfaceAndGateway() -> (String?, String?) {
-        guard let store = SCDynamicStoreCreate(nil, "online.davidlam.dashcast" as CFString, nil, nil),
-              let value = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any]
-        else { return (nil, nil) }
-        return (value["PrimaryInterface"] as? String, value["Router"] as? String)
     }
 
     static func hardwareKinds() -> ([String: InterfaceKind], [String: String]) {
@@ -316,5 +321,52 @@ enum InterfaceScanner {
             }
         }
         return (kinds, names)
+    }
+}
+
+/// `InterfaceScanner.snapshot()` for repeated status refreshes. The hardware scan
+/// (SCNetworkInterfaceCopyAll, 2–3 ms: most of a refresh) only reruns when the set of interfaces
+/// changes, and one SCDynamicStore session serves every refresh.
+final class CachingInterfaceScanner: @unchecked Sendable {   // state behind `lock`
+    typealias Hardware = (kinds: [String: InterfaceKind], displayNames: [String: String])
+
+    private let lock = NSLock()
+    private let scan: () -> (addresses: [InterfaceAddress], names: Set<String>)
+    private let primary: () -> (interface: String?, gateway: String?, androidMetered: Bool)
+    private let hardware: () -> Hardware
+    private var cached: (names: Set<String>, hardware: Hardware, complete: Bool)?
+    /// Hardware scans so far (tests).
+    private(set) var hardwareScans = 0
+
+    init(scan: @escaping () -> (addresses: [InterfaceAddress], names: Set<String>) = InterfaceScanner.scan,
+         primary: (() -> (interface: String?, gateway: String?, androidMetered: Bool))? = nil,
+         hardware: @escaping () -> Hardware = InterfaceScanner.hardwareKinds) {
+        self.scan = scan
+        self.hardware = hardware
+        if let primary {
+            self.primary = primary
+        } else {
+            let store = SCDynamicStoreCreate(nil, "online.davidlam.dashcast" as CFString, nil, nil)
+            self.primary = { InterfaceScanner.primaryService(store: store) }
+        }
+    }
+
+    func snapshot() -> InterfaceSnapshot {
+        let (addresses, names) = scan()
+        let primary = primary()
+        var snapshot = InterfaceSnapshot(addresses: addresses, primaryInterface: primary.interface,
+                                         gateway: primary.gateway, androidMetered: primary.androidMetered)
+        lock.lock()
+        defer { lock.unlock() }
+        if cached?.names != names || cached?.complete == false {
+            let hardware = hardware()
+            // SystemConfiguration can register a new adapter a moment after the kernel lists it;
+            // until every en* port has a kind, ask again next time instead of caching the gap.
+            let complete = names.allSatisfy { !$0.hasPrefix("en") || hardware.kinds[$0] != nil }
+            cached = (names, hardware, complete)
+            hardwareScans += 1
+        }
+        (snapshot.kinds, snapshot.displayNames) = (cached!.hardware.kinds, cached!.hardware.displayNames)
+        return snapshot
     }
 }

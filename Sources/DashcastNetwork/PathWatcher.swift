@@ -33,6 +33,9 @@ final class PathWatcher: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return latest
     }
 
+    /// The latest answer, nil until the monitor's first update.
+    var satisfied: Bool? { status.map { $0 == .satisfied } }
+
     /// Waits up to `timeout` for the monitor's first update.
     func isSatisfied(timeout: TimeInterval = 1.5) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)

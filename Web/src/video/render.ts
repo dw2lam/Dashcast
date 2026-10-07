@@ -22,10 +22,11 @@ export function fit(cw: number, ch: number, w: number, h: number): number[] {
   return [(cw - dw) >> 1, (ch - dh) >> 1, dw, dh];
 }
 
-export function createRenderer(c: AnyCanvas, pref: string): Renderer | null {
+/** `onRestore`: the WebGL context came back after a loss and needs a fresh frame. */
+export function createRenderer(c: AnyCanvas, pref: string, onRestore?: () => void): Renderer | null {
   if (pref !== '2d') {
     try {
-      const r = webgl(c);
+      const r = webgl(c, onRestore);
       if (r) return r;
     } catch {
       /* fall through */
@@ -43,7 +44,7 @@ const FS =
   '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n' +
   'uniform sampler2D t;varying vec2 v;void main(){gl_FragColor=texture2D(t,v);}';
 
-function webgl(c: AnyCanvas): Renderer | null {
+function webgl(c: AnyCanvas, onRestore?: () => void): Renderer | null {
   const g = c.getContext('webgl', {
     alpha: false,
     antialias: false,
@@ -53,30 +54,45 @@ function webgl(c: AnyCanvas): Renderer | null {
     preserveDrawingBuffer: false,
   }) as WebGLRenderingContext | null;
   if (!g) return null;
-  const prog = g.createProgram()!;
-  for (const [type, src] of [
-    [g.VERTEX_SHADER, VS],
-    [g.FRAGMENT_SHADER, FS],
-  ] as [number, string][]) {
-    const s = g.createShader(type)!;
-    g.shaderSource(s, src);
-    g.compileShader(s);
-    g.attachShader(prog, s);
-  }
-  g.bindAttribLocation(prog, 0, 'p');
-  g.linkProgram(prog);
-  if (!g.getProgramParameter(prog, g.LINK_STATUS)) return null;
-  g.useProgram(prog);
-  g.bindBuffer(g.ARRAY_BUFFER, g.createBuffer());
-  g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
-  g.enableVertexAttribArray(0);
-  g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0);
-  g.bindTexture(g.TEXTURE_2D, g.createTexture());
-  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
-  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
-  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
-  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
-  g.clearColor(0, 0, 0, 1);
+  /** Program, quad and texture; run again after a context loss. */
+  const setup = (): boolean => {
+    const prog = g.createProgram()!;
+    for (const [type, src] of [
+      [g.VERTEX_SHADER, VS],
+      [g.FRAGMENT_SHADER, FS],
+    ] as [number, string][]) {
+      const s = g.createShader(type)!;
+      g.shaderSource(s, src);
+      g.compileShader(s);
+      g.attachShader(prog, s);
+    }
+    g.bindAttribLocation(prog, 0, 'p');
+    g.linkProgram(prog);
+    if (!g.getProgramParameter(prog, g.LINK_STATUS)) return false;
+    g.useProgram(prog);
+    g.bindBuffer(g.ARRAY_BUFFER, g.createBuffer());
+    g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
+    g.enableVertexAttribArray(0);
+    g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0);
+    g.bindTexture(g.TEXTURE_2D, g.createTexture());
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+    g.clearColor(0, 0, 0, 1);
+    return true;
+  };
+  if (!setup()) return null;
+  // A lost context (GPU process restart, memory pressure) only comes back if the loss is
+  // preventDefault()ed; without this the picture stays frozen until the page reloads.
+  const t = c as unknown as EventTarget;
+  t.addEventListener('webglcontextlost', (e) => e.preventDefault());
+  t.addEventListener('webglcontextrestored', () => {
+    if (!setup()) return;
+    vw = vh = 0;
+    paint();
+    if (onRestore) onRestore();
+  });
   let vw = 0;
   let vh = 0;
   const paint = () => {

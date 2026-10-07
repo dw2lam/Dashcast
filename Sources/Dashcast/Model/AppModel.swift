@@ -62,6 +62,8 @@ final class AppModel {
     @ObservationIgnored private var hotspotCoach: HotspotCoach?
     @ObservationIgnored private let hotspotPasswords: HotspotPasswordStoring
     @ObservationIgnored private var cachedHotspotPassword: String?
+    /// `cachedHotspotPassword` is the one in the Keychain (or the one just set in Wi‑Fi Options).
+    @ObservationIgnored private var hotspotPasswordKept = false
     /// Whether the Mac's hotspot was up at the last look (auto-ready acts on off → on only).
     @ObservationIgnored private var hotspotWasUp = false
 
@@ -91,7 +93,7 @@ final class AppModel {
         sharingAssistant = SharingAssistant(environment: sharingEnvironment ?? LiveSharingEnvironment(open: open))
         self.settings = settings
         service.settings = settings
-        sharingAssistant.onOptionsSaved = { [weak self] plan in self?.hotspotPasswordNetwork = plan.networkName }
+        sharingAssistant.onOptionsSaved = { [weak self] plan in self?.hotspotOptionsSaved(plan) }
     }
 
     var state: ServiceState { service.state }
@@ -131,7 +133,8 @@ final class AppModel {
 
     // MARK: - Disconnect notices
 
-    /// Re-arms after every change of `state.lastDisconnect` or the phase.
+    /// Re-arms after every change of `state.lastDisconnect` or the phase (before measuring, which
+    /// can take seconds, so a change meanwhile isn't missed).
     private func watchDisconnects() {
         withObservationTracking {
             _ = state.lastDisconnect
@@ -140,9 +143,9 @@ final class AppModel {
             Task { @MainActor in
                 guard let self else { return }
                 self.disconnectChanged()
+                self.watchDisconnects()
                 // Casting stopped on an error (e.g. a revoked grant): measure again.
                 if case .error = self.state.phase { await self.permissions.refreshAll(.force) }
-                self.watchDisconnects()
             }
         }
     }
@@ -217,14 +220,24 @@ final class AppModel {
                            password: hotspotPassword, passwordSet: knownHotspotPassword != nil, now: now))
     }
 
-    /// The hotspot password Dashcast suggests (and types, in "Do It for Me"): made once, kept in the Keychain.
+    /// The hotspot password Dashcast suggests (and types, in "Do It for Me"): made once, kept in the
+    /// Keychain. One that's there but can't be read right now is never replaced: this launch
+    /// suggests a new one, kept only if it's set in Wi‑Fi Options.
     var hotspotPassword: String {
         if let cachedHotspotPassword { return cachedHotspotPassword }
-        let password = hotspotPasswords.load() ?? {
-            let made = HotspotPassword.generate()
-            hotspotPasswords.save(made)
-            return made
-        }()
+        let password: String
+        do {
+            if let saved = try hotspotPasswords.load() {
+                password = saved
+                hotspotPasswordKept = true
+            } else {
+                password = HotspotPassword.generate()
+                hotspotPasswordKept = hotspotPasswords.save(password)
+            }
+        } catch {
+            password = HotspotPassword.generate()
+            hotspotPasswordKept = false
+        }
         cachedHotspotPassword = password
         return password
     }
@@ -232,7 +245,18 @@ final class AppModel {
     /// The hotspot's password, when Dashcast set it and the network still has the name it was set with.
     var knownHotspotPassword: String? {
         guard let network = hotspotPasswordNetwork, network == state.network.hotspot.networkName else { return nil }
-        return hotspotPassword
+        let password = hotspotPassword
+        return hotspotPasswordKept ? password : nil
+    }
+
+    /// Wi‑Fi Options… was saved with `plan`'s name and password: that's the hotspot's password now.
+    func hotspotOptionsSaved(_ plan: SharingPlan) {
+        if plan.password != cachedHotspotPassword || !hotspotPasswordKept {
+            hotspotPasswords.save(plan.password)
+            cachedHotspotPassword = plan.password
+        }
+        hotspotPasswordKept = true
+        hotspotPasswordNetwork = plan.networkName
     }
 
     /// What Internet Sharing should be set to, from the live network.

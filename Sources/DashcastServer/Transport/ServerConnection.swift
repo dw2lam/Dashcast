@@ -47,6 +47,8 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
 
     private(set) var mode: Mode = .http
     private(set) var lastActivity: TimeInterval
+    /// When the first byte of the HTTP request still being received arrived (nil between requests).
+    private(set) var requestStartedAt: TimeInterval?
     /// Bytes / video frames handed to Network.framework whose send hasn't completed.
     private(set) var pendingBytes = 0
     private(set) var pendingVideoFrames = 0
@@ -133,6 +135,7 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
 
     private func ingestHTTP(_ data: Data) {
         guard !draining else { return }
+        if httpBuffer.isEmpty { requestStartedAt = lastActivity }
         httpBuffer.append(contentsOf: data)
         while mode == .http, !draining, !terminated {
             switch HTTPRequestParser.parse(httpBuffer) {
@@ -143,6 +146,8 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
                 return
             case .complete(let request, let consumed):
                 httpBuffer.removeFirst(consumed)
+                // A pipelined next request started arriving with this one.
+                requestStartedAt = httpBuffer.isEmpty ? nil : lastActivity
                 guard let server else { terminate(reason: "server gone"); return }
                 switch server.route(request, role: role, isTLS: isTLS) {
                 case .respond(let response, let close):
@@ -155,6 +160,7 @@ final class ServerConnection: @unchecked Sendable {   // confined to the server 
                 case .upgrade(let response):
                     send(response.serialized(keepAlive: true), kind: .control)
                     mode = .webSocket
+                    requestStartedAt = nil
                     let leftover = httpBuffer
                     httpBuffer = []
                     delegate?.webSocketDidOpen(self)

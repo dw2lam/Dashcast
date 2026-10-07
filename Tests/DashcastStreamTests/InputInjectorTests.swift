@@ -41,6 +41,30 @@ final class InputInjectorTests: XCTestCase {
         XCTAssertNil(InputInjector.keyCode(for: "F13"))
     }
 
+    /// Typed text is posted 20 UTF-16 units at a time; a surrogate pair must never straddle two events.
+    func testTextChunksKeepSurrogatePairsTogether() {
+        let ascii = String(repeating: "a", count: 45)
+        XCTAssertEqual(InputInjector.chunks(ascii).map(\.count), [20, 20, 5])
+        // 19 ASCII units, then an emoji (2 units) at the boundary: it moves whole into the next chunk.
+        let text = String(repeating: "b", count: 19) + "😀" + "c"
+        let chunks = InputInjector.chunks(text)
+        XCTAssertEqual(chunks.map(\.count), [19, 3])
+        XCTAssertEqual(chunks.map { String(decoding: $0, as: UTF16.self) }.joined(), text)
+        XCTAssertTrue(chunks.allSatisfy { !UTF16.isLeadSurrogate($0.last!) }, "no chunk ends mid-pair")
+        XCTAssertEqual(InputInjector.chunks(String(repeating: "😀", count: 15)).flatMap { $0 }.count, 30)
+        XCTAssertTrue(InputInjector.chunks("").isEmpty)
+    }
+
+    /// Scroll deltas come straight from the car's JSON: huge or non-finite values must not trap.
+    func testWheelDeltaClamps() {
+        XCTAssertEqual(InputInjector.wheelDelta(12.4), 12)
+        XCTAssertEqual(InputInjector.wheelDelta(-12.6), -13)
+        XCTAssertEqual(InputInjector.wheelDelta(1e300), Int32.max)
+        XCTAssertEqual(InputInjector.wheelDelta(-1e300), Int32.min)
+        XCTAssertEqual(InputInjector.wheelDelta(.infinity), 0)
+        XCTAssertEqual(InputInjector.wheelDelta(.nan), 0)
+    }
+
     /// Moves the real cursor onto a virtual display and back. Opt-in: DASHCAST_LIVE_INPUT=1.
     func testLiveCursorMoveOnVirtualDisplay() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["DASHCAST_LIVE_INPUT"] == "1", "set DASHCAST_LIVE_INPUT=1")

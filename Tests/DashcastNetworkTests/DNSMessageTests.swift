@@ -107,6 +107,8 @@ final class DNSMessageTests: XCTestCase {
         let formErr = try XCTUnwrap(DNSMessage.formatError(for: Data([0xAB, 0xCD, 0x01, 0x00, 0xFF])))
         XCTAssertEqual([UInt8](formErr), [0xAB, 0xCD, 0x81, 0x81, 0, 0, 0, 0, 0, 0, 0, 0])
         XCTAssertNil(DNSMessage.formatError(for: Data([1])))
+        XCTAssertNil(DNSMessage.formatError(for: Data([0xAB, 0xCD, 0x81, 0x80, 0xFF])),
+                     "a malformed packet that claims to be a response gets no reply (no error ping-pong)")
 
         let query = try DNSMessage.parse(DNSMessage.query(id: 9, name: "example.com", type: DNSType.a))
         let servfail = try DNSMessage.parse(DNSMessage.serverFailure(for: query))

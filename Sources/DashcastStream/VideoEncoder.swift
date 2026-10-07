@@ -75,8 +75,15 @@ final class VideoEncoder {
     private var keyframeFallback: DispatchWorkItem?
     private var isInvalidated = false
     private var loggedEncodeError = false
+    /// Bumped whenever the VideoToolbox session is replaced, so late errors from the old one are ignored.
+    private var sessionGeneration = 0
+    /// Session rebuilds since the last frame that encoded (see `handleEncodeError`).
+    private var rebuildsInARow = 0
+    private var lastRebuildAt: UInt64 = 0
+    static let maxRebuildsInARow = 3
 
     private static let log = Logger(subsystem: "online.davidlam.dashcast", category: "encoder")
+    private static let sRGB = CGColorSpace(name: CGColorSpace.sRGB)
 
     init(settings: Settings, queue: DispatchQueue, forceSoftwareJPEG: Bool = false,
          onFrame: @escaping (EncodedVideoFrame) -> Void, onError: @escaping (String) -> Void = { _ in }) throws {
@@ -165,6 +172,8 @@ final class VideoEncoder {
     }
 
     private func submit(_ pixelBuffer: CVPixelBuffer, pts rawPTS: UInt64) {
+        // Nothing is submitted without an input or a session: a pending keyframe request stays armed.
+        guard let input = fitted(pixelBuffer), session != nil || jpegContext != nil else { return }
         // VideoToolbox needs strictly increasing timestamps; a re-encoded frame is stamped "now",
         // so a capture that was already in flight could otherwise go backwards.
         let pts = max(rawPTS, (lastSubmittedPTS ?? 0) + 1)
@@ -173,8 +182,6 @@ final class VideoEncoder {
         keyframePending = false
         keyframeFallback?.cancel()
         keyframeFallback = nil
-
-        guard let input = fitted(pixelBuffer) else { return }
 
         if let jpegContext {
             encodeSoftwareJPEG(input, pts: pts, context: jpegContext)
@@ -185,6 +192,7 @@ final class VideoEncoder {
         let duration = CMTime(value: 1, timescale: CMTimeScale(settings.fps))
         let properties = forceKeyframe ? [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue] as CFDictionary : nil
         let codec = settings.codec
+        let generation = sessionGeneration
         let status = VTCompressionSessionEncodeFrame(
             session, imageBuffer: input, presentationTimeStamp: time, duration: duration,
             frameProperties: properties, infoFlagsOut: nil
@@ -192,25 +200,66 @@ final class VideoEncoder {
             // Runs on a VideoToolbox thread; conversion is pure, delivery hops to the queue.
             guard let self else { return }
             guard status == noErr, let sample, !flags.contains(.frameDropped) else {
-                if status != noErr { self.reportEncodeError(status) }
+                if status != noErr { self.handleEncodeError(status, generation: generation) }
+                // A dropped forced keyframe would leave the viewer waiting: force the next frame
+                // (or, on a static screen, re-encode the last one). Not on errors: no retry loop.
+                if forceKeyframe, status == noErr { self.requestKeyframe() }
                 return
             }
             let frame = Self.makeFrame(from: sample, codec: codec)
             self.queue.async {
                 guard !self.isInvalidated, let frame else { return }
+                self.rebuildsInARow = 0
                 self.onFrame(frame)
             }
         }
-        if status != noErr { reportEncodeError(status) }
+        if status != noErr {
+            if forceKeyframe { keyframePending = true }
+            handleEncodeError(status, generation: generation)
+        }
     }
 
-    private func reportEncodeError(_ status: OSStatus) {
+    /// After sleep or a GPU reset VideoToolbox can give up on a session (kVTInvalidSessionErr on
+    /// every frame) and the car would freeze for good. Rebuild it, at most once a second and
+    /// `maxRebuildsInARow` times without a frame getting through, then report the error.
+    private func handleEncodeError(_ status: OSStatus, generation: Int) {
         queue.async { [weak self] in
-            guard let self, !self.isInvalidated, !self.loggedEncodeError else { return }
+            guard let self, !self.isInvalidated, generation == self.sessionGeneration else { return }
+            let now = DashClock.nowMicros()
+            if self.session != nil, self.rebuildsInARow < Self.maxRebuildsInARow, now &- self.lastRebuildAt > 1_000_000 {
+                self.rebuildsInARow += 1
+                self.lastRebuildAt = now
+                Self.log.error("encode failed: \(status); rebuilding the session (\(self.rebuildsInARow))")
+                if self.rebuildSession() { return }
+            }
+            guard !self.loggedEncodeError else { return }
             self.loggedEncodeError = true
             Self.log.error("encode failed: \(status)")
             self.onError("\(self.settings.codec.rawValue) encode failed (OSStatus \(status))")
         }
+    }
+
+    /// Tests: makes VideoToolbox give up on the live session, the way sleep or a GPU reset does.
+    func breakSessionForTesting() {
+        dispatchPrecondition(condition: .onQueue(queue))
+        if let session { VTCompressionSessionInvalidate(session) }
+    }
+
+    /// A fresh session with the current settings, then a keyframe from the last frame (a static
+    /// screen sends nothing new). false = VideoToolbox refused a new one.
+    private func rebuildSession() -> Bool {
+        if let session { VTCompressionSessionInvalidate(session) }
+        session = nil
+        sessionGeneration += 1
+        do {
+            try makeSession()
+        } catch {
+            Self.log.error("couldn't rebuild the encoder session: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        keyframePending = true
+        flushPendingKeyframe()
+        return true
     }
 
     static func makeFrame(from sample: CMSampleBuffer, codec: VideoCodec) -> EncodedVideoFrame? {
@@ -231,7 +280,7 @@ final class VideoEncoder {
         let quality = Self.jpegQuality(bitrateKbps: settings.bitrateKbps, width: settings.width,
                                        height: settings.height, fps: settings.fps)
         let options = [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality]
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+        guard let colorSpace = Self.sRGB,
               let data = context.jpegRepresentation(of: CIImage(cvPixelBuffer: pixelBuffer),
                                                     colorSpace: colorSpace, options: options) else { return }
         onFrame(EncodedVideoFrame(pts: pts, isKeyframe: true, codec: .jpeg, data: data))

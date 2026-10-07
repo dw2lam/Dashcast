@@ -15,7 +15,7 @@ struct HotspotSetupView: View {
     @State private var now = Date()
     private let polls: Bool
 
-    /// `polls` = refresh the network every 2 s (off for snapshots, which show a fixed state).
+    /// `polls` = refresh the network while it's open (off for snapshots, which show a fixed state).
     init(polls: Bool = true) {
         self.polls = polls
     }
@@ -29,6 +29,7 @@ struct HotspotSetupView: View {
     var body: some View {
         let setup = model.hotspotSetup(now: now)
         let expanded = opened ?? setup.current
+        let pollInterval = HotspotSetup.pollInterval(setup, assistant: model.sharingAssistant.phase)
 
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 14) {
@@ -85,13 +86,14 @@ struct HotspotSetupView: View {
         .toolbar(removing: .title)
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .containerBackground(.thickMaterial, for: .window)
-        .task {
+        // Restarted (with a refresh straight away) when the interval changes, e.g. as sharing comes on.
+        .task(id: pollInterval) {
             guard polls else { return }
             while !Task.isCancelled {
                 await model.service.refreshNetwork()
                 model.trackHotspotCar()
                 now = Date()
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(pollInterval))
             }
         }
         .onDisappear { model.dismissHotspotCoach() }
@@ -653,11 +655,11 @@ final class HotspotCoach: SharingPresenting {
     /// Brings the Car Hotspot window back.
     var returnToWizard: (() -> Void)?
     private var sharingWasOn = false
-    private var ticks = 0
+    private var lastRefresh = Date()
     private var refreshing = false
 
-    /// Re-reads Internet Sharing every this many ticks (1 s).
-    static let refreshTicks = 20
+    /// Re-reads Internet Sharing this often (the network watcher usually reports it sooner).
+    static let refreshInterval: TimeInterval = 1
 
     init(model: AppModel) {
         self.model = model
@@ -667,7 +669,7 @@ final class HotspotCoach: SharingPresenting {
     func present() {
         guard let model, !companion.isShowing else { return }
         sharingWasOn = model.state.network.hotspot.sharingOn
-        ticks = 0
+        lastRefresh = Date()
         let view = HotspotCoachView(close: { [weak self] in self?.dismiss() })
             .environment(model)
         companion.show(view, onTick: { [weak self] in self?.tick() }, onGiveUp: { [weak self] in self?.dismiss() })
@@ -682,7 +684,6 @@ final class HotspotCoach: SharingPresenting {
     private func close() {
         companion.dismiss()
         overlay.dismiss()
-        ticks = 0
     }
 
     // MARK: SharingPresenting
@@ -702,20 +703,28 @@ final class HotspotCoach: SharingPresenting {
 
     private func tick() {
         guard let model else { return dismiss() }
-        ticks += 1
         overlay.follow(window: companion.settingsFrame, visible: companion.settingsInFront)
-        // "Do It for Me" finishes (and presses Done) itself.
-        if model.state.network.hotspot.sharingOn, !sharingWasOn, !model.sharingAssistant.isAutomating {
+        if Self.sharingCameOn(model.state.network.hotspot.sharingOn, wasOn: &sharingWasOn,
+                              automating: model.sharingAssistant.isAutomating) {
             close()
             model.sharingAssistant.stop()
             bringBack()
             return
         }
-        guard ticks % Self.refreshTicks == 0, !refreshing else { return }
+        guard Date().timeIntervalSince(lastRefresh) >= Self.refreshInterval, !refreshing else { return }
+        lastRefresh = Date()
         refreshing = true
         Task { [weak self] in
             await model.service.refreshNetwork()
             self?.refreshing = false
         }
+    }
+
+    /// The coach's job is done: Internet Sharing came on since the coach came up, or since it was
+    /// last seen off (Guide Me has the user turn it off to change it, then on again). Not while
+    /// "Do It for Me" runs: it finishes (and presses Done) itself.
+    nonisolated static func sharingCameOn(_ isOn: Bool, wasOn: inout Bool, automating: Bool) -> Bool {
+        if !isOn { wasOn = false }
+        return isOn && !wasOn && !automating
     }
 }

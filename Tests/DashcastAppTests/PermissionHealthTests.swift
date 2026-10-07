@@ -17,6 +17,28 @@ final class FakeProbe: PermissionProbing {
     }
 }
 
+/// A first functional check that takes as long as the test says (like a slow ScreenCaptureKit
+/// answer); any later one answers at once.
+@MainActor
+final class GatedProbe: PermissionProbing {
+    var result: PermissionProbeResult = .working
+    private(set) var probes = 0
+    private var gate: CheckedContinuation<Void, Never>?
+    var isWaiting: Bool { gate != nil }
+
+    func preflight(_ pane: PermissionPane) -> Bool { true }
+    func probe(_ pane: PermissionPane) async -> PermissionProbeResult {
+        probes += 1
+        if probes == 1 { await withCheckedContinuation { gate = $0 } }
+        return result
+    }
+
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+}
+
 final class PermissionClassificationTests: XCTestCase {
     private func classify(_ preflight: Bool, _ probe: PermissionProbeResult?, asked: Bool = false,
                           whileRunning: Bool = false, relaunched: Bool = false) -> PermissionHealth {
@@ -151,6 +173,31 @@ final class PermissionMonitorTests: XCTestCase {
         XCTAssertEqual(locked, .noDisplays)
         _ = await monitor.refresh(.screenRecording, .stale)
         XCTAssertEqual(probe.probes.count, 3, "a fresh non-working result isn't re-checked straight away")
+    }
+
+    /// Start (and getting ready on its own) while launch's check is still running wait for its
+    /// answer: "checking" isn't "fine". Polling doesn't wait.
+    @MainActor
+    func testACheckAlreadyRunningAnswersForEveryone() async {
+        let probe = GatedProbe()
+        probe.result = .failed("SCStreamErrorDomain -3801")
+        let monitor = PermissionMonitor(probe: probe, defaults: defaults)
+        let launch = Task { await monitor.refresh(.screenRecording, .force) }
+        let started = await pollUntil { probe.isWaiting }
+        XCTAssertTrue(started)
+        let start = Task { await monitor.refresh(.screenRecording, .force) }
+        let ready = Task { await monitor.refresh(.screenRecording, .stale) }
+        for _ in 0..<5 { await Task.yield() }
+        let polled = await monitor.refresh(.screenRecording, .listOnly)
+        XCTAssertEqual(polled, .checking)
+        probe.release()
+        let launched = await launch.value
+        let started2 = await start.value
+        let readied = await ready.value
+        XCTAssertEqual(launched, .grantedButNotWorking)
+        XCTAssertEqual(started2, .grantedButNotWorking)
+        XCTAssertEqual(readied, .grantedButNotWorking)
+        XCTAssertEqual(probe.probes, 1, "one check, three answers")
     }
 
     func testPinnedStatesSurviveMeasuring() async {

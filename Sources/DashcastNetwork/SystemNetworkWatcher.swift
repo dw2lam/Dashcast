@@ -10,10 +10,13 @@ final class SystemNetworkWatcher: @unchecked Sendable {   // state confined to `
     /// Interface list changes (a bridge or a USB adapter comes or goes) and the primary service.
     static let keys = ["State:/Network/Interface", "State:/Network/Global/IPv4"]
     /// Addresses on sharing bridges and Ethernet-style ports, and their link state (cable, Wi-Fi).
+    /// lo0's addresses too: the service address appearing there (the helper runs at boot, often
+    /// after Dashcast starts) is what lets the :80/:443 listeners and the DNS responder bind.
     static let patterns = [
         "^State:/Network/Interface/bridge[0-9]+/IPv4$",
         "^State:/Network/Interface/en[0-9]+/IPv4$",
         "^State:/Network/Interface/en[0-9]+/Link$",
+        "^State:/Network/Interface/lo0/IPv4$",
     ]
 
     private let queue = DispatchQueue(label: "online.davidlam.dashcast.scwatch")
@@ -21,10 +24,11 @@ final class SystemNetworkWatcher: @unchecked Sendable {   // state confined to `
     private let coalesce: DispatchTimeInterval
     private let natPath: String
     private var store: SCDynamicStore?
-    private var relay: Unmanaged<Relay>?
     private var directorySource: DispatchSourceFileSystemObject?
     private var natStamp: String?
     private var pending = false
+    /// The watched directory went away (deleted or renamed); retry opening it.
+    static let directoryRetryInterval: DispatchTimeInterval = .seconds(2)
 
     /// Bridges SCDynamicStore's C callback to the watcher without keeping it alive.
     private final class Relay {
@@ -41,7 +45,10 @@ final class SystemNetworkWatcher: @unchecked Sendable {   // state confined to `
         natPath = natPreferencesPath ?? ""
         queue.sync {
             if dynamicStore { startDynamicStore() }
-            if natPreferencesPath != nil { startNATWatch() }
+            if natPreferencesPath != nil {
+                natStamp = Self.stamp(natPath)
+                startNATWatch()
+            }
         }
     }
 
@@ -49,7 +56,6 @@ final class SystemNetworkWatcher: @unchecked Sendable {   // state confined to `
         if let store {
             SCDynamicStoreSetDispatchQueue(store, nil)
         }
-        relay?.release()
         directorySource?.cancel()
     }
 
@@ -58,45 +64,63 @@ final class SystemNetworkWatcher: @unchecked Sendable {   // state confined to `
     /// The NAT preferences' directory is watched.
     var watchingNATPreferences: Bool { queue.sync { directorySource != nil } }
 
+    /// The store owns the relay (retain/release callbacks), so a notification already on its way
+    /// when the watcher goes away still finds a live relay, whose weak `watcher` is then nil.
     private func startDynamicStore() {
-        let relay = Unmanaged.passRetained(Relay(self))
-        var context = SCDynamicStoreContext(version: 0, info: relay.toOpaque(), retain: nil, release: nil,
-                                            copyDescription: nil)
+        let relay = Relay(self)
+        var context = SCDynamicStoreContext(
+            version: 0, info: Unmanaged.passUnretained(relay).toOpaque(),
+            retain: { info in
+                _ = Unmanaged<Relay>.fromOpaque(info).retain()
+                return info
+            },
+            release: { info in Unmanaged<Relay>.fromOpaque(info).release() },
+            copyDescription: nil)
         guard let store = SCDynamicStoreCreate(nil, "online.davidlam.dashcast.watch" as CFString, { _, _, info in
             guard let info else { return }
             Unmanaged<Relay>.fromOpaque(info).takeUnretainedValue().watcher?.noteChange()
-        }, &context) else {
-            relay.release()
-            return
-        }
+        }, &context) else { return }
         guard SCDynamicStoreSetNotificationKeys(store, Self.keys as CFArray, Self.patterns as CFArray),
-              SCDynamicStoreSetDispatchQueue(store, queue) else {
-            relay.release()
-            return
-        }
+              SCDynamicStoreSetDispatchQueue(store, queue) else { return }
         self.store = store
-        self.relay = relay
         watchingDynamicStore = true
     }
 
+    /// On `queue`. If the directory itself is deleted or renamed, its descriptor would watch a dead
+    /// vnode forever: drop it and reopen the path (retrying until it's back).
     private func startNATWatch() {
         let directory = (natPath as NSString).deletingLastPathComponent
         let fd = open(directory, O_EVTONLY)
-        guard fd >= 0 else { return }
-        natStamp = Self.stamp(natPath)
+        guard fd >= 0 else {
+            queue.asyncAfter(deadline: .now() + Self.directoryRetryInterval) { [weak self] in
+                guard let self, self.directorySource == nil else { return }
+                self.startNATWatch()
+                if self.directorySource != nil { self.natFileMaybeChanged() }
+            }
+            return
+        }
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete],
                                                                queue: queue)
-        source.setEventHandler { [weak self] in
-            guard let self else { return }
-            // The directory also holds preferences.plist and friends; only the NAT file matters.
-            let stamp = Self.stamp(self.natPath)
-            guard stamp != self.natStamp else { return }
-            self.natStamp = stamp
-            self.noteChange()
+        source.setEventHandler { [weak self, weak source] in
+            guard let self, let source else { return }
+            if !source.data.isDisjoint(with: [.rename, .delete]) {
+                source.cancel()
+                self.directorySource = nil
+                self.startNATWatch()
+            }
+            self.natFileMaybeChanged()
         }
         source.setCancelHandler { close(fd) }
         source.resume()
         directorySource = source
+    }
+
+    /// The directory also holds preferences.plist and friends; only the NAT file matters.
+    private func natFileMaybeChanged() {
+        let stamp = Self.stamp(natPath)
+        guard stamp != natStamp else { return }
+        natStamp = stamp
+        noteChange()
     }
 
     /// inode + size + mtime (nil = no file).

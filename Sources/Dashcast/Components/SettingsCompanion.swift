@@ -9,7 +9,11 @@ import SwiftUI
 /// gives up when Settings closes (or never comes up) or stays in the background for a minute.
 @MainActor
 final class SettingsCompanion {
+    /// While System Settings is in front: often enough to follow its window as it's dragged.
     static let tickInterval: TimeInterval = 1.0 / 20
+    /// While it's in the background (the panel is hidden): enough to notice it closing. Coming to
+    /// the front ticks at once (an activation notification), so nothing waits for this.
+    static let backgroundTickInterval: TimeInterval = 0.5
 
     private(set) var panel: GuidePanel?
     /// Keeps the panel showing while System Settings isn't frontmost (mid-drag).
@@ -18,6 +22,7 @@ final class SettingsCompanion {
     private(set) var settingsFrame: CGRect?
     private(set) var settingsInFront = false
     private var timer: Timer?
+    private var activationObserver: NSObjectProtocol?
     private var onTick: (() -> Void)?
     private var onGiveUp: (() -> Void)?
     private var shownAt = Date()
@@ -26,7 +31,8 @@ final class SettingsCompanion {
 
     var isShowing: Bool { panel != nil }
 
-    /// `onTick` runs 20 times a second (it may dismiss); `onGiveUp` when Settings has gone away.
+    /// `onTick` runs on every tick, 20 times a second while System Settings is in front and twice a
+    /// second otherwise (it may dismiss); `onGiveUp` when Settings has gone away.
     func show<Content: View>(_ content: Content, onTick: @escaping () -> Void = {}, onGiveUp: @escaping () -> Void) {
         dismiss()
         shownAt = Date()
@@ -35,10 +41,22 @@ final class SettingsCompanion {
         panel = GuidePanel(content: content)
         self.onTick = onTick
         self.onGiveUp = onGiveUp
-
-        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
+        schedule(Self.tickInterval)
+        // Any app coming to the front: System Settings (show the panel now, at full rate) or
+        // another one (hide it now, and slow down).
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+    }
+
+    private func schedule(_ interval: TimeInterval) {
+        guard timer?.timeInterval != interval else { return }
+        timer?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        timer.tolerance = interval / 5
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }
@@ -46,6 +64,8 @@ final class SettingsCompanion {
     func dismiss() {
         timer?.invalidate()
         timer = nil
+        if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
+        activationObserver = nil
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
@@ -58,12 +78,13 @@ final class SettingsCompanion {
 
     private func tick() {
         guard let panel else { return }
-        onTick?()
-        guard self.panel === panel else { return }
-
         let now = Date()
         settingsFrame = SettingsWindow.frame()
         settingsInFront = SettingsWindow.isFrontmost
+        onTick?()
+        guard self.panel === panel else { return }
+
+        schedule(settingsInFront || holdsVisible ? Self.tickInterval : Self.backgroundTickInterval)
         guard let window = settingsFrame else {
             panel.orderOut(nil)
             // Closed (or it never came up): give up.

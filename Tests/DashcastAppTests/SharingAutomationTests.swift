@@ -437,6 +437,72 @@ final class SharingAutomationTests: XCTestCase {
         XCTAssertTrue(assistant.hotspotLate(now: at.addingTimeInterval(SharingAssistant.startGrace)))
     }
 
+    /// Stop at any moment: from then on System Settings is left exactly as it is, and nothing the
+    /// stopped run reports or ends with reaches the assistant (no hand-over to Guide Me after Stop).
+    func testStopLeavesSystemSettingsAlone() async throws {
+        func makeFake() -> FakeSystemSettings {
+            let fake = FakeSystemSettings()
+            fake.asksToAuthorize = false   // only Dashcast's presses change anything
+            fake.wifiHiddenLooks = 4       // Wi‑Fi turns up late, while the run waits for it
+            return fake
+        }
+        // How many waits a whole run has.
+        let whole = makeFake()
+        var waits = 0
+        whole.onSleep = { waits += 1 }
+        let (result, _) = await run(whole)
+        if case .failure(let error) = result { XCTFail("\(error)") }
+        XCTAssertTrue(whole.sharingOn)
+        XCTAssertGreaterThanOrEqual(waits, 3)
+
+        for stopAt in 1...waits {
+            let fake = makeFake()
+            let assistant = SharingAssistant(environment: fake, defaults: UserDefaults(suiteName: "SharingAutomationTests")!)
+            assistant.timing = Self.fast
+            var count = 0
+            var atStop: String?
+            fake.onSleep = { [unowned fake, unowned assistant] in
+                count += 1
+                guard count == stopAt else { return }
+                atStop = fake.settings
+                assistant.stop()
+            }
+            assistant.automate(plan())
+            for _ in 0..<400 where atStop == nil {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)   // whatever the stopped run would still do
+            XCTAssertEqual(fake.settings, atStop, "Stop during wait \(stopAt)")
+            XCTAssertEqual(assistant.phase, .idle, "Stop during wait \(stopAt)")
+            XCTAssertNil(assistant.guidance)
+            XCTAssertNil(assistant.step)
+            XCTAssertFalse(assistant.waitingForYou)
+        }
+    }
+
+    /// Guide Me walks System Settings' tree every 0.3 s only while something's happening.
+    func testGuidanceLooksLessWhileTheUserReads() {
+        func looks(_ sinceLook: TimeInterval, change: TimeInterval = 10, input: TimeInterval?, touchID: Bool = false) -> Bool {
+            SharingAssistant.looksNow(sinceLook: sinceLook, sinceChange: change, sinceInput: input, waitingForTouchID: touchID)
+        }
+        XCTAssertTrue(looks(0.3, input: 0.5), "a click just now")
+        XCTAssertTrue(looks(0.3, change: 1, input: 30), "the screen just changed")
+        XCTAssertTrue(looks(0.3, input: 30, touchID: true), "Touch ID goes away without a click")
+        XCTAssertTrue(looks(0.3, input: nil), "can't tell: look every time")
+        XCTAssertFalse(looks(0.3, input: 30), "reading the callout")
+        XCTAssertFalse(looks(1.2, input: 30))
+        XCTAssertTrue(looks(0.3 * 5, input: 30), "still looks now and then")
+    }
+
+    func testThePaneRowIsOnlyLookedForWithNoSheetUp() throws {
+        for name in ["state-1", "state-4", "state-5", "state-6"] {
+            let covered = try screen(name)
+            XCTAssertNil(covered.infoButton, name)
+            XCTAssertNil(covered.rowSwitch, name)
+        }
+        XCTAssertNotNil(try screen("state-7").infoButton)
+    }
+
     // MARK: - Guide Me, the user following the highlight
 
     /// Presses whatever the guidance rings (typing where it says to type) until nothing's left.

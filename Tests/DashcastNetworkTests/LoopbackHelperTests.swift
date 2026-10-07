@@ -15,9 +15,9 @@ final class LoopbackHelperTests: XCTestCase {
         XCTAssertEqual(plist["StartInterval"] as? Int, 60)
         XCTAssertEqual(plist["WatchPaths"] as? [String], ["/Library/Preferences/SystemConfiguration",
                                                           "/Library/Application Support/Dashcast/dns-trigger"])
-        XCTAssertEqual(plist["EnvironmentVariables"] as? [String: String], ["DASHCAST_HELPER_VERSION": "2"])
+        XCTAssertEqual(plist["EnvironmentVariables"] as? [String: String], ["DASHCAST_HELPER_VERSION": "3"])
         XCTAssertNil(plist["KeepAlive"])
-        XCTAssertEqual(LoopbackHelper.installedVersion(plist: data), 2)
+        XCTAssertEqual(LoopbackHelper.installedVersion(plist: data), 3)
     }
 
     func testInstalledVersionOfOlderPlists() throws {
@@ -60,9 +60,10 @@ final class LoopbackHelperTests: XCTestCase {
     func testScriptParses() throws {
         let script = LoopbackHelper.script()
         XCTAssertTrue(script.hasPrefix("#!/bin/sh\n"))
-        XCTAssertTrue(script.contains("# dashcast-helper-version: 2"))
+        XCTAssertTrue(script.contains("# dashcast-helper-version: 3"))
         XCTAssertTrue(script.contains("PATH='/usr/bin:/bin:/usr/sbin:/sbin'"))
-        XCTAssertTrue(script.contains("RULES='rdr pass on bridge100 inet proto { udp tcp } from any to any port 53 -> \(svc) port 53530'"))
+        XCTAssertTrue(script.contains("NAT_PLIST='/Library/Preferences/SystemConfiguration/com.apple.nat.plist'"))
+        XCTAssertTrue(script.contains("printf 'rdr pass on %s inet proto { udp tcp } from any to any port 53 -> %s port %s\\n' \"$b\" \"$ADDR\" \"$PORT\""))
         XCTAssertNil(try shellSyntaxError(script))
     }
 
@@ -168,7 +169,7 @@ final class LoopbackHelperTests: XCTestCase {
             plist: try LoopbackHelper.plistData(layout: layout), script: Data(LoopbackHelper.script(layout: layout).utf8),
             uid: 501, layout: layout))
         XCTAssertTrue(runner.commands[0].prompt.contains(svc))
-        XCTAssertEqual(manager.installedHelperVersion(), 2)
+        XCTAssertEqual(manager.installedHelperVersion(), 3)
         XCTAssertFalse(manager.helperNeedsUpdate)
 
         runner.onRun = { _ in
@@ -194,7 +195,7 @@ final class LoopbackHelperTests: XCTestCase {
         XCTAssertTrue(manager.helperNeedsUpdate)
         var status = await manager.currentStatus()
         XCTAssertFalse(status.helperInstalled, "an outdated helper reads as not installed so the UI offers the install")
-        XCTAssertTrue(status.summary.contains("update the network helper (v1 → v2)"), status.summary)
+        XCTAssertTrue(status.summary.contains("update the network helper (v1 → v3)"), status.summary)
 
         // A v2 plist whose script went missing is treated as needing a reinstall too.
         try world.installHelper()

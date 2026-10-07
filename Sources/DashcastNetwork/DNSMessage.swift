@@ -255,10 +255,11 @@ struct DNSMessage: Sendable {
         response(to: query, rcode: DNSRCode.servFail, authoritative: false)
     }
 
-    /// FORMERR for bytes that didn't parse (keeps the ID when there is one). nil if not even a header.
+    /// FORMERR for bytes that didn't parse (keeps the ID when there is one). nil if not even a header,
+    /// or if it claims to be a response: answering those lets two servers bounce errors forever.
     static func formatError(for raw: Data) -> Data? {
         let bytes = [UInt8](raw)
-        guard bytes.count >= 2 else { return nil }
+        guard bytes.count >= 2, bytes.count < 3 || bytes[2] & 0x80 == 0 else { return nil }
         let rd = bytes.count >= 3 ? UInt16(bytes[2] & 0x01) << 8 : 0
         var w = Writer()
         w.bytes += bytes[0..<2]

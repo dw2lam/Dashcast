@@ -345,6 +345,49 @@ final class HotspotProbeTests: XCTestCase {
         let watcher = SystemNetworkWatcher(natPreferencesPath: nil) {}
         XCTAssertTrue(watcher.watchingDynamicStore, "keys and patterns are accepted")
         XCTAssertFalse(watcher.watchingNATPreferences)
+        XCTAssertTrue(SystemNetworkWatcher.patterns.contains("^State:/Network/Interface/lo0/IPv4$"),
+                      "the service address appearing on lo0 is a change (listeners can bind now)")
+    }
+
+    /// The directory watch holds a descriptor: if the directory is deleted (or renamed) and comes
+    /// back, the watcher must follow the new one instead of watching the dead vnode forever.
+    func testWatcherFollowsAReplacedDirectory() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dashcast-natdir-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let nat = dir.appendingPathComponent("com.apple.nat.plist")
+        try Data(Self.natOffXML.utf8).write(to: nat)
+
+        let changes = LockedCounter()
+        let watcher = SystemNetworkWatcher(natPreferencesPath: nat.path, dynamicStore: false,
+                                           coalesce: .milliseconds(50)) { changes.increment() }
+        try FileManager.default.removeItem(at: dir)
+        Thread.sleep(forTimeInterval: 0.3)
+        let afterDelete = changes.value
+        XCTAssertEqual(afterDelete, 1, "the file going away with its directory is a change")
+
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Self.natOnToWiFi.write(to: nat)
+        let deadline = Date().addingTimeInterval(5)
+        while changes.value == afterDelete, Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+        XCTAssertEqual(changes.value, afterDelete + 1, "seen through the re-opened directory")
+        XCTAssertTrue(watcher.watchingNATPreferences)
+
+        // And later edits in the new directory still count.
+        try Data(Self.natOffXML.utf8).write(to: nat, options: .atomic)
+        let edited = Date().addingTimeInterval(3)
+        while changes.value == afterDelete + 1, Date() < edited { Thread.sleep(forTimeInterval: 0.05) }
+        XCTAssertEqual(changes.value, afterDelete + 2)
+        withExtendedLifetime(watcher) {}
+    }
+
+    /// Watchers created and dropped in quick succession (SCDynamicStore callbacks may be in flight
+    /// as one goes away): the store owns its relay, so nothing dangles.
+    func testWatchersComeAndGo() {
+        for _ in 0..<50 {
+            let watcher = SystemNetworkWatcher(natPreferencesPath: nil, coalesce: .milliseconds(1)) {}
+            XCTAssertTrue(watcher.watchingDynamicStore)
+        }
     }
 
     // MARK: Live (read-only)

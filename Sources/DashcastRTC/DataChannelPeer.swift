@@ -70,6 +70,8 @@ public final class DataChannelPeer: RTCPeerProtocol {
         var offerSent = false
         /// Registry token (handed to libdatachannel as the user pointer's bit pattern).
         var token: Int?
+        /// Counted in `LibDataChannel.retain()`; released after the teardown.
+        var holdsLibrary = false
     }
 
     private struct Handles: Sendable {
@@ -77,6 +79,7 @@ public final class DataChannelPeer: RTCPeerProtocol {
         var video: Int32
         var audio: Int32
         var token: Int?
+        var holdsLibrary: Bool
     }
 
     private let state = OSAllocatedUnfairLock(initialState: State())
@@ -188,9 +191,9 @@ public final class DataChannelPeer: RTCPeerProtocol {
             s.closed = true
             defer {
                 s.pc = -1; s.video = -1; s.audio = -1; s.token = nil
-                s.videoOpen = false; s.audioOpen = false
+                s.videoOpen = false; s.audioOpen = false; s.holdsLibrary = false
             }
-            return Handles(pc: s.pc, video: s.video, audio: s.audio, token: s.token)
+            return Handles(pc: s.pc, video: s.video, audio: s.audio, token: s.token, holdsLibrary: s.holdsLibrary)
         }
     }
 
@@ -201,6 +204,7 @@ public final class DataChannelPeer: RTCPeerProtocol {
         if handles.video >= 0 { rtcDeleteTrack(handles.video) }
         if handles.audio >= 0 { rtcDeleteTrack(handles.audio) }
         if handles.pc >= 0 { rtcDeletePeerConnection(handles.pc) }
+        if handles.holdsLibrary { LibDataChannel.release() }
     }
 
     // MARK: - Diagnostics
@@ -227,12 +231,17 @@ public final class DataChannelPeer: RTCPeerProtocol {
     private func build() throws {
         let pointer = PeerRegistry.shared.register(self)
         let token = Int(bitPattern: pointer)
+        LibDataChannel.retain()   // starts libdatachannel's threads with the first peer
         let closedMeanwhile = state.withLock { s -> Bool in
-            if !s.closed { s.token = token }
+            if !s.closed {
+                s.token = token
+                s.holdsLibrary = true   // from here on, close()'s teardown releases it
+            }
             return s.closed
         }
         if closedMeanwhile {
             PeerRegistry.shared.unregister(pointer)
+            LibDataChannel.release()
             throw RTCPeerError.closed
         }
 
