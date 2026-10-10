@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import OSLog
 
 /// What shows beside System Settings while turning on Internet Sharing: the coach panel, and the
 /// highlight ring + callout pointing at a control. nil in tests (nothing is shown).
@@ -15,9 +16,9 @@ protocol SharingPresenting: AnyObject {
 }
 
 /// Step 2 of the Car Hotspot setup, both ways: "Do It for Me" runs `SharingAutomation`; "Guide Me"
-/// reads System Settings every 0.3 s while the user is at it (every 1.5 s while they're reading) and
-/// points at the next control. A failed automation hands over to Guide Me at the step it stopped
-/// on, with one line saying why.
+/// reads System Settings just after each click or keystroke (and every 1.5 s otherwise) and points
+/// at the next control. A failed automation hands over to Guide Me at the step it stopped on, with
+/// one line saying why, and brings System Settings to the front so the user's first click counts.
 @MainActor
 @Observable
 final class SharingAssistant {
@@ -71,13 +72,23 @@ final class SharingAssistant {
 
     /// How long after "Do It for Me" finishes before saying the hotspot hasn't started.
     static let startGrace: TimeInterval = 15
-    /// Between looks at System Settings while guiding and the user is at it: clicking, typing or
-    /// scrolling, or the screen just changed. Each look walks System Settings' Accessibility tree.
-    static let guideInterval: TimeInterval = 0.3
+    /// How often the guidance loop wakes to decide whether to look. Deciding is free; a look walks
+    /// System Settings' Accessibility tree, which System Settings answers on its main thread, the
+    /// one handling the user's clicks. So looks wait for a pause in the user's input.
+    static let guideTick: TimeInterval = 0.15
+    /// A click or keystroke is looked at once the user has paused this long (and the screen has
+    /// settled), not while they're still clicking.
+    static let inputSettle: TimeInterval = 0.3
+    /// One more look this soon after a look that changed the guidance (a sheet still sliding in).
+    static let followUp: TimeInterval = 0.5
+    /// Between looks while Touch ID is up (it goes away without a click).
+    static let touchIDInterval: TimeInterval = 0.75
+    /// Between looks when input can't be seen.
+    static let blindInterval: TimeInterval = 0.6
     /// Between looks while nothing's happening (the user is reading the callout).
     static let guideIdleInterval: TimeInterval = 1.5
-    /// How long after input or a change the looks stay at `guideInterval`.
-    static let guideBusySpan: TimeInterval = 2
+
+    private static let log = Logger(subsystem: "online.davidlam.dashcast", category: "hotspot-setup")
 
     @ObservationIgnored let environment: SharingEnvironment
     @ObservationIgnored weak var presenter: SharingPresenting?
@@ -176,6 +187,8 @@ final class SharingAssistant {
             self.step = step
         case .waitingForYou(let waiting):
             waitingForYou = waiting
+            // Touch ID or the password: their prompt needs System Settings in front to be clicked or typed in.
+            if waiting { environment.activateSettings() }
             presenter?.point(at: waiting ? plan.flatMap { SharingGuide.next(SharingScreen(app: environment.settingsApp()), plan: $0, memory: memory) } : nil)
         case .optionsSaved:
             memory.optionsSubmitted = true
@@ -194,11 +207,27 @@ final class SharingAssistant {
     }
 
     private func handOff(_ error: SharingAutomationError) {
+        Self.log.notice("Do It for Me stopped at \(String(describing: error.step), privacy: .public): \(error.reason, privacy: .public)")
         task = nil
         handoff = error.reason
         waitingForYou = false
         step = error.step
+        giveSettingsTheFloor()
         startGuiding()
+    }
+
+    /// It's the user's turn: System Settings to the front (presses through Accessibility never
+    /// bring it there, so their first click would only activate it and the highlight stays hidden
+    /// while it's behind), and any menu "Do It for Me" left open closed, or it eats that click.
+    private func giveSettingsTheFloor() {
+        environment.activateSettings()
+        Task { [weak self] in
+            try? await self?.environment.sleep(0.3)
+            // Only with a menu really open: Escape on the sheet itself would cancel it.
+            guard let self, self.environment.isSettingsMenuOpen || SharingScreen(app: self.environment.settingsApp()).menu != nil
+            else { return }
+            self.environment.pressEscape()
+        }
     }
 
     // MARK: - Guidance
@@ -208,12 +237,12 @@ final class SharingAssistant {
         lookAgain()
         task = Task { [weak self] in
             var sinceLook: TimeInterval = 0
-            var sinceChange: TimeInterval = 0
+            var sinceChange: TimeInterval = .infinity
             while !Task.isCancelled {
-                try? await self?.environment.sleep(Self.guideInterval)
+                try? await self?.environment.sleep(Self.guideTick)
                 guard let self, !Task.isCancelled, self.phase == .guiding else { return }
-                sinceLook += Self.guideInterval
-                sinceChange += Self.guideInterval
+                sinceLook += Self.guideTick
+                sinceChange += Self.guideTick
                 guard Self.looksNow(sinceLook: sinceLook, sinceChange: sinceChange,
                                     sinceInput: self.environment.secondsSinceInput,
                                     waitingForTouchID: self.guidance?.step == .authorize) else { continue }
@@ -223,13 +252,18 @@ final class SharingAssistant {
         }
     }
 
-    /// Whether the guidance loop walks System Settings this time round: always while the user is
-    /// clicking or typing, the screen is changing, or Touch ID is up (it goes away without a click);
-    /// otherwise only every `guideIdleInterval`.
+    /// Whether the guidance loop walks System Settings this time round: once the user pauses after
+    /// a click or keystroke it hasn't seen yet, once more just after a look changed the guidance,
+    /// every `touchIDInterval` while Touch ID is up, and otherwise every `guideIdleInterval`.
+    /// Never while the user is mid-click: that's when System Settings needs its main thread.
     static func looksNow(sinceLook: TimeInterval, sinceChange: TimeInterval, sinceInput: TimeInterval?,
                          waitingForTouchID: Bool) -> Bool {
-        let busy = min(sinceChange, sinceInput ?? 0) < guideBusySpan
-        return busy || waitingForTouchID || sinceLook >= guideIdleInterval - 0.001
+        let slack = 0.001
+        if sinceLook >= guideIdleInterval - slack { return true }
+        guard let sinceInput else { return sinceLook >= blindInterval - slack }
+        if sinceInput < sinceLook, sinceInput >= inputSettle - slack { return true }
+        if sinceChange < 1, sinceLook >= followUp - slack, sinceInput >= inputSettle - slack { return true }
+        return waitingForTouchID && sinceLook >= touchIDInterval - slack
     }
 
     /// Reads System Settings and points at what's next. Returns whether the guidance changed.

@@ -3,8 +3,9 @@ import Observation
 import SwiftUI
 
 /// Guide Me's highlight: a ring around the control to use and a callout beside it saying what to
-/// do. Both are click-through and never take focus, so System Settings works as normal underneath;
-/// they follow its window as it moves and hide while it isn't the frontmost app.
+/// do. Neither takes focus, so System Settings stays the active app; the ring is click-through
+/// (it sits on the control) and so is the callout, except while it has a Copy button. They follow
+/// System Settings' window as it moves and hide while it isn't the frontmost app.
 @MainActor
 final class SharingGuideOverlay {
     private var ring: OverlayPanel?
@@ -31,6 +32,8 @@ final class SharingGuideOverlay {
         callout.detail = guidance.detail
         // The bubble spells the password out; the name is in the instruction already.
         callout.copy = guidance.step == .password ? guidance.copy : nil
+        // Beside the control, never on it: clickable only for its Copy button.
+        bubble?.ignoresMouseEvents = callout.copy == nil
     }
 
     /// Repositions on System Settings' window (AppKit coordinates); nil or `visible` false hides.
@@ -48,6 +51,7 @@ final class SharingGuideOverlay {
 
         let bubble = self.bubble ?? OverlayPanel(content: SharingCalloutView(state: callout))
         self.bubble = bubble
+        bubble.ignoresMouseEvents = callout.copy == nil
         let size = bubble.fittingSize
         let placement = CalloutPlacement.frame(size: size, target: ringFrame, visible: screen)
         let sideChanged = callout.side != placement.side
@@ -176,9 +180,12 @@ struct SharingCalloutView: View {
             Text(state.instruction)
                 .font(.title3.weight(.semibold))
             if let copy = state.copy {
-                Text(copy)
-                    .font(.system(.title2, design: .monospaced).weight(.semibold))
-                    .textSelection(.disabled)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(copy)
+                        .font(.system(.title2, design: .monospaced).weight(.semibold))
+                        .textSelection(.disabled)
+                    CalloutCopyButton(text: copy)
+                }
             }
             if let detail = state.detail {
                 Text(detail)
@@ -278,12 +285,46 @@ private struct CalloutArrow: Shape {
 
 // MARK: - Window
 
-/// Borderless, transparent, click-through and never key: the overlay can't get in the way.
+/// Copy on the accent-coloured callout: white, so it reads as a button there.
+private struct CalloutCopyButton: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            Pasteboard.copy(text)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.4))
+                copied = false
+            }
+        } label: {
+            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color.dashAccent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(.white, in: Capsule())
+                .contentShape(Capsule())
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .help("Copy the password")
+    }
+}
+
+/// Clicks land on the first try in a panel that never becomes key.
+private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Borderless, transparent and never key: the overlay can't take focus from System Settings, and
+/// it's click-through unless told otherwise (`ignoresMouseEvents`).
 private final class OverlayPanel: NSPanel {
     private let hosting: NSView
 
     init<Content: View>(content: Content) {
-        hosting = NSHostingView(rootView: content)
+        hosting = FirstClickHostingView(rootView: content)
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         level = SharingGuideOverlay.level
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]

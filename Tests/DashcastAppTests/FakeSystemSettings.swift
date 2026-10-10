@@ -218,8 +218,24 @@ final class FakeSystemSettings: SharingEnvironment {
     var isTrusted: Bool { trusted }
     var isScreenLocked: Bool { locked }
     var isSettingsFrontmost: Bool { frontmost }
-    func activateSettings() {}
-    func pressEscape() { menu = nil }
+    /// How often Dashcast brought System Settings to the front.
+    var activations = 0
+    /// Activating brings it to the front (false: something else keeps the focus).
+    var activationWorks = true
+    /// A menu is on screen that the tree doesn't show (opened by a press, not yet in the tree).
+    var hiddenMenuOpen = false
+    var escapes = 0
+    func activateSettings() {
+        activations += 1
+        if activationWorks { frontmost = true }
+    }
+    func pressEscape() {
+        guard frontmost else { return }
+        escapes += 1
+        menu = nil
+        hiddenMenuOpen = false
+    }
+    var isSettingsMenuOpen: Bool { menu != nil || hiddenMenuOpen }
     func sleep(_ seconds: TimeInterval) async throws {
         onSleep?()
         try await Task.sleep(nanoseconds: 500_000)

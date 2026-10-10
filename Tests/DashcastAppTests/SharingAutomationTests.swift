@@ -372,6 +372,7 @@ final class SharingAutomationTests: XCTestCase {
         let fake = FakeSystemSettings()
         fake.acceptsAXValue = false
         fake.frontmost = false
+        fake.activationWorks = false
         let error = await expectHandoff(fake, at: .networkName)
         XCTAssertTrue(fake.typed.isEmpty, "never types into another app")
         XCTAssertTrue(error?.reason.contains("isn’t in front") == true)
@@ -416,9 +417,32 @@ final class SharingAutomationTests: XCTestCase {
         XCTAssertEqual(assistant.handoff, "The menu didn’t open.")
         XCTAssertEqual(assistant.guidance?.step, .shareFrom)
         XCTAssertEqual(assistant.step?.checklistItem, .shareFrom)
+        XCTAssertGreaterThan(fake.activations, 0, "the user's turn: System Settings comes to the front")
         assistant.stop()
         XCTAssertEqual(assistant.phase, .idle)
         XCTAssertNil(assistant.guidance)
+    }
+
+    /// A menu "Do It for Me" opened but couldn't see is closed at the hand-over, or it eats the
+    /// user's first click; with no menu open, no Escape (it would cancel the sheet).
+    func testHandOverClosesAMenuLeftOpen() async throws {
+        for leftOpen in [true, false] {
+            let fake = FakeSystemSettings()
+            fake.menuOpens = false
+            fake.frontmost = false
+            fake.onSleep = { [unowned fake] in if leftOpen, fake.activations == 0 { fake.hiddenMenuOpen = true } }
+            let assistant = SharingAssistant(environment: fake, defaults: UserDefaults(suiteName: "SharingAutomationTests")!)
+            assistant.timing = Self.fast
+            assistant.automate(plan())
+            for _ in 0..<400 where assistant.phase == .automating || (leftOpen && fake.escapes == 0) {
+                try await Task.sleep(nanoseconds: 2_000_000)
+            }
+            XCTAssertEqual(assistant.phase, .guiding)
+            XCTAssertTrue(fake.frontmost)
+            XCTAssertEqual(fake.escapes, leftOpen ? 1 : 0, "leftOpen \(leftOpen)")
+            XCTAssertFalse(fake.isSettingsMenuOpen)
+            assistant.stop()
+        }
     }
 
     func testAssistantFinishes() async throws {
@@ -480,18 +504,24 @@ final class SharingAutomationTests: XCTestCase {
         }
     }
 
-    /// Guide Me walks System Settings' tree every 0.3 s only while something's happening.
-    func testGuidanceLooksLessWhileTheUserReads() {
+    /// Guide Me reads System Settings once the user pauses after a click, never while they're
+    /// mid-click (System Settings answers every read on the thread handling those clicks).
+    func testGuidanceLooksAfterInputNotDuringIt() {
         func looks(_ sinceLook: TimeInterval, change: TimeInterval = 10, input: TimeInterval?, touchID: Bool = false) -> Bool {
             SharingAssistant.looksNow(sinceLook: sinceLook, sinceChange: change, sinceInput: input, waitingForTouchID: touchID)
         }
-        XCTAssertTrue(looks(0.3, input: 0.5), "a click just now")
-        XCTAssertTrue(looks(0.3, change: 1, input: 30), "the screen just changed")
-        XCTAssertTrue(looks(0.3, input: 30, touchID: true), "Touch ID goes away without a click")
-        XCTAssertTrue(looks(0.3, input: nil), "can't tell: look every time")
-        XCTAssertFalse(looks(0.3, input: 30), "reading the callout")
-        XCTAssertFalse(looks(1.2, input: 30))
-        XCTAssertTrue(looks(0.3 * 5, input: 30), "still looks now and then")
+        XCTAssertFalse(looks(0.6, input: 0.15), "mid-click: wait for the pause")
+        XCTAssertTrue(looks(0.6, input: 0.3), "the click has settled, and it's new since the last look")
+        XCTAssertFalse(looks(0.3, input: 0.45), "already looked since that click")
+        XCTAssertTrue(looks(0.5, change: 0.5, input: 30), "one follow-up just after the guidance changed")
+        XCTAssertFalse(looks(0.15, change: 0.15, input: 30), "…not straight away")
+        XCTAssertFalse(looks(0.5, change: 0.5, input: 0.1), "…nor mid-click")
+        XCTAssertFalse(looks(0.6, input: 30), "reading the callout")
+        XCTAssertTrue(looks(0.75, input: 30, touchID: true), "Touch ID goes away without a click")
+        XCTAssertFalse(looks(0.3, input: 30, touchID: true))
+        XCTAssertTrue(looks(0.6, input: nil), "input can't be seen: every 0.6 s")
+        XCTAssertFalse(looks(0.3, input: nil))
+        XCTAssertTrue(looks(1.5, input: 0.1), "still looks now and then, even through a long burst")
     }
 
     func testThePaneRowIsOnlyLookedForWithNoSheetUp() throws {

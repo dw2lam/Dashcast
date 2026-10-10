@@ -18,6 +18,9 @@ protocol SharingEnvironment: AnyObject {
     func type(_ text: String) -> Bool
     /// Escape, to System Settings (closes an open menu).
     func pressEscape()
+    /// A menu of System Settings' is on screen, from the window list (no Accessibility read: a menu
+    /// opened by a press can be open while its tree doesn't show it yet).
+    var isSettingsMenuOpen: Bool { get }
     func sleep(_ seconds: TimeInterval) async throws
     /// Seconds since the user last clicked, typed or scrolled anywhere. nil = can't tell (Guide Me
     /// then looks at System Settings every time).
@@ -54,6 +57,10 @@ final class SharingAutomation {
         var authorize: TimeInterval = 120
         /// System Settings launching and opening the pane.
         var launch: TimeInterval = 12
+        /// Between looks while macOS asks for Touch ID or the password. Every look is answered on
+        /// System Settings' main thread, the one handling the user's clicks and typing: keep out of
+        /// its way while it's their turn.
+        var authorizePoll: TimeInterval = 0.6
     }
 
     enum Event: Equatable {
@@ -275,6 +282,8 @@ final class SharingAutomation {
                 }
                 guard Date() < authorizeDeadline else { throw fail(step, "macOS is still waiting for Touch ID or your password.") }
                 deadline = Date().addingTimeInterval(limit)
+                try await environment.sleep(timing.authorizePoll)
+                continue
             } else {
                 if waitingForYou {
                     waitingForYou = false
@@ -393,6 +402,16 @@ final class LiveSharingEnvironment: SharingEnvironment {
     func pressEscape() {
         guard let pid = settings?.processIdentifier, isSettingsFrontmost else { return }
         key(53, to: pid)
+    }
+
+    var isSettingsMenuOpen: Bool {
+        guard let pid = settings?.processIdentifier,
+              let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        return windows.contains {
+            ($0[kCGWindowOwnerPID as String] as? pid_t) == pid && ($0[kCGWindowLayer as String] as? Int) == menuLevel
+        }
     }
 
     private func key(_ code: CGKeyCode, flags: CGEventFlags = [], to pid: pid_t) {

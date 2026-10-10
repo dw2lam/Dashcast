@@ -82,8 +82,16 @@ final class AXNode: UINode {
         kAXRoleAttribute, kAXSubroleAttribute, kAXIdentifierAttribute, kAXTitleAttribute, kAXDescriptionAttribute,
         kAXValueAttribute, kAXEnabledAttribute, kAXFocusedAttribute, kAXPositionAttribute, kAXSizeAttribute,
     ]
+    #if DEBUG
+    /// Elements whose attributes were read (the live read-cost test).
+    nonisolated(unsafe) static var readCount = 0
+    #endif
+
     private lazy var attributes: [String: AnyObject] = {
         guard !snapshot.timedOut else { return [:] }
+        #if DEBUG
+        Self.readCount += 1
+        #endif
         var values: CFArray?
         let error = AXUIElementCopyMultipleAttributeValues(element, Self.batch as CFArray, [], &values)
         if error == .cannotComplete { snapshot.timedOut = true }
